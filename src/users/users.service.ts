@@ -3,7 +3,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
 import { LoginUserDto } from './dto/login-user.dto';
 
 import * as bcrypt from 'bcrypt';
@@ -22,13 +21,28 @@ export class UsersService {
     private readonly configService: ConfigService,
   ) {}
 
-  async create(createUserDto: CreateUserDto): Promise<User> {
+  async createUser(createUserDto: CreateUserDto): Promise<User> {
+    // Verificar si el usuario ya existe
+    const existingUser = await this.userRepository.findOne({
+      where: { email: createUserDto.email },
+    });
+    if (existingUser) {
+      throw new BadRequestException('El correo ya está registrado');
+    }
+    // Verificar si el telefono ya existe
+    const existingTelefono = await this.userRepository.findOne({
+      where: { email: createUserDto.telefono },
+    });
+    if (existingTelefono) {
+      throw new BadRequestException('El telefono ya está registrado');
+    }
+
     const token = jwt.sign(
       { email: createUserDto.email },
       this.configService.getOrThrow<string>('JWT_SECRET'),
       { expiresIn: '1d' },
     );
-    const hashedPassword = await bcrypt.hash(createUserDto.passw, 10); 
+    const hashedPassword = await bcrypt.hash(createUserDto.passw, 10);
 
     const newUser = this.userRepository.create({
       ...createUserDto,
@@ -37,6 +51,7 @@ export class UsersService {
       token_verificacion: token,
       fecha_creacion: new Date(),
       activo: 1,
+      rol: 1,
     });
 
     await this.userRepository.save(newUser);
@@ -51,6 +66,7 @@ export class UsersService {
     email: string,
     token: string,
   ): Promise<void> {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const transporter: Transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
@@ -100,7 +116,7 @@ export class UsersService {
       user.email_verified = 1;
       await this.userRepository.save(user);
 
-      return { message: '✅ Correo verificado correctamente.' };
+      return { message: 'Correo verificado correctamente.' };
     } catch {
       throw new BadRequestException('Token inválido o expirado');
     }
@@ -108,50 +124,33 @@ export class UsersService {
   async loginUser(loginUserDto: LoginUserDto): Promise<{ token: string }> {
     const { email, passw } = loginUserDto;
 
-    // 1. Buscar al usuario por email
-    const user = await this.userRepository.findOne({
-      where: { email },
-    });
+    const user = await this.userRepository.findOne({ where: { email } });
+
+    console.log(user);
 
     if (!user) {
       throw new BadRequestException('El correo no esta registrado');
     }
 
-    // 2. Verificar contraseña
+    // Verificar contraseña
     const isPasswordValid = await bcrypt.compare(passw, user.passw);
     if (!isPasswordValid) {
       throw new BadRequestException('Contraseña incorrecta');
     }
 
-    // 3. Verificar que el correo esté activado
+    // Verificar que el correo esté activado
     if (user.email_verified === 0) {
       throw new BadRequestException('Correo no verificado');
     }
-
-    // 4. Generar JWT
     const token = jwt.sign(
       { id: user.id_usuario, email: user.email, rol: user.rol },
       this.configService.getOrThrow<string>('JWT_SECRET'),
       { expiresIn: '1d' },
     );
-
     return { token };
   }
-
-  async findAll(): Promise<User[]> {
-    return this.userRepository.find();
-  }
-
-  async findOne(id: number): Promise<User | null> {
-    return this.userRepository.findOneBy({ id_usuario: id });
-  }
-
-  async update(id: number, updateUserDto: UpdateUserDto): Promise<User | null> {
-    await this.userRepository.update(id, updateUserDto);
-    return this.findOne(id);
-  }
-
-  async remove(id: number): Promise<void> {
-    await this.userRepository.delete(id);
+  //funcion para buscar usuario por email
+  async findUser(email: string): Promise<User | null> {
+    return this.userRepository.findOne({ where: { email } });
   }
 }

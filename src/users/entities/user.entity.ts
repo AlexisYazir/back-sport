@@ -29,7 +29,7 @@ export class User {
   @Column({ type: 'int', nullable: true })
   activo: number;
 
-  @Column({ length: 20, nullable: true })
+  @Column({ length: 255, nullable: true })
   token_verificacion: string;
 
   @Column({ type: 'datetime', nullable: true })
