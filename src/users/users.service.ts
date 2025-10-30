@@ -137,6 +137,7 @@ export class UsersService {
     }
 
     // Verificar contraseña
+    console.log(`pasw ${passw} y user.passw ${user.passw}`);
     const isPasswordValid = await bcrypt.compare(passw, user.passw);
     if (!isPasswordValid) {
       throw new BadRequestException('Contraseña incorrecta bcrypt');
