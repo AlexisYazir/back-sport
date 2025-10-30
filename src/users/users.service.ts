@@ -75,7 +75,7 @@ export class UsersService {
       },
     });
 
-    const url = `http://localhost:3000/users/verify-email?token=${token}`;
+    const url = `https://https://back-sport.vercel.app//users/verify-email?token=${token}`;
 
     const mailOptions = {
       from: `"Sport Center" <${this.configService.get<string>('EMAIL_USER')}>`,
