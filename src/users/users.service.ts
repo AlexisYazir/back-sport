@@ -121,15 +121,15 @@ export class UsersService {
       throw new BadRequestException('Token inválido o expirado');
     }
   }
-  async loginUser(loginUserDto: LoginUserDto): Promise<{ token: string }> {
+  async loginUser(
+    loginUserDto: LoginUserDto,
+  ): Promise<{ status: string; message: string; token?: string }> {
     const { email, passw } = loginUserDto;
 
     const user = await this.userRepository.findOne({ where: { email } });
 
-    console.log(user);
-
     if (!user) {
-      throw new BadRequestException('El correo no esta registrado');
+      throw new BadRequestException('El correo no está registrado');
     }
 
     // Verificar contraseña
@@ -142,13 +142,22 @@ export class UsersService {
     if (user.email_verified === 0) {
       throw new BadRequestException('Correo no verificado');
     }
+
+    // Generar token JWT
     const token = jwt.sign(
       { id: user.id_usuario, email: user.email, rol: user.rol },
       this.configService.getOrThrow<string>('JWT_SECRET'),
       { expiresIn: '1d' },
     );
-    return { token };
+
+    // Retornar estado de éxito
+    return {
+      status: 'success',
+      message: 'Login exitoso',
+      token,
+    };
   }
+
   //funcion para buscar usuario por email
   async findUser(email: string): Promise<User | null> {
     return this.userRepository.findOne({ where: { email } });
