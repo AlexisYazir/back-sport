@@ -22,6 +22,9 @@ import { UsersModule } from './users/users.module';
         database: configService.get('DB_NAME'),
         autoLoadEntities: true,
         synchronize: true, // solo para desarrollo
+        ssl: {
+          rejectUnauthorized: false, // 🔐 permite SSL sin requerir certificado local
+        },
       }),
     }),
     //modulos importados
