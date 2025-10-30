@@ -23,7 +23,7 @@ import { UsersModule } from './users/users.module';
         autoLoadEntities: true,
         synchronize: true, // solo para desarrollo
         ssl: {
-          rejectUnauthorized: false, // 🔐 permite SSL sin requerir certificado local
+          rejectUnauthorized: false, // permite SSL sin requerir certificado local
         },
       }),
     }),
