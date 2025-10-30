@@ -114,6 +114,7 @@ export class UsersService {
       if (!user) throw new BadRequestException('Usuario no encontrado');
 
       user.email_verified = 1;
+      user.token_verificacion = '';
       await this.userRepository.save(user);
 
       return { message: 'Correo verificado correctamente.' };
