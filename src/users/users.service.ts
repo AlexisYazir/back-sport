@@ -123,20 +123,24 @@ export class UsersService {
   }
   async loginUser(loginUserDto: LoginUserDto): Promise<{ token: string }> {
     const { email, passw } = loginUserDto;
+    if (!email) {
+      throw new BadRequestException('El correo es obligatorio');
+    }
+    if (!passw) {
+      throw new BadRequestException('La contraseña es obligatoria');
+    }
 
     const user = await this.userRepository.findOne({ where: { email } });
-
     //console.log(user);
-
     if (!user) {
       throw new BadRequestException('El correo no esta registrado');
     }
 
     // Verificar contraseña
-    // const isPasswordValid = await bcrypt.compare(passw, user.passw);
-    // if (!isPasswordValid) {
-    //   throw new BadRequestException('Contraseña incorrecta bcrypt');
-    // }
+    const isPasswordValid = await bcrypt.compare(passw, user.passw);
+    if (!isPasswordValid) {
+      throw new BadRequestException('Contraseña incorrecta bcrypt');
+    }
 
     // Verificar que el correo esté activado
     if (user.email_verified === 0) {
