@@ -75,7 +75,7 @@ export class UsersService {
       },
     });
 
-    const url = `https://https://back-sport.vercel.app/users/verify-email?token=${token}`;
+    const url = `https://back-sport.vercel.app/users/verify-email?token=${token}`;
 
     const mailOptions = {
       from: `"Sport Center" <${this.configService.get<string>('EMAIL_USER')}>`,
@@ -121,43 +121,35 @@ export class UsersService {
       throw new BadRequestException('Token inválido o expirado');
     }
   }
-  async loginUser(
-    loginUserDto: LoginUserDto,
-  ): Promise<{ status: string; message: string; token?: string }> {
+  async loginUser(loginUserDto: LoginUserDto): Promise<{ token: string }> {
     const { email, passw } = loginUserDto;
 
     const user = await this.userRepository.findOne({ where: { email } });
 
+    //console.log(user);
+
     if (!user) {
-      throw new BadRequestException('El correo no está registrado');
+      throw new BadRequestException('El correo no esta registrado');
     }
 
     // Verificar contraseña
     const isPasswordValid = await bcrypt.compare(passw, user.passw);
     if (!isPasswordValid) {
-      throw new BadRequestException('Contraseña incorrecta');
+      throw new BadRequestException('Contraseña incorrecta bcrypt');
     }
 
     // Verificar que el correo esté activado
     if (user.email_verified === 0) {
       throw new BadRequestException('Correo no verificado');
     }
-
-    // Generar token JWT
     const token = jwt.sign(
       { id: user.id_usuario, email: user.email, rol: user.rol },
       this.configService.getOrThrow<string>('JWT_SECRET'),
       { expiresIn: '1d' },
     );
-
-    // Retornar estado de éxito
-    return {
-      status: 'success',
-      message: 'Login exitoso',
-      token,
-    };
+    console.log('login exitoso');
+    return { token };
   }
-
   //funcion para buscar usuario por email
   async findUser(email: string): Promise<User | null> {
     return this.userRepository.findOne({ where: { email } });

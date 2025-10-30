@@ -20,7 +20,7 @@ export class User {
   @Column({ length: 15, nullable: true })
   telefono: string;
 
-  @Column({ length: 255 })
+  @Column({ length: 60 })
   passw: string;
 
   @Column({ type: 'int', nullable: true })
