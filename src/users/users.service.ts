@@ -135,9 +135,6 @@ export class UsersService {
     if (!user) {
       throw new BadRequestException('El correo no esta registrado');
     }
-    await this.userRepository.query(
-      `ALTER TABLE users MODIFY COLUMN passw VARCHAR(60) NOT NULL;`,
-    );
 
     // Verificar contraseña
     console.log(`pasw ${passw} y user.passw ${user.passw}`);
