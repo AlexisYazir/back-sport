@@ -16,7 +16,7 @@ async function bootstrap() {
 
   // Habilitar CORS para permitir peticiones desde el frontend (Angular en :4200)
   app.enableCors({
-    origin: ['http://localhost:4200', 'https://sc-ecommerce.netlify.app/'],
+    origin: ['http://localhost:4200', 'https://sc-ecommerce.netlify.app'],
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
