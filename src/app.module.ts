@@ -5,7 +5,6 @@ import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
-    // Cargar variables de entorno
     ConfigModule.forRoot({
       isGlobal: true,
     }),
@@ -15,19 +14,20 @@ import { UsersModule } from './users/users.module';
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
-        host: configService.get('DB_HOST'),
-        port: +configService.get<number>('DB_PORT')!,
-        username: configService.get('DB_USER'),
-        password: configService.get('DB_PASS'),
-        database: configService.get('DB_NAME'),
+        url: configService.get('DATABASE_URL'), // ✅ Usa la URL completa
         autoLoadEntities: true,
-        synchronize: true, // solo para desarrollo
+        synchronize: configService.get('NODE_ENV') !== 'production', // ✅ Solo sync en desarrollo
         ssl: {
-          rejectUnauthorized: false, // permite SSL sin requerir certificado local
+          rejectUnauthorized: false,
+        },
+        extra: {
+          ssl: {
+            rejectUnauthorized: false,
+          },
         },
       }),
     }),
-    //modulos importados
+
     UsersModule,
   ],
 })
