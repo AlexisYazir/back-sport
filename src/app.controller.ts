@@ -1,15 +1,23 @@
 import { Controller, Get } from '@nestjs/common';
-import { AppService } from './app.service';
 
 @Controller()
 export class AppController {
-  constructor(private readonly appService: AppService) {}
-
-  @Get('/')
+  @Get()
   getWelcome() {
     return {
-      message: '¡Bienvenido al Backend! ',
+      message: '¡Backend corriendo! ',
       status: 'online',
+      timestamp: new Date().toISOString(),
+      documentation: '¡API REST funcionando correctamente!',
+    };
+  }
+
+  @Get('health')
+  getHealth() {
+    return {
+      status: 'ok',
+      database: 'connected',
+      uptime: process.uptime(),
       timestamp: new Date().toISOString(),
     };
   }
