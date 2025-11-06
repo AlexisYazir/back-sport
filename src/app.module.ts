@@ -14,16 +14,15 @@ import { UsersModule } from './users/users.module';
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
-        url: configService.get('DATABASE_URL'), // ✅ Usa la URL completa
+        url: configService.get('DATABASE_URL'), // Usará el NUEVO connection string
         autoLoadEntities: true,
-        synchronize: configService.get('NODE_ENV') !== 'production', // ✅ Solo sync en desarrollo
-        ssl: {
-          rejectUnauthorized: false,
-        },
+        synchronize: false,
+        ssl: true,
         extra: {
           ssl: {
             rejectUnauthorized: false,
           },
+          connectionLimit: 5,
         },
       }),
     }),
