@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { UsersModule } from './users/users.module';
-import { AppController } from './app.controller'; // ← Agrega esta línea
+import { AppController } from './app.controller';
 
 @Module({
   imports: [
@@ -15,7 +15,7 @@ import { AppController } from './app.controller'; // ← Agrega esta línea
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
-        url: configService.get('DATABASE_URL'), // Usará el NUEVO connection string
+        url: configService.get('DATABASE_URL'),
         autoLoadEntities: true,
         synchronize: false,
         ssl: true,
@@ -30,6 +30,6 @@ import { AppController } from './app.controller'; // ← Agrega esta línea
 
     UsersModule,
   ],
-  controllers: [AppController], // ← Agrega esta línea
+  controllers: [AppController],
 })
 export class AppModule {}
