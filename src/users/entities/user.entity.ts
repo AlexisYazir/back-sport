@@ -20,7 +20,7 @@ export class User {
   @Column({ length: 15, nullable: true })
   telefono: string;
 
-  @Column({ length: 60 })
+  @Column({ length: 255 })
   passw: string;
 
   @Column({ type: 'int', nullable: true })
@@ -32,19 +32,19 @@ export class User {
   @Column({ length: 255, nullable: true })
   token_verificacion: string;
 
-  @Column({ type: 'datetime', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   token_expiracion: Date;
 
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   fecha_creacion: Date;
 
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   fecha_actualizacion: Date;
 
-  @Column({ type: 'tinyint', nullable: true })
+  @Column({ type: 'int', nullable: true })
   email_verified: number;
 
-  @Column({ type: 'tinyint', nullable: true })
+  @Column({ type: 'int', nullable: true })
   telefono_verified: number;
 
   @Column({ length: 255, nullable: true })

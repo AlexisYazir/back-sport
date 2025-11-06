@@ -32,12 +32,6 @@ export class UpdateUserDto {
   rol?: number;
 
   @IsOptional()
-  activo?: number;
-
-  @IsOptional()
-  token_verificacion?: string;
-
-  @IsOptional()
   token_expiracion?: Date;
 
   @IsOptional()
@@ -45,15 +39,6 @@ export class UpdateUserDto {
 
   @IsOptional()
   fecha_actualizacion?: Date;
-
-  @IsOptional()
-  email_verified?: number;
-
-  @IsOptional()
-  telefono_verified?: number;
-
-  @IsOptional()
-  google_id?: string;
 
   @IsOptional()
   ubicacion?: number;
