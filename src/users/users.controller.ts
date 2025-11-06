@@ -1,8 +1,19 @@
-import { Controller, Get, Post, Body, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Query,
+  UseGuards,
+  Patch,
+  Req,
+} from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { LoginUserDto } from './dto/login-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 
 @Controller('users')
 export class UsersController {
@@ -12,6 +23,7 @@ export class UsersController {
   async createUser(@Body() createUserDto: CreateUserDto) {
     return this.usersService.createUser(createUserDto);
   }
+
   @Post('login-user')
   async loginUser(@Body() loginUserDto: LoginUserDto) {
     return this.usersService.loginUser(loginUserDto);
@@ -22,8 +34,10 @@ export class UsersController {
     return this.usersService.verifyEmail(token);
   }
 
-  @Get('serch-user')
-  async serchUser(@Query('email') email: string) {
-    return this.usersService.findUser(email);
+  @UseGuards(AuthGuard('jwt'))
+  @Patch('update-profile')
+  async updateProfile(@Req() req: any, @Body() updateUserDto: UpdateUserDto) {
+    const id_usuario = req.user.id_usuario;
+    return this.usersService.updateUserProfile(id_usuario, updateUserDto);
   }
 }

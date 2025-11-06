@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { LoginUserDto } from './dto/login-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 
 import * as bcrypt from 'bcrypt';
 import * as nodemailer from 'nodemailer';
@@ -21,6 +22,7 @@ export class UsersService {
     private readonly configService: ConfigService,
   ) {}
 
+  /* funcion para crear el usuario */
   async createUser(createUserDto: CreateUserDto): Promise<User> {
     // Verificar si el usuario ya existe
     const existingUser = await this.userRepository.findOne({
@@ -62,11 +64,11 @@ export class UsersService {
     return newUser;
   }
 
+  /* funcion para enviar correo de activacion de cuenta */
   private async sendVerificationEmail(
     email: string,
     token: string,
   ): Promise<void> {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const transporter: Transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
@@ -100,6 +102,7 @@ export class UsersService {
     }
   }
 
+  /* funcion para activar cuenta de usuario */
   async verifyEmail(token: string): Promise<{ message: string }> {
     try {
       const decoded = jwt.verify(
@@ -122,6 +125,8 @@ export class UsersService {
       throw new BadRequestException('Token inválido o expirado');
     }
   }
+
+  /* funcion para inicio de sesion de usuario */
   async loginUser(loginUserDto: LoginUserDto): Promise<{ token: string }> {
     const { email, passw } = loginUserDto;
     if (!email) {
@@ -138,13 +143,13 @@ export class UsersService {
     }
 
     // Verificar contraseña
-    console.log(`pasw ${passw} y user.passw ${user.passw}`);
+    // console.log(`pasw ${passw} y user.passw ${user.passw}`);
     const isPasswordValid = await bcrypt.compare(passw, user.passw);
     if (!isPasswordValid) {
-      throw new BadRequestException('Contraseña incorrecta bcrypt');
+      throw new BadRequestException('Contraseña incorrecta');
     }
 
-    // Verificar que el correo esté activado
+    // Verificar que el correo este activado
     if (user.email_verified === 0) {
       throw new BadRequestException('Correo no verificado');
     }
@@ -156,8 +161,36 @@ export class UsersService {
     console.log('login exitoso');
     return { token };
   }
-  //funcion para buscar usuario por email
-  async findUser(email: string): Promise<User | null> {
-    return this.userRepository.findOne({ where: { email } });
+
+  /* funcion para actualizar datos de perfil de usuario */
+  async updateUserProfile(id_usuario: number, dto: UpdateUserDto) {
+    const user = await this.userRepository.findOne({ where: { id_usuario } });
+    if (!user) throw new BadRequestException('El usuario no existe');
+
+    // Validar email si quiere cambiarlo
+    if (dto.email && dto.email !== user.email) {
+      const exists = await this.userRepository.findOne({
+        where: { email: dto.email },
+      });
+      if (exists) throw new BadRequestException('El correo ingresado ya está en uso');
+      user.email = dto.email;
+    }
+
+    if (dto.telefono && dto.telefono !== user.telefono) {
+      const exists = await this.userRepository.findOne({
+        where: { telefono: dto.telefono },
+      });
+      if (exists) throw new BadRequestException('El teléfono ingresado ya está en uso');
+      user.telefono = dto.telefono;
+    }
+
+    if (dto.nombre) user.nombre = dto.nombre;
+    if (dto.aPaterno) user.aPaterno = dto.aPaterno;
+    if (dto.aMaterno) user.aMaterno = dto.aMaterno;
+
+    user.fecha_actualizacion = new Date();
+    await this.userRepository.save(user);
+
+    return { message: 'Perfil actualizado correctamente' };
   }
 }

@@ -4,10 +4,10 @@ export class CreateUserDto {
   @IsNotEmpty()
   nombre: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   aPaterno: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   aMaterno: string;
 
   @IsEmail()
@@ -26,7 +26,6 @@ export class CreateUserDto {
   @IsOptional()
   activo?: number;
 
-  // Campos opcionales que pueden ser null o vacíos
   @IsOptional()
   token_verificacion?: string;
 
