@@ -9,6 +9,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import * as bcrypt from 'bcrypt';
 import * as nodemailer from 'nodemailer';
 import { Transporter } from 'nodemailer';
+import * as validator from 'deep-email-validator';
 
 import { ConfigService } from '@nestjs/config';
 import * as jwt from 'jsonwebtoken';
@@ -24,12 +25,45 @@ export class UsersService {
 
   /* funcion para crear el usuario */
   async createUser(createUserDto: CreateUserDto): Promise<User> {
+    // VALIDACIONES PARA EL CORREO
+    if (!createUserDto.email) {
+      throw new BadRequestException('El correo es obligatorio');
+    }
+
+    // Regex para validar correo
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
+    // Validar formato
+    if (!emailRegex.test(createUserDto.email)) {
+      throw new BadRequestException('El correo no tiene un formato válido');
+    }
+
+    //  VALIDACIÓN SMTP REAL usando deep-email-validator
+    const { valid, reason } = await validator.validate({
+      email: createUserDto.email,
+      validateSMTP: true,
+    });
+
+    if (!valid) {
+      console.log(
+        `El correo no es válido o no puede recibir mensajes (${reason})`,
+      );
+      throw new BadRequestException(
+        `El correo no es válido o no puede recibir mensajes`,
+      );
+    }
+
     // Verificar si el usuario ya existe
     const existingUser = await this.userRepository.findOne({
       where: { email: createUserDto.email },
     });
     if (existingUser) {
       throw new BadRequestException('El correo ya está registrado');
+    }
+
+    //VALIDACIONES PARA EL TELEFONO
+    if (!createUserDto.telefono) {
+      throw new BadRequestException('El telefono es obligatorio');
     }
     // Verificar si el telefono ya existe
     const existingTelefono = await this.userRepository.findOne({
@@ -51,6 +85,7 @@ export class UsersService {
         'La contraseña debe tener mínimo 8 caracteres, una mayúscula, una minúscula, un número y un carácter especial (!#$%&¿?@).',
       );
     }
+
     const hashedPassword = await bcrypt.hash(createUserDto.passw, 10);
 
     const token = jwt.sign(
@@ -58,6 +93,7 @@ export class UsersService {
       this.configService.getOrThrow<string>('JWT_SECRET'),
       { expiresIn: '1d' },
     );
+
     const newUser = this.userRepository.create({
       ...createUserDto,
       passw: hashedPassword,
@@ -72,7 +108,15 @@ export class UsersService {
     await this.userRepository.save(newUser);
 
     // Enviar correo
-    await this.sendVerificationEmail(newUser.email, token);
+    try {
+      await this.sendVerificationEmail(newUser.email, token);
+    } catch (error) {
+      console.log(error);
+      await this.userRepository.delete({ email: newUser.email });
+      throw new BadRequestException(
+        'El correo no existe o no pudo recibir mensajes',
+      );
+    }
 
     return newUser;
   }
