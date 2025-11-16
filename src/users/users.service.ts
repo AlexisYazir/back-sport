@@ -165,7 +165,7 @@ export class UsersService {
 
     try {
       await transporter.sendMail(mailOptions);
-      console.log(`Correo de verificación enviado a: ${email}`);
+      console.log(`Correo enviado: ${email}`);
     } catch (error) {
       if (error instanceof Error) {
         console.error('Error al enviar correo:', error.message);
@@ -202,15 +202,15 @@ export class UsersService {
   /* funcion para inicio de sesion de usuario */
   async loginUser(loginUserDto: LoginUserDto): Promise<{ token: string }> {
     const { email, passw } = loginUserDto;
+    //VALIDACIONES PARA EL CORREO
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(email)) {
+      throw new BadRequestException('El correo no tiene un formato válido');
+    }
     if (!email) {
       throw new BadRequestException('El correo es obligatorio');
     }
-    if (!passw) {
-      throw new BadRequestException('La contraseña es obligatoria');
-    }
-
     const user = await this.userRepository.findOne({ where: { email } });
-    //console.log(user);
     if (!user) {
       throw new BadRequestException('El correo no esta registrado');
     }
@@ -220,9 +220,19 @@ export class UsersService {
         'Correo no verificado. Revise su bandeja de entrada.',
       );
     }
+    //VALIDACIONES PARA LA CONTRASEÑA
+    if (!passw) {
+      throw new BadRequestException('La contraseña es obligatoria');
+    }
+    const passwordRegex =
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!#$%&¿?@])[A-Za-z\d!#$%&¿?@]{8,}$/;
 
+    if (!passwordRegex.test(passw)) {
+      throw new BadRequestException(
+        'La contraseña debe tener mínimo 8 caracteres, una mayúscula, una minúscula, un número y un carácter especial (!#$%&¿?@).',
+      );
+    }
     // Verificar contraseña
-    // console.log(`pasw ${passw} y user.passw ${user.passw}`);
     const isPasswordValid = await bcrypt.compare(passw, user.passw);
     if (!isPasswordValid) {
       throw new BadRequestException('Contraseña incorrecta');
