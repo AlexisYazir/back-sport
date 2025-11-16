@@ -224,12 +224,10 @@ export class UsersService {
     if (!passw) {
       throw new BadRequestException('La contraseña es obligatoria');
     }
-    const passwordRegex =
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!#$%&¿?@])[A-Za-z\d!#$%&¿?@]{8,}$/;
 
-    if (!passwordRegex.test(passw)) {
+    if (passw.length < 8) {
       throw new BadRequestException(
-        'La contraseña debe tener mínimo 8 caracteres, una mayúscula, una minúscula, un número y un carácter especial (!#$%&¿?@).',
+        'La contraseña debe tener mínimo 8 caracteres.',
       );
     }
     // Verificar contraseña
