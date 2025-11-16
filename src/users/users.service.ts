@@ -168,6 +168,12 @@ export class UsersService {
     if (!user) {
       throw new BadRequestException('El correo no esta registrado');
     }
+    // Verificar que el correo este activado
+    if (user.email_verified === 0) {
+      throw new BadRequestException(
+        'Correo no verificado. Revise su bandeja de entrada.',
+      );
+    }
 
     // Verificar contraseña
     // console.log(`pasw ${passw} y user.passw ${user.passw}`);
@@ -176,12 +182,6 @@ export class UsersService {
       throw new BadRequestException('Contraseña incorrecta');
     }
 
-    // Verificar que el correo este activado
-    if (user.email_verified === 0) {
-      throw new BadRequestException(
-        'Correo no verificado. Revise su bandeja de entrada.',
-      );
-    }
     const token = jwt.sign(
       { id: user.id_usuario, email: user.email, rol: user.rol },
       this.configService.getOrThrow<string>('JWT_SECRET'),

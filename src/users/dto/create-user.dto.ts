@@ -10,7 +10,7 @@ export class CreateUserDto {
   @IsOptional()
   aMaterno: string;
 
-  @IsEmail()
+  @IsEmail({}, { message: 'El correo no tiene un formato válido' })
   @IsOptional()
   email?: string;
 
