@@ -49,7 +49,7 @@ export class UsersService {
         `El correo no es válido o no puede recibir mensajes (${reason})`,
       );
       throw new BadRequestException(
-        `El correo no es válido o no puede recibir mensajes`,
+        `El correo no es válido o no puede recibir mensajes. Porfavor ingresa tu correo real.`,
       );
     }
 
@@ -109,12 +109,12 @@ export class UsersService {
 
     // Enviar correo
     try {
-      await this.sendVerificationEmail(newUser.email, token);
+      await this.sendVerificationEmail(newUser.email, newUser.nombre, token);
     } catch (error) {
       console.log(error);
       await this.userRepository.delete({ email: newUser.email });
       throw new BadRequestException(
-        'El correo no existe o no pudo recibir mensajes',
+        'El correo no es válido o no puede recibir mensajes. Porfavor ingresa tu correo real.',
       );
     }
 
@@ -124,6 +124,7 @@ export class UsersService {
   /* funcion para enviar correo de activacion de cuenta */
   private async sendVerificationEmail(
     email: string,
+    nombre: string,
     token: string,
   ): Promise<void> {
     const transporter: Transporter = nodemailer.createTransport({
@@ -141,23 +142,30 @@ export class UsersService {
       to: email,
       subject: 'Verifica tu cuenta',
       html: `
-    <h3>¡Bienvenido a Sport Center!</h3>
-    <p>Por favor verifica tu cuenta haciendo clic en el siguiente botón:</p>
+    <h2>¡Bienvenido a Sport Center, ${nombre}!</h2>
+    <p>Gracias por registrarte con nosotros. 
+    Para activar tu cuenta y comenzar a disfrutar de nuestros servicios, 
+    por favor verifica tu correo electrónico haciendo clic en el siguiente botón:</p>
 
+    <p style="text-align: center; margin: 30px 0;">
     <a href="${url}" target="_blank"
       style="
-        display: inline-block;
-        padding: 12px 20px;
-        color: white;
-        background-color: #007BFF;
-        text-decoration: none;
-        border-radius: 6px;
-        font-size: 16px;
-        font-weight: bold;
+        background-color: #1a73e8;
+           color: white;
+           padding: 12px 25px;
+           text-decoration: none;
+           border-radius: 6px;
+           font-size: 16px;
+           font-weight: bold;
       "
     >
       Verificar cuenta
     </a>
+    </p>
+    <p>Si no fuiste tú quien creó esta cuenta, puedes ignorar este mensaje sin problema.</p>
+
+<p>Saludos cordiales,<br>
+<b>Sport Center</b></p>
   `,
     };
 
