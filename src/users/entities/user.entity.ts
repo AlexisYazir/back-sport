@@ -35,6 +35,9 @@ export class User {
   @Column({ type: 'timestamp', nullable: true })
   token_expiracion: Date;
 
+  @Column({ type: 'int', nullable: true })
+  intentos_token: number;
+
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   fecha_creacion: Date;
 

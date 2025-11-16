@@ -33,6 +33,9 @@ export class CreateUserDto {
   token_expiracion?: Date;
 
   @IsOptional()
+  intentos_token?: number;
+
+  @IsOptional()
   fecha_creacion?: Date;
 
   @IsOptional()

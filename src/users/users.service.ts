@@ -33,23 +33,36 @@ export class UsersService {
     }
     // Verificar si el telefono ya existe
     const existingTelefono = await this.userRepository.findOne({
-      where: { email: createUserDto.telefono },
+      where: { telefono: createUserDto.telefono },
     });
     if (existingTelefono) {
       throw new BadRequestException('El telefono ya está registrado');
     }
+
+    if (createUserDto.telefono?.length != 10) {
+      throw new BadRequestException('El telefono debe tener 10 digitos');
+    }
+
+    const passwordRegex =
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!#$%&¿?@])[A-Za-z\d!#$%&¿?@]{8,}$/;
+
+    if (!passwordRegex.test(createUserDto.passw)) {
+      throw new BadRequestException(
+        'La contraseña debe tener mínimo 8 caracteres, una mayúscula, una minúscula, un número y un carácter especial (!#$%&¿?@).',
+      );
+    }
+    const hashedPassword = await bcrypt.hash(createUserDto.passw, 10);
 
     const token = jwt.sign(
       { email: createUserDto.email },
       this.configService.getOrThrow<string>('JWT_SECRET'),
       { expiresIn: '1d' },
     );
-    const hashedPassword = await bcrypt.hash(createUserDto.passw, 10);
-
     const newUser = this.userRepository.create({
       ...createUserDto,
       passw: hashedPassword,
       email_verified: 0,
+      intentos_token: 0,
       token_verificacion: token,
       fecha_creacion: new Date(),
       activo: 1,
@@ -84,10 +97,24 @@ export class UsersService {
       to: email,
       subject: 'Verifica tu cuenta',
       html: `
-        <h3>¡Bienvenido a Sport Center!</h3>
-        <p>Por favor verifica tu cuenta haciendo clic en el siguiente enlace:</p>
-        <a href="${url}" target="_blank">${url}</a>
-      `,
+    <h3>¡Bienvenido a Sport Center!</h3>
+    <p>Por favor verifica tu cuenta haciendo clic en el siguiente botón:</p>
+
+    <a href="${url}" target="_blank"
+      style="
+        display: inline-block;
+        padding: 12px 20px;
+        color: white;
+        background-color: #007BFF;
+        text-decoration: none;
+        border-radius: 6px;
+        font-size: 16px;
+        font-weight: bold;
+      "
+    >
+      Verificar cuenta
+    </a>
+  `,
     };
 
     try {
@@ -151,14 +178,16 @@ export class UsersService {
 
     // Verificar que el correo este activado
     if (user.email_verified === 0) {
-      throw new BadRequestException('Correo no verificado');
+      throw new BadRequestException(
+        'Correo no verificado. Revise su bandeja de entrada.',
+      );
     }
     const token = jwt.sign(
       { id: user.id_usuario, email: user.email, rol: user.rol },
       this.configService.getOrThrow<string>('JWT_SECRET'),
       { expiresIn: '1d' },
     );
-    console.log('login exitoso');
+    //console.log('login exitoso');
     return { token };
   }
 
@@ -172,7 +201,8 @@ export class UsersService {
       const exists = await this.userRepository.findOne({
         where: { email: dto.email },
       });
-      if (exists) throw new BadRequestException('El correo ingresado ya está en uso');
+      if (exists)
+        throw new BadRequestException('El correo ingresado ya está en uso');
       user.email = dto.email;
     }
 
@@ -180,7 +210,8 @@ export class UsersService {
       const exists = await this.userRepository.findOne({
         where: { telefono: dto.telefono },
       });
-      if (exists) throw new BadRequestException('El teléfono ingresado ya está en uso');
+      if (exists)
+        throw new BadRequestException('El teléfono ingresado ya está en uso');
       user.telefono = dto.telefono;
     }
 
