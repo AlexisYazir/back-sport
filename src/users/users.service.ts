@@ -9,7 +9,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import * as bcrypt from 'bcrypt';
 import * as nodemailer from 'nodemailer';
 import { Transporter } from 'nodemailer';
-import * as validator from 'deep-email-validator';
+import axios from 'axios';
 
 import { ConfigService } from '@nestjs/config';
 import * as jwt from 'jsonwebtoken';
@@ -30,26 +30,19 @@ export class UsersService {
       throw new BadRequestException('El correo es obligatorio');
     }
 
-    // Regex para validar correo
+    // Regex para validar formato de correo
     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
-    // Validar formato
     if (!emailRegex.test(createUserDto.email)) {
       throw new BadRequestException('El correo no tiene un formato válido');
     }
 
-    //  VALIDACIÓN SMTP REAL usando deep-email-validator
-    const { valid, reason } = await validator.validate({
-      email: createUserDto.email,
-      validateSMTP: true,
-    });
+    // VALIDACIÓN REAL CON ZERUH
+    const isRealEmail = await this.validateEmailWithZeruh(createUserDto.email);
 
-    if (!valid) {
-      console.log(
-        `El correo no es válido o no puede recibir mensajes (${reason})`,
-      );
+    if (!isRealEmail) {
       throw new BadRequestException(
-        `El correo no es válido o no puede recibir mensajes. Porfavor ingresa tu correo real.`,
+        'El correo no es válido o no puede recibir mensajes. Por favor ingresa un correo real.',
       );
     }
 
@@ -61,11 +54,11 @@ export class UsersService {
       throw new BadRequestException('El correo ya está registrado');
     }
 
-    //VALIDACIONES PARA EL TELEFONO
+    // VALIDACIONES TELEFONO
     if (!createUserDto.telefono) {
       throw new BadRequestException('El telefono es obligatorio');
     }
-    // Verificar si el telefono ya existe
+
     const existingTelefono = await this.userRepository.findOne({
       where: { telefono: createUserDto.telefono },
     });
@@ -77,6 +70,7 @@ export class UsersService {
       throw new BadRequestException('El telefono debe tener 10 digitos');
     }
 
+    // VALIDACIÓN DE CONTRASEÑA
     const passwordRegex =
       /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!#$%&¿?@])[A-Za-z\d!#$%&¿?@]{8,}$/;
 
@@ -275,5 +269,29 @@ export class UsersService {
     await this.userRepository.save(user);
 
     return { message: 'Perfil actualizado correctamente' };
+  }
+
+  private async validateEmailWithZeruh(email: string): Promise<boolean> {
+    const apiKey = this.configService.get<string>('ZERUH_API_KEY');
+
+    try {
+      const response = await axios.get(`https://api.zeruh.com/v1/verify`, {
+        params: {
+          api_key: apiKey,
+          email_address: email,
+        },
+      });
+
+      const zeruhStatus = response.data?.result?.status;
+
+      // Solo "deliverable" significa correo real existente y con buzón activo.
+      return zeruhStatus === 'deliverable';
+    } catch (error) {
+      console.error(
+        'Error al validar correo con Zeruh:',
+        error?.message || error,
+      );
+      return false;
+    }
   }
 }
