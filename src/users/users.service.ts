@@ -175,7 +175,7 @@ export class UsersService {
       },
     });
 
-    const url = `https://back-sport.vercel.app/users/verify-email?token=${token}`;
+    const url = `https://back-sport.vercel.app/users/verify-email/${token}`;
 
     const mailOptions = {
       from: `"Sport Center" <${this.configService.get<string>('EMAIL_USER')}>`,

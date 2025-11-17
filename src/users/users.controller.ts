@@ -3,7 +3,7 @@ import {
   Get,
   Post,
   Body,
-  Query,
+  Param,
   UseGuards,
   Patch,
   Req,
@@ -29,8 +29,8 @@ export class UsersController {
     return this.usersService.loginUser(loginUserDto);
   }
 
-  @Get('verify-email')
-  async verifyEmail(@Query('token') token: string) {
+  @Get('verify-email/:token')
+  async verifyEmail(@Param('token') token: string) {
     return this.usersService.verifyEmail(token);
   }
 
