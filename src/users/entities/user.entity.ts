@@ -33,7 +33,7 @@ export class User {
   token_verificacion: string;
 
   @Column({ type: 'timestamp', nullable: true })
-  token_expiracion: Date;
+  token_expiracion: Date | null;
 
   @Column({ type: 'int', nullable: true })
   intentos_token: number;

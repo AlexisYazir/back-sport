@@ -127,6 +127,8 @@ export class UsersService {
       { expiresIn: '1d' },
     );
 
+    const expirationDate = new Date(Date.now() + 24 * 60 * 60 * 1000); // ⬅ TOKENS VALEN 1 DÍA
+
     const newUser = this.userRepository.create({
       ...createUserDto,
       email,
@@ -134,8 +136,9 @@ export class UsersService {
       email_verified: 0,
       intentos_token: 0,
       token_verificacion: token,
+      token_expiracion: expirationDate, // ⬅ FECHA DE EXPIRACIÓN EN BD
       fecha_creacion: new Date(),
-      activo: 1,
+      activo: 0,
       rol: 1,
     });
 
@@ -224,23 +227,41 @@ export class UsersService {
   /* funcion para activar cuenta de usuario */
   async verifyEmail(token: string): Promise<{ message: string }> {
     try {
+      // 1. Validar token JWT
       const decoded = jwt.verify(
         token,
         this.configService.getOrThrow<string>('JWT_SECRET'),
       ) as { email: string };
 
+      // 2. Buscar usuario por email Y token
       const user = await this.userRepository.findOne({
-        where: { email: decoded.email },
+        where: {
+          email: decoded.email,
+          token_verificacion: token, // ⬅ VALIDACIÓN REAL
+        },
       });
 
-      if (!user) throw new BadRequestException('Usuario no encontrado');
+      if (!user) {
+        throw new BadRequestException(
+          'Token inválido o no pertenece al usuario',
+        );
+      }
 
+      // 3. Validar expiración del token (fecha en BD)
+      const now = new Date();
+      if (!user.token_expiracion || user.token_expiracion < now) {
+        throw new BadRequestException('El token ha expirado, solicita otro');
+      }
+
+      // 4. Marcar correo como verificado
       user.email_verified = 1;
-      user.token_verificacion = '';
+      user.token_verificacion = ''; // token invalidado
+      user.token_expiracion = null; // limpiar expiración
       await this.userRepository.save(user);
 
       return { message: 'Correo verificado correctamente.' };
-    } catch {
+    } catch (error) {
+      console.log(error);
       throw new BadRequestException('Token inválido o expirado');
     }
   }
