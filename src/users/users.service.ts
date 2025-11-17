@@ -10,6 +10,7 @@ import * as bcrypt from 'bcrypt';
 import * as nodemailer from 'nodemailer';
 import { Transporter } from 'nodemailer';
 import axios from 'axios';
+import * as dns from 'dns/promises';
 
 import { ConfigService } from '@nestjs/config';
 import * as jwt from 'jsonwebtoken';
@@ -30,25 +31,61 @@ export class UsersService {
       throw new BadRequestException('El correo es obligatorio');
     }
 
+    const email = createUserDto.email.trim().toLowerCase();
+
     // Regex para validar formato de correo
     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-
-    if (!emailRegex.test(createUserDto.email)) {
+    if (!emailRegex.test(email)) {
       throw new BadRequestException('El correo no tiene un formato válido');
     }
 
-    // VALIDACIÓN REAL CON ZERUH
-    const isRealEmail = await this.validateEmailWithZeruh(createUserDto.email);
+    // Extraer dominio
+    const domain = email.split('@')[1];
 
-    if (!isRealEmail) {
-      throw new BadRequestException(
-        'El correo no es válido o no puede recibir mensajes. Por favor ingresa un correo real.',
-      );
+    // Lista de dominios institucionales
+    const institutionalDomains = [
+      'edu.mx',
+      'unam.mx',
+      'ipn.mx',
+      'tecnm.mx',
+      'ut.edu.mx',
+      'uthh.edu.mx',
+      'uabc.mx',
+      'uaq.mx',
+    ];
+
+    const isInstitutional = institutionalDomains.some((d) =>
+      domain.endsWith(d),
+    );
+
+    let isRealEmail = false;
+
+    if (isInstitutional) {
+      // VALIDACIÓN MX CON Node DNS
+      try {
+        const mxRecords = await dns.resolveMx(domain);
+        if (mxRecords.length > 0) {
+          isRealEmail = true;
+        }
+      } catch {
+        throw new BadRequestException(
+          'El dominio institucional no tiene registros MX válidos.',
+        );
+      }
+    } else {
+      // VALIDACIÓN REAL CON ZERUH SOLO PARA CORREOS NO INSTITUCIONALES
+      isRealEmail = await this.validateEmailWithZeruh(email);
+
+      if (!isRealEmail) {
+        throw new BadRequestException(
+          'El correo no es válido o no puede recibir mensajes. Por favor ingresa un correo real.',
+        );
+      }
     }
 
     // Verificar si el usuario ya existe
     const existingUser = await this.userRepository.findOne({
-      where: { email: createUserDto.email },
+      where: { email },
     });
     if (existingUser) {
       throw new BadRequestException('El correo ya está registrado');
@@ -66,8 +103,10 @@ export class UsersService {
       throw new BadRequestException('El telefono ya está registrado');
     }
 
-    if (createUserDto.telefono?.length != 10) {
-      throw new BadRequestException('El telefono debe tener 10 digitos');
+    if (!/^\d{10}$/.test(createUserDto.telefono)) {
+      throw new BadRequestException(
+        'El telefono debe tener exactamente 10 dígitos numéricos.',
+      );
     }
 
     // VALIDACIÓN DE CONTRASEÑA
@@ -83,13 +122,14 @@ export class UsersService {
     const hashedPassword = await bcrypt.hash(createUserDto.passw, 10);
 
     const token = jwt.sign(
-      { email: createUserDto.email },
+      { email: email },
       this.configService.getOrThrow<string>('JWT_SECRET'),
       { expiresIn: '1d' },
     );
 
     const newUser = this.userRepository.create({
       ...createUserDto,
+      email,
       passw: hashedPassword,
       email_verified: 0,
       intentos_token: 0,
@@ -103,12 +143,18 @@ export class UsersService {
 
     // Enviar correo
     try {
-      await this.sendVerificationEmail(newUser.email, newUser.nombre, token);
+      if (isInstitutional) {
+        // Mensaje especial para institucionales
+        await this.sendVerificationEmail(newUser.email, newUser.nombre, token);
+        console.log('Correo institucional detectado, enviando verificación…');
+      } else {
+        // Normal
+        await this.sendVerificationEmail(newUser.email, newUser.nombre, token);
+      }
     } catch (error) {
-      console.log(error);
       await this.userRepository.delete({ email: newUser.email });
       throw new BadRequestException(
-        'El correo no es válido o no puede recibir mensajes. Porfavor ingresa tu correo real.',
+        'No se pudo enviar el correo. Verifica que tu correo exista.',
       );
     }
 
