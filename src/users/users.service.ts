@@ -16,19 +16,19 @@ import * as crypto from 'crypto';
 import { ConfigService } from '@nestjs/config';
 import * as jwt from 'jsonwebtoken';
 
-const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID;
-const FIREBASE_PRIVATE_KEY_ID = process.env.FIREBASE_PRIVATE_KEY_ID;
-const FIREBASE_PRIVATE_KEY = process.env.FIREBASE_PRIVATE_KEY;
-const FIREBASE_CLIENT_EMAIL = process.env.FIREBASE_CLIENT_EMAIL;
+// const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID;
+// const FIREBASE_PRIVATE_KEY_ID = process.env.FIREBASE_PRIVATE_KEY_ID;
+// const FIREBASE_PRIVATE_KEY = process.env.FIREBASE_PRIVATE_KEY;
+// const FIREBASE_CLIENT_EMAIL = process.env.FIREBASE_CLIENT_EMAIL;
 
-const serviceAccount = {
-  type: 'service_account',
-  project_id: process.env.FIREBASE_PROJECT_ID,
-  private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
-  private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-  client_email: process.env.FIREBASE_CLIENT_EMAIL,
-  token_uri: 'https://oauth2.googleapis.com/token',
-};
+// const serviceAccount = {
+//   type: 'service_account',
+//   project_id: process.env.FIREBASE_PROJECT_ID,
+//   private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
+//   private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+//   client_email: process.env.FIREBASE_CLIENT_EMAIL,
+//   token_uri: 'https://oauth2.googleapis.com/token',
+// };
 
 @Injectable()
 export class UsersService {
