@@ -55,10 +55,12 @@ export class UsersController {
   }
 
   @Post('reset-psw')
-  async resetPsw(
-    @Body('email') email: string,
-    @Body('psw') psw: string,
-  ) {
+  async resetPsw(@Body('email') email: string, @Body('psw') psw: string) {
     return this.usersService.resetPsw(email, psw);
   }
+
+  // @Post('login-google')
+  // async loginGoogle(@Body('idToken') idToken: string) {
+  //   return this.usersService.loginWithGoogle(idToken);
+  // }
 }
