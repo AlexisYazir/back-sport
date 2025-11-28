@@ -16,20 +16,6 @@ import * as crypto from 'crypto';
 import { ConfigService } from '@nestjs/config';
 import * as jwt from 'jsonwebtoken';
 
-// const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID;
-// const FIREBASE_PRIVATE_KEY_ID = process.env.FIREBASE_PRIVATE_KEY_ID;
-// const FIREBASE_PRIVATE_KEY = process.env.FIREBASE_PRIVATE_KEY;
-// const FIREBASE_CLIENT_EMAIL = process.env.FIREBASE_CLIENT_EMAIL;
-
-// const serviceAccount = {
-//   type: 'service_account',
-//   project_id: process.env.FIREBASE_PROJECT_ID,
-//   private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
-//   private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-//   client_email: process.env.FIREBASE_CLIENT_EMAIL,
-//   token_uri: 'https://oauth2.googleapis.com/token',
-// };
-
 @Injectable()
 export class UsersService {
   constructor(
@@ -382,7 +368,8 @@ export class UsersService {
     }
   }
 
-  async verifyUserEmail(email: string): Promise<{ message: string }> {
+  async verifyUserEmail(email: string) {
+    // eslint-disable-next-line no-useless-catch
     try {
       const emaill = email.trim().toLowerCase();
 
@@ -403,7 +390,7 @@ export class UsersService {
         throw new BadRequestException('El correo no está registrado');
       }
 
-      const token = crypto.randomBytes(8).toString('hex'); // 64 chars
+      const token = crypto.randomBytes(8).toString('hex');
 
       const expiration = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
@@ -421,8 +408,7 @@ export class UsersService {
 
       return { message: 'Correo de recuperación enviado correctamente.' };
     } catch (error) {
-      console.log(error);
-      return { message: 'El correo no esta registrado.' };
+      throw error;
     }
   }
 
@@ -461,6 +447,7 @@ export class UsersService {
     email: string,
     token: string,
   ): Promise<{ message: string }> {
+    // eslint-disable-next-line no-useless-catch
     try {
       const emaill = email?.trim().toLowerCase();
       const tokenn = token?.trim();
@@ -546,12 +533,12 @@ export class UsersService {
 
       return { message: 'Token verificado correctamente.' };
     } catch (error) {
-      console.log('verifyUserToken error:', error);
       throw error;
     }
   }
 
   async resetPsw(email: string, psw: string): Promise<{ message: string }> {
+    // eslint-disable-next-line no-useless-catch
     try {
       const emaill = email?.trim().toLowerCase();
       const newPassword = psw?.trim();
@@ -591,7 +578,7 @@ export class UsersService {
 
       return { message: 'Contraseña actualizada correctamente.' };
     } catch (error) {
-      console.log('Reset psw error:', error);
+      //console.log('Reset psw error:', error);
       throw error;
     }
   }
