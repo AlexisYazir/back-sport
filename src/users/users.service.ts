@@ -566,7 +566,7 @@ export class UsersService {
       const isSamePassword = await bcrypt.compare(newPassword, user.passw);
       if (isSamePassword) {
         throw new BadRequestException(
-          'La nueva contraseña no puede ser igual a la actual.',
+          'La nueva contraseña no puede ser igual a la actual..',
         );
       }
 
