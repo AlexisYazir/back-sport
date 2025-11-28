@@ -550,7 +550,7 @@ export class UsersService {
       // Validación de correo
       const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
       if (!emailRegex.test(emaill)) {
-        throw new BadRequestException('Formato de correo inválido');
+        throw new BadRequestException('Formato de correo inválido.');
       }
 
       // Buscar usuario
@@ -566,7 +566,7 @@ export class UsersService {
       const isSamePassword = await bcrypt.compare(newPassword, user.passw);
       if (isSamePassword) {
         throw new BadRequestException(
-          'La nueva contraseña no puede ser igual a la actual..',
+          'La nueva contraseña no puede ser igual a la actual.',
         );
       }
 
