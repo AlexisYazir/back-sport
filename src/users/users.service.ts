@@ -11,6 +11,7 @@ import * as nodemailer from 'nodemailer';
 import { Transporter } from 'nodemailer';
 import axios from 'axios';
 import * as dns from 'dns/promises';
+import * as crypto from 'crypto';
 
 import { ConfigService } from '@nestjs/config';
 import * as jwt from 'jsonwebtoken';
@@ -134,7 +135,7 @@ export class UsersService {
       email,
       passw: hashedPassword,
       email_verified: 0,
-      intentos_token: 0,
+      intentos_token: 3,
       token_verificacion: token,
       token_expiracion: expirationDate, // ⬅ FECHA DE EXPIRACIÓN EN BD
       fecha_creacion: new Date(),
@@ -227,17 +228,17 @@ export class UsersService {
   /* funcion para activar cuenta de usuario */
   async verifyEmail(token: string): Promise<{ message: string }> {
     try {
-      // 1. Validar token JWT
+      //  Validar token JWT
       const decoded = jwt.verify(
         token,
         this.configService.getOrThrow<string>('JWT_SECRET'),
       ) as { email: string };
 
-      // 2. Buscar usuario por email Y token
+      // Buscar usuario por email Y token
       const user = await this.userRepository.findOne({
         where: {
           email: decoded.email,
-          token_verificacion: token, // ⬅ VALIDACIÓN REAL
+          token_verificacion: token,
         },
       });
 
@@ -247,16 +248,16 @@ export class UsersService {
         );
       }
 
-      // 3. Validar expiración del token (fecha en BD)
+      // Validar expiración del token (fecha en BD)
       const now = new Date();
       if (!user.token_expiracion || user.token_expiracion < now) {
         throw new BadRequestException('El token ha expirado, solicita otro');
       }
 
-      // 4. Marcar correo como verificado
       user.email_verified = 1;
-      user.token_verificacion = ''; // token invalidado
-      user.token_expiracion = null; // limpiar expiración
+      user.activo = 1;
+      user.token_verificacion = '';
+      user.token_expiracion = null;
       await this.userRepository.save(user);
 
       return { message: 'Correo verificado correctamente.' };
@@ -362,11 +363,222 @@ export class UsersService {
       // Solo "deliverable" significa correo real existente y con buzón activo.
       return zeruhStatus === 'deliverable';
     } catch (error) {
-      console.error(
-        'Error al validar correo con Zeruh:',
-        error?.message || error,
-      );
+      console.log('Error al validar correo con Zeruh:', error);
       return false;
+    }
+  }
+
+  async verifyUserEmail(email: string): Promise<{ message: string }> {
+    try {
+      const emaill = email.trim().toLowerCase();
+
+      if (!emaill) {
+        throw new BadRequestException('El correo es obligatorio');
+      }
+
+      const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+      if (!emailRegex.test(emaill)) {
+        throw new BadRequestException('El correo no tiene un formato válido');
+      }
+
+      const existingUser = await this.userRepository.findOne({
+        where: { email: emaill },
+      });
+
+      if (!existingUser) {
+        throw new BadRequestException('El correo no está registrado');
+      }
+
+      const token = crypto.randomBytes(8).toString('hex'); // 64 chars
+
+      const expiration = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+      existingUser.token_verificacion = token;
+      existingUser.token_expiracion = expiration;
+      existingUser.intentos_token = 3;
+
+      await this.userRepository.save(existingUser);
+
+      await this.sendEmailRecovery(
+        existingUser.email,
+        existingUser.nombre,
+        token,
+      );
+
+      return { message: 'Correo de recuperación enviado correctamente.' };
+    } catch (error) {
+      console.log(error);
+      return { message: 'El correo no esta registrado.' };
+    }
+  }
+
+  // funcion para enviar correo de token de recuperacion de contraseña
+  private async sendEmailRecovery(
+    email: string,
+    nombre: string,
+    token: string,
+  ): Promise<void> {
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: this.configService.getOrThrow<string>('EMAIL_USER'),
+        pass: this.configService.getOrThrow<string>('EMAIL_PASS'),
+      },
+    });
+
+    const mailOptions = {
+      from: `"Sport Center" <${this.configService.get<string>('EMAIL_USER')}>`,
+      to: email,
+      subject: 'Recuperación de contraseña',
+      html: `
+      <h2>Hola ${nombre},</h2>
+      <p>Tu token de recuperación (expira en 24 horas):</p>
+      <h3>${token}</h3>
+
+      <br><br>
+      <p>Saludos cordiales,<br><b>Sport Center</b></p>
+    `,
+    };
+
+    await transporter.sendMail(mailOptions);
+  }
+
+  async verifyUserToken(
+    email: string,
+    token: string,
+  ): Promise<{ message: string }> {
+    try {
+      const emaill = email?.trim().toLowerCase();
+      const tokenn = token?.trim();
+
+      if (!emaill) throw new BadRequestException('El correo es obligatorio');
+      if (!tokenn) throw new BadRequestException('El token es obligatorio');
+
+      if (tokenn.length !== 16) {
+        throw new BadRequestException('El token debe tener 16 caracteres');
+      }
+
+      const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+      if (!emailRegex.test(emaill)) {
+        throw new BadRequestException('Formato de correo inválido');
+      }
+
+      const existingUser = await this.userRepository.findOne({
+        where: { email: emaill },
+      });
+
+      if (!existingUser) {
+        throw new BadRequestException('El correo no está registrado');
+      }
+
+      if (!existingUser.token_verificacion) {
+        throw new BadRequestException(
+          'No hay un token asociado a este usuario o ya expiro, Solicita un nuevo token.',
+        );
+      }
+
+      // TOKEN EXPIRADO
+      if (
+        !existingUser.token_expiracion ||
+        new Date() > existingUser.token_expiracion
+      ) {
+        // En expiración, sí se limpia todo
+        existingUser.token_verificacion = '';
+        existingUser.token_expiracion = null;
+        existingUser.intentos_token = 0;
+        await this.userRepository.save(existingUser);
+
+        throw new BadRequestException('El token ha expirado');
+      }
+
+      // SIN INTENTOS → NO BORRAR TOKEN
+      if (
+        typeof existingUser.intentos_token !== 'number' ||
+        existingUser.intentos_token <= 0
+      ) {
+        existingUser.token_verificacion = '';
+        existingUser.token_expiracion = null;
+        existingUser.intentos_token = 0;
+        await this.userRepository.save(existingUser);
+        throw new BadRequestException(
+          'Se han agotado los intentos. Solicita un nuevo token.',
+        );
+      }
+
+      // TOKEN INCORRECTO
+      if (existingUser.token_verificacion !== tokenn) {
+        existingUser.intentos_token -= 1;
+
+        await this.userRepository.save(existingUser);
+
+        if (existingUser.intentos_token <= 0) {
+          existingUser.token_verificacion = '';
+          existingUser.token_expiracion = null;
+          existingUser.intentos_token = 0;
+          await this.userRepository.save(existingUser);
+          throw new BadRequestException(
+            'Has agotado los intentos. Solicita un nuevo token.',
+          );
+        }
+
+        throw new BadRequestException('El token es incorrecto');
+      }
+
+      // TOKEN CORRECTO →
+      existingUser.token_verificacion = '';
+      existingUser.token_expiracion = null;
+      existingUser.intentos_token = 3;
+      await this.userRepository.save(existingUser);
+
+      return { message: 'Token verificado correctamente.' };
+    } catch (error) {
+      console.log('verifyUserToken error:', error);
+      throw error;
+    }
+  }
+
+  async resetPsw(email: string, psw: string): Promise<{ message: string }> {
+    try {
+      const emaill = email?.trim().toLowerCase();
+      const newPassword = psw?.trim();
+
+      if (!emaill) throw new BadRequestException('El correo es obligatorio');
+      if (!newPassword)
+        throw new BadRequestException('La contraseña es obligatoria');
+
+      // Validación de correo
+      const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+      if (!emailRegex.test(emaill)) {
+        throw new BadRequestException('Formato de correo inválido');
+      }
+
+      // Buscar usuario
+      const user = await this.userRepository.findOne({
+        where: { email: emaill },
+      });
+
+      if (!user) {
+        throw new BadRequestException('El correo no está registrado');
+      }
+
+      // Validar que no sea la misma contraseña
+      const isSamePassword = await bcrypt.compare(newPassword, user.passw);
+      if (isSamePassword) {
+        throw new BadRequestException(
+          'La nueva contraseña no puede ser igual a la actual.',
+        );
+      }
+
+      // Encriptar nueva contraseña
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+      user.passw = hashedPassword;
+      await this.userRepository.save(user);
+
+      return { message: 'Contraseña actualizada correctamente.' };
+    } catch (error) {
+      console.log('Reset psw error:', error);
+      throw error;
     }
   }
 }
