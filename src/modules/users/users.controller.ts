@@ -25,8 +25,11 @@ export class UsersController {
   }
 
   @Post('login-user')
-  async loginUser(@Body() loginUserDto: LoginUserDto) {
-    return this.usersService.loginUser(loginUserDto);
+  async loginUser(
+    @Body('email') email: string,
+    @Body('passw') passw: string,
+  ) {
+    return this.usersService.loginUser(email, passw);
   }
 
   @Get('verify-email/:token')
