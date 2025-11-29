@@ -1,9 +1,8 @@
-// api/index.ts
 import { NestFactory } from '@nestjs/core';
 import { ExpressAdapter } from '@nestjs/platform-express';
 import { AppModule } from '../src/app.module';
 
-import express from 'express'; // ← Usando require
+import express from 'express';
 const expressApp = express();
 const adapter = new ExpressAdapter(expressApp);
 
