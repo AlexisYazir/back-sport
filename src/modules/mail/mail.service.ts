@@ -1,0 +1,122 @@
+/* eslint-disable */
+import { ConfigService } from '@nestjs/config';
+import { Injectable } from '@nestjs/common';
+import * as nodemailer from 'nodemailer';
+import { Transporter } from 'nodemailer';
+import axios from 'axios';
+
+@Injectable()
+export class MailService {
+  constructor(private readonly configService: ConfigService) {}
+
+  //! funcion para enviar correo de activacion de cuenta
+  public async sendVerificationEmail(
+    email: string,
+    nombre: string,
+    token: string,
+  ): Promise<void> {
+    const transporter: Transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: this.configService.getOrThrow<string>('EMAIL_USER'),
+        pass: this.configService.getOrThrow<string>('EMAIL_PASS'),
+      },
+    });
+
+    const url = `https://back-sport.vercel.app/users/verify-email/${token}`;
+
+    const mailOptions = {
+      from: `"Sport Center" <${this.configService.get<string>('EMAIL_USER')}>`,
+      to: email,
+      subject: 'Verifica tu cuenta',
+      html: `
+      <h2>¡Bienvenido a Sport Center, ${nombre}!</h2>
+      <p>Gracias por registrarte con nosotros. 
+      Para activar tu cuenta y comenzar a disfrutar de nuestros servicios, 
+      por favor verifica tu correo electrónico haciendo clic en el siguiente botón:</p>
+  
+      <p style="text-align: center; margin: 30px 0;">
+      <a href="${url}" target="_blank"
+        style="
+          background-color: #1a73e8;
+             color: white;
+             padding: 12px 25px;
+             text-decoration: none;
+             border-radius: 6px;
+             font-size: 16px;
+             font-weight: bold;
+        "
+      >
+        Verificar cuenta
+      </a>
+      </p>
+      <p>Si no fuiste tú quien creó esta cuenta, puedes ignorar este mensaje sin problema.</p>
+  
+  <p>Saludos cordiales,<br>
+  <b>Sport Center</b></p>
+    `,
+    };
+
+    try {
+      await transporter.sendMail(mailOptions);
+      console.log(`Correo enviado: ${email}`);
+    } catch (error) {
+      if (error instanceof Error) {
+        console.error('Error al enviar correo:', error.message);
+      } else {
+        console.error('Error desconocido al enviar correo');
+      }
+    }
+  }
+
+  //! funcion para enviar correo de token de recuperacion de contraseña
+  public async sendRecoveryEmail(
+    email: string,
+    nombre: string,
+    token: string,
+  ): Promise<void> {
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: this.configService.getOrThrow<string>('EMAIL_USER'),
+        pass: this.configService.getOrThrow<string>('EMAIL_PASS'),
+      },
+    });
+
+    const mailOptions = {
+      from: `"Sport Center" <${this.configService.get<string>('EMAIL_USER')}>`,
+      to: email,
+      subject: 'Recuperación de contraseña',
+      html: `
+      <h2>Hola ${nombre},</h2>
+      <p>Tu token de recuperación (expira en 24 horas):</p>
+      <h3>${token}</h3>
+
+      <br>
+      <p>Saludos cordiales,<br><b>Sport Center</b></p>
+    `,
+    };
+
+    await transporter.sendMail(mailOptions);
+  }
+
+  //! funcion para validar existencia de correo con Zeruh
+  public async validateEmailWithZeruh(email: string): Promise<boolean> {
+    const apiKey = this.configService.get<string>('ZERUH_API_KEY');
+    try {
+      const response = await axios.get(`https://api.zeruh.com/v1/verify`, {
+        params: {
+          api_key: apiKey,
+          email_address: email,
+        },
+      });
+
+      const zeruhStatus = response.data?.result?.status;
+
+      return zeruhStatus === 'deliverable';
+    } catch (error) {
+      console.log('Error al validar correo con Zeruh:', error);
+      return false;
+    }
+  }
+}

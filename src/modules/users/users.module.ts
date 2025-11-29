@@ -1,13 +1,14 @@
-import { Module } from '@nestjs/common';
+import { UsersController } from './users.controller';
+import { PassportModule } from '@nestjs/passport';
+import { MailModule } from '../mail/mail.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersService } from './users.service';
-import { UsersController } from './users.controller';
 import { User } from './entities/user.entity';
 import { JwtStrategy } from './jwt.strategy';
-import { PassportModule } from '@nestjs/passport';
+import { Module } from '@nestjs/common';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User]), PassportModule],
+  imports: [TypeOrmModule.forFeature([User]), PassportModule, MailModule],
   controllers: [UsersController],
   providers: [UsersService, JwtStrategy],
   exports: [UsersService],

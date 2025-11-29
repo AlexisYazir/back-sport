@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { Injectable } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
@@ -9,11 +10,10 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: configService.getOrThrow<string>('JWT_SECRET'), // aquí usamos getOrThrow
+      secretOrKey: configService.getOrThrow<string>('JWT_SECRET'),
     });
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await
   async validate(payload: any) {
     return {
       id_usuario: payload.id_usuario, // Debe coincidir con lo que firmas en login

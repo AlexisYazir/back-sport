@@ -1,3 +1,9 @@
+/* eslint-disable */
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { LoginUserDto } from './dto/login-user.dto';
+import { UsersService } from './users.service';
+import { AuthGuard } from '@nestjs/passport';
 import {
   Controller,
   Get,
@@ -8,12 +14,6 @@ import {
   Patch,
   Req,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
-
-import { UsersService } from './users.service';
-import { CreateUserDto } from './dto/create-user.dto';
-import { LoginUserDto } from './dto/login-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
 
 @Controller('users')
 export class UsersController {

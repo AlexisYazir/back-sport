@@ -1,37 +1,33 @@
+/* eslint-disable */
 import { Injectable, BadRequestException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { User } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
-import { LoginUserDto } from './dto/login-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-
-import * as bcrypt from 'bcrypt';
-import * as nodemailer from 'nodemailer';
-import { Transporter } from 'nodemailer';
-import axios from 'axios';
-import * as dns from 'dns/promises';
-import * as crypto from 'crypto';
-
+import { LoginUserDto } from './dto/login-user.dto';
+import { MailService } from '../mail/mail.service';
+import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
+import { User } from './entities/user.entity';
+import { Repository } from 'typeorm';
 import * as jwt from 'jsonwebtoken';
+import * as dns from 'dns/promises';
+import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
-
     private readonly configService: ConfigService,
+    private readonly mailService: MailService,
   ) {}
 
-  /* funcion para crear el usuario */
+  //! funcion para registrar el usuario
   async createUser(createUserDto: CreateUserDto): Promise<User> {
-    // VALIDACIONES PARA EL CORREO
+    //^ validaciones para correo
     if (!createUserDto.email) {
       throw new BadRequestException('El correo es obligatorio');
     }
-
     const email = createUserDto.email.trim().toLowerCase();
 
     // Regex para validar formato de correo
@@ -62,7 +58,7 @@ export class UsersService {
     let isRealEmail = false;
 
     if (isInstitutional) {
-      // VALIDACIÓN MX CON Node DNS
+      //^ Validación DNS MX para correos institucionales
       try {
         const mxRecords = await dns.resolveMx(domain);
         if (mxRecords.length > 0) {
@@ -74,8 +70,8 @@ export class UsersService {
         );
       }
     } else {
-      // VALIDACIÓN REAL CON ZERUH SOLO PARA CORREOS NO INSTITUCIONALES
-      isRealEmail = await this.validateEmailWithZeruh(email);
+      //^ Validación con Zeruh para correos no institucionales
+      isRealEmail = await this.mailService.validateEmailWithZeruh(email);
 
       if (!isRealEmail) {
         throw new BadRequestException(
@@ -92,7 +88,7 @@ export class UsersService {
       throw new BadRequestException('El correo ya está registrado');
     }
 
-    // VALIDACIONES TELEFONO
+    //^ validaciones para telefono
     if (!createUserDto.telefono) {
       throw new BadRequestException('El telefono es obligatorio');
     }
@@ -110,7 +106,7 @@ export class UsersService {
       );
     }
 
-    // VALIDACIÓN DE CONTRASEÑA
+    //^ validaciones para contraseña
     const passwordRegex =
       /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!#$%&¿?@])[A-Za-z\d!#$%&¿?@]{8,}$/;
 
@@ -119,7 +115,6 @@ export class UsersService {
         'La contraseña debe tener mínimo 8 caracteres, una mayúscula, una minúscula, un número y un carácter especial (!#$%&¿?@).',
       );
     }
-
     const hashedPassword = await bcrypt.hash(createUserDto.passw, 10);
 
     const token = jwt.sign(
@@ -128,7 +123,7 @@ export class UsersService {
       { expiresIn: '1d' },
     );
 
-    const expirationDate = new Date(Date.now() + 24 * 60 * 60 * 1000); // ⬅ TOKENS VALEN 1 DÍA
+    const expirationDate = new Date(Date.now() + 24 * 60 * 60 * 1000); // token 1d
 
     const newUser = this.userRepository.create({
       ...createUserDto,
@@ -137,7 +132,7 @@ export class UsersService {
       email_verified: 0,
       intentos_token: 3,
       token_verificacion: token,
-      token_expiracion: expirationDate, // ⬅ FECHA DE EXPIRACIÓN EN BD
+      token_expiracion: expirationDate,
       fecha_creacion: new Date(),
       activo: 0,
       rol: 1,
@@ -145,18 +140,27 @@ export class UsersService {
 
     await this.userRepository.save(newUser);
 
-    // Enviar correo
+    // enviar correo
     try {
       if (isInstitutional) {
-        // Mensaje especial para institucionales
-        await this.sendVerificationEmail(newUser.email, newUser.nombre, token);
+        //  para institucionales
+        await this.mailService.sendVerificationEmail(
+          newUser.email,
+          newUser.nombre,
+          token,
+        );
         console.log('Correo institucional detectado, enviando verificación…');
       } else {
         // Normal
-        await this.sendVerificationEmail(newUser.email, newUser.nombre, token);
+        await this.mailService.sendVerificationEmail(
+          newUser.email,
+          newUser.nombre,
+          token,
+        );
       }
     } catch (error) {
       await this.userRepository.delete({ email: newUser.email });
+      console.log(error);
       throw new BadRequestException(
         'No se pudo enviar el correo. Verifica que tu correo exista.',
       );
@@ -165,70 +169,10 @@ export class UsersService {
     return newUser;
   }
 
-  /* funcion para enviar correo de activacion de cuenta */
-  private async sendVerificationEmail(
-    email: string,
-    nombre: string,
-    token: string,
-  ): Promise<void> {
-    const transporter: Transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: this.configService.getOrThrow<string>('EMAIL_USER'),
-        pass: this.configService.getOrThrow<string>('EMAIL_PASS'),
-      },
-    });
-
-    const url = `https://back-sport.vercel.app/users/verify-email/${token}`;
-
-    const mailOptions = {
-      from: `"Sport Center" <${this.configService.get<string>('EMAIL_USER')}>`,
-      to: email,
-      subject: 'Verifica tu cuenta',
-      html: `
-    <h2>¡Bienvenido a Sport Center, ${nombre}!</h2>
-    <p>Gracias por registrarte con nosotros. 
-    Para activar tu cuenta y comenzar a disfrutar de nuestros servicios, 
-    por favor verifica tu correo electrónico haciendo clic en el siguiente botón:</p>
-
-    <p style="text-align: center; margin: 30px 0;">
-    <a href="${url}" target="_blank"
-      style="
-        background-color: #1a73e8;
-           color: white;
-           padding: 12px 25px;
-           text-decoration: none;
-           border-radius: 6px;
-           font-size: 16px;
-           font-weight: bold;
-      "
-    >
-      Verificar cuenta
-    </a>
-    </p>
-    <p>Si no fuiste tú quien creó esta cuenta, puedes ignorar este mensaje sin problema.</p>
-
-<p>Saludos cordiales,<br>
-<b>Sport Center</b></p>
-  `,
-    };
-
-    try {
-      await transporter.sendMail(mailOptions);
-      console.log(`Correo enviado: ${email}`);
-    } catch (error) {
-      if (error instanceof Error) {
-        console.error('Error al enviar correo:', error.message);
-      } else {
-        console.error('Error desconocido al enviar correo');
-      }
-    }
-  }
-
-  /* funcion para activar cuenta de usuario */
+  //! funcion para activar cuenta de usuario
   async verifyEmail(token: string): Promise<{ message: string }> {
     try {
-      //  Validar token JWT
+      //^  Validar token JWT
       const decoded = jwt.verify(
         token,
         this.configService.getOrThrow<string>('JWT_SECRET'),
@@ -248,7 +192,7 @@ export class UsersService {
         );
       }
 
-      // Validar expiración del token (fecha en BD)
+      // Validar expiración del token
       const now = new Date();
       if (!user.token_expiracion || user.token_expiracion < now) {
         throw new BadRequestException('El token ha expirado, solicita otro');
@@ -267,10 +211,10 @@ export class UsersService {
     }
   }
 
-  /* funcion para inicio de sesion de usuario */
+  //! funcion para inicio de sesion de usuario
   async loginUser(loginUserDto: LoginUserDto): Promise<{ token: string }> {
     const { email, passw } = loginUserDto;
-    //VALIDACIONES PARA EL CORREO
+    //^ validaciones para correo
     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
     if (!emailRegex.test(email)) {
       throw new BadRequestException('El correo no tiene un formato válido');
@@ -288,7 +232,7 @@ export class UsersService {
         'Correo no verificado. Revise su bandeja de entrada.',
       );
     }
-    //VALIDACIONES PARA LA CONTRASEÑA
+    //^ validaciones para contraseña
     if (!passw) {
       throw new BadRequestException('La contraseña es obligatoria');
     }
@@ -313,7 +257,7 @@ export class UsersService {
     return { token };
   }
 
-  /* funcion para actualizar datos de perfil de usuario */
+  //! funcion para actualizar datos de perfil de usuario
   async updateUserProfile(id_usuario: number, dto: UpdateUserDto) {
     const user = await this.userRepository.findOne({ where: { id_usuario } });
     if (!user) throw new BadRequestException('El usuario no existe');
@@ -347,29 +291,8 @@ export class UsersService {
     return { message: 'Perfil actualizado correctamente' };
   }
 
-  private async validateEmailWithZeruh(email: string): Promise<boolean> {
-    const apiKey = this.configService.get<string>('ZERUH_API_KEY');
-
-    try {
-      const response = await axios.get(`https://api.zeruh.com/v1/verify`, {
-        params: {
-          api_key: apiKey,
-          email_address: email,
-        },
-      });
-
-      const zeruhStatus = response.data?.result?.status;
-
-      // Solo "deliverable" significa correo real existente y con buzón activo.
-      return zeruhStatus === 'deliverable';
-    } catch (error) {
-      console.log('Error al validar correo con Zeruh:', error);
-      return false;
-    }
-  }
-
+  //! funcion para verificar correo de usuario y enviar token de recuperacion
   async verifyUserEmail(email: string) {
-    // eslint-disable-next-line no-useless-catch
     try {
       const emaill = email.trim().toLowerCase();
 
@@ -400,7 +323,7 @@ export class UsersService {
 
       await this.userRepository.save(existingUser);
 
-      await this.sendEmailRecovery(
+      await this.mailService.sendRecoveryEmail(
         existingUser.email,
         existingUser.nombre,
         token,
@@ -412,42 +335,11 @@ export class UsersService {
     }
   }
 
-  // funcion para enviar correo de token de recuperacion de contraseña
-  private async sendEmailRecovery(
-    email: string,
-    nombre: string,
-    token: string,
-  ): Promise<void> {
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: this.configService.getOrThrow<string>('EMAIL_USER'),
-        pass: this.configService.getOrThrow<string>('EMAIL_PASS'),
-      },
-    });
-
-    const mailOptions = {
-      from: `"Sport Center" <${this.configService.get<string>('EMAIL_USER')}>`,
-      to: email,
-      subject: 'Recuperación de contraseña',
-      html: `
-      <h2>Hola ${nombre},</h2>
-      <p>Tu token de recuperación (expira en 24 horas):</p>
-      <h3>${token}</h3>
-
-      <br><br>
-      <p>Saludos cordiales,<br><b>Sport Center</b></p>
-    `,
-    };
-
-    await transporter.sendMail(mailOptions);
-  }
-
+  //! funcion para verificar el token de recuperacion de contraseña
   async verifyUserToken(
     email: string,
     token: string,
   ): Promise<{ message: string }> {
-    // eslint-disable-next-line no-useless-catch
     try {
       const emaill = email?.trim().toLowerCase();
       const tokenn = token?.trim();
@@ -478,12 +370,12 @@ export class UsersService {
         );
       }
 
-      // TOKEN EXPIRADO
+      // token expirado
       if (
         !existingUser.token_expiracion ||
         new Date() > existingUser.token_expiracion
       ) {
-        // En expiración, sí se limpia todo
+        // En expiración, si se limpia todo
         existingUser.token_verificacion = '';
         existingUser.token_expiracion = null;
         existingUser.intentos_token = 0;
@@ -492,7 +384,7 @@ export class UsersService {
         throw new BadRequestException('El token ha expirado');
       }
 
-      // SIN INTENTOS → NO BORRAR TOKEN
+      // sin intentos
       if (
         typeof existingUser.intentos_token !== 'number' ||
         existingUser.intentos_token <= 0
@@ -506,7 +398,7 @@ export class UsersService {
         );
       }
 
-      // TOKEN INCORRECTO
+      // token incorrecto
       if (existingUser.token_verificacion !== tokenn) {
         existingUser.intentos_token -= 1;
 
@@ -525,7 +417,6 @@ export class UsersService {
         throw new BadRequestException('El token es incorrecto');
       }
 
-      // TOKEN CORRECTO →
       existingUser.token_verificacion = '';
       existingUser.token_expiracion = null;
       existingUser.intentos_token = 3;
@@ -537,8 +428,8 @@ export class UsersService {
     }
   }
 
+  //! funcion para resetear la contraseña de usuario
   async resetPsw(email: string, psw: string): Promise<{ message: string }> {
-    // eslint-disable-next-line no-useless-catch
     try {
       const emaill = email?.trim().toLowerCase();
       const newPassword = psw?.trim();
