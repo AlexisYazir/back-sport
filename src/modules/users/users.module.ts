@@ -1,6 +1,6 @@
 import { UsersController } from './users.controller';
 import { PassportModule } from '@nestjs/passport';
-import { MailModule } from '../mail/mail.module';
+import { MailModule } from '../../mail/mail.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersService } from './users.service';
 import { User } from './entities/user.entity';
