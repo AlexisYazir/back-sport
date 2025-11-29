@@ -213,64 +213,65 @@ export class UsersService {
 
   //! funcion para inicio de sesion de usuario
   async loginUser(email: string, passw: string) {
-  if (!email || !email.trim()) {
-      return {
+    // Validación de correo
+    if (!email || !email.trim()) {
+      throw new BadRequestException({
         message: 'El correo es obligatorio',
         code: 3,
-      };
+      });
     }
 
     if (!passw || !passw.trim()) {
-      return {
+      throw new BadRequestException({
         message: 'La contraseña es obligatoria',
         code: 3,
-      };
+      });
     }
 
     // Validacion de correo vacio o formato incorrecto
     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
     if (!email || !emailRegex.test(email)) {
-      return {
+      throw new BadRequestException({
         message: 'El correo no tiene un formato válido',
         code: 3,
-      };
+      });
     }
 
     // Buscar usuario
     const user = await this.userRepository.findOne({ where: { email } });
 
     if (!user) {
-      return {
+      throw new BadRequestException({
         message: 'El correo no está registrado',
         code: 1,
-      };
+      });
     }
 
     // Verificar si esta activado
     if (user.email_verified === 0) {
-      return {
+      throw new BadRequestException({
         message: 'La cuenta no está activada. Revise su bandeja de entrada.',
         code: 2,
-      };
+      });
     }
 
     // Validacion de contraseña
     if (!passw || passw.length < 8) {
-      return {
+      throw new BadRequestException({
         message: 'La contraseña debe tener mínimo 8 caracteres.',
         code: 3,
-      };
+      });
     }
 
     // Verificar contraseña
     const isPasswordValid = await bcrypt.compare(passw, user.passw);
 
     if (!isPasswordValid) {
-      return {
+      throw new BadRequestException({
         message: 'Contraseña incorrecta',
         code: 1,
-      };
+      });
     }
 
     // Generar token
