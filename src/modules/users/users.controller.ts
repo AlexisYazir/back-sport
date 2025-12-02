@@ -1,7 +1,6 @@
 /* eslint-disable */
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { LoginUserDto } from './dto/login-user.dto';
 import { UsersService } from './users.service';
 import { AuthGuard } from '@nestjs/passport';
 import {
@@ -62,8 +61,8 @@ export class UsersController {
     return this.usersService.resetPsw(email, psw);
   }
 
-  // @Post('login-google')
-  // async loginGoogle(@Body('idToken') idToken: string) {
-  //   return this.usersService.loginWithGoogle(idToken);
-  // }
+  @Post('auth/google-login')
+  async loginGoogle(@Body('idToken') idToken: string) {
+    return this.usersService.loginWithGoogle(idToken);
+  }
 }

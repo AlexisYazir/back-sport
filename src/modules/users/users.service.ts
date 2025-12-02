@@ -2,8 +2,7 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { LoginUserDto } from './dto/login-user.dto';
-import { MailService } from '../../mail/mail.service';
+import { MailService } from '../../services/mail/mail.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { User } from './entities/user.entity';
@@ -498,6 +497,15 @@ export class UsersService {
     } catch (error) {
       //console.log('Reset psw error:', error);
       throw error;
+    }
+  }
+
+  async loginWithGoogle(idToken: string) {
+    try {
+      console.log(idToken);
+      return {message: idToken};
+    } catch (error) {
+      throw new BadRequestException('Token de Google inválido');
     }
   }
 }
