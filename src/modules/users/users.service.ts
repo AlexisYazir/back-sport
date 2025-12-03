@@ -528,10 +528,12 @@ export class UsersService {
 
       user = this.userRepository.create({
         nombre: googleUser.name,
-        aPaterno: googleUser.name,
-        passw: hashedPassword,
-        email: googleUser.email,
+        aPaterno: googleUser.aPaterno,
+        aMaterno: googleUser.aPaterno,
         fecha_creacion: new Date(),
+        email: googleUser.email,
+        passw: hashedPassword,
+        email_verified: 1,
         activo: 1,
         rol: 1,
         google_id: googleUser.googleId,
@@ -555,9 +557,7 @@ export class UsersService {
         { expiresIn: '1d' },
       );
 
-      return {
-        token,
-      };
+      return { token, };
     } catch (error) {
       throw new BadRequestException('Token de Google inválido');
     }
@@ -572,11 +572,13 @@ export class UsersService {
 
       const payload = ticket.getPayload();
       if (!payload) throw new Error('Payload vacío');
+      console.log(payload);
 
       return {
         email: payload.email ?? '',
-        name: payload.name ?? '',
+        name: payload.given_name ?? '',
         googleId: payload.sub ?? '',
+        aPaterno: payload.family_name ?? '',
         email_verified: payload.email_verified ?? false,
       };
 
