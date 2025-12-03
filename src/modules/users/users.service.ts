@@ -556,11 +556,9 @@ export class UsersService {
       );
 
       return {
-        message: 'Login con Google exitoso',
         token,
       };
     } catch (error) {
-      console.log(error);
       throw new BadRequestException('Token de Google inválido');
     }
   }
