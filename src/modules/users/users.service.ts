@@ -4,6 +4,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { MailService } from '../../services/mail/mail.service';
 import { InjectRepository } from '@nestjs/typeorm';
+import { OAuth2Client } from 'google-auth-library';
 import { ConfigService } from '@nestjs/config';
 import { User } from './entities/user.entity';
 import { Repository } from 'typeorm';
@@ -14,12 +15,18 @@ import * as crypto from 'crypto';
 
 @Injectable()
 export class UsersService {
+  private googleClient: OAuth2Client;
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly configService: ConfigService,
     private readonly mailService: MailService,
-  ) {}
+    
+  ) {
+      this.googleClient = new OAuth2Client(
+      this.configService.get('GOOGLE_CLIENT_ID'),
+    );
+}
 
   //! funcion para registrar el usuario
   async createUser(createUserDto: CreateUserDto): Promise<User> {
@@ -502,10 +509,82 @@ export class UsersService {
 
   async loginWithGoogle(idToken: string) {
     try {
-      console.log(idToken);
-      return {message: idToken};
+      // 1. Verificar token contra Google
+      const googleUser = await this.verifyGoogleToken(idToken);
+
+      if (!googleUser.email_verified) {
+        throw new BadRequestException('El correo de Google no está verificado.');
+      }
+
+      // 2. Buscar usuario existente por correo
+      let user = await this.userRepository.findOne({
+        where: { email: googleUser.email },
+      });
+
+      if (!user) {
+        // 3. Crear cuenta automática si no existe
+        const randomPassword = crypto.randomBytes(10).toString('hex');
+        const hashedPassword = await bcrypt.hash(randomPassword, 10);
+
+      user = this.userRepository.create({
+        nombre: googleUser.name,
+        aPaterno: googleUser.name,
+        passw: hashedPassword,
+        email: googleUser.email,
+        fecha_creacion: new Date(),
+        activo: 1,
+        rol: 1,
+        google_id: googleUser.googleId,
+      });
+
+        await this.userRepository.save(user);
+      } else if (!user.google_id) {
+        // 4. Vincular Google si el usuario ya existía
+        user.google_id = googleUser.googleId;
+        await this.userRepository.save(user);
+      }
+
+      // 5. Crear JWT
+      const token = jwt.sign(
+        {
+          id: user.id_usuario,
+          email: user.email,
+          rol: user.rol,
+        },
+        this.configService.getOrThrow<string>('JWT_SECRET'),
+        { expiresIn: '1d' },
+      );
+
+      return {
+        message: 'Login con Google exitoso',
+        token,
+      };
     } catch (error) {
+      console.log(error);
       throw new BadRequestException('Token de Google inválido');
     }
   }
+
+  private async verifyGoogleToken(idToken: string) {
+    try {
+      const ticket = await this.googleClient.verifyIdToken({
+        idToken,
+        audience: this.configService.get('GOOGLE_CLIENT_ID'),
+      });
+
+      const payload = ticket.getPayload();
+      if (!payload) throw new Error('Payload vacío');
+
+      return {
+        email: payload.email ?? '',
+        name: payload.name ?? '',
+        googleId: payload.sub ?? '',
+        email_verified: payload.email_verified ?? false,
+      };
+
+    } catch (err) {
+      throw new BadRequestException('Token de Google inválido');
+    }
+  }
+
 }
