@@ -587,7 +587,7 @@ export class UsersService {
       });
 
         await this.userRepository.save(user);
-      } else if (!user.google_id) {
+      } else {
         // 4. Vincular Google si el usuario ya existía
         user.google_id = googleUser.googleId;
         user.email_verified = 1;
