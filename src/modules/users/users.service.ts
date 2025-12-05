@@ -26,7 +26,7 @@ export class UsersService {
       this.googleClient = new OAuth2Client(
       this.configService.get('GOOGLE_CLIENT_ID'),
     );
-}
+  }
 
   //! funcion para registrar el usuario
   async createUser(createUserDto: CreateUserDto): Promise<User> {
@@ -91,7 +91,7 @@ export class UsersService {
       where: { email },
     });
     if (existingUser) {
-      throw new BadRequestException('El correo ya está registrado');
+      throw new BadRequestException('Revisa que tu información sea correcta. Intenta de nuevo');
     }
 
     //^ validaciones para telefono
@@ -103,7 +103,7 @@ export class UsersService {
       where: { telefono: createUserDto.telefono },
     });
     if (existingTelefono) {
-      throw new BadRequestException('El telefono ya está registrado');
+      throw new BadRequestException('Revisa que tu información sea correcta. Intenta de nuevo');
     }
 
     if (!/^\d{10}$/.test(createUserDto.telefono)) {
@@ -123,11 +123,7 @@ export class UsersService {
     }
     const hashedPassword = await bcrypt.hash(createUserDto.passw, 10);
 
-    const token = jwt.sign(
-      { email: email },
-      this.configService.getOrThrow<string>('JWT_SECRET'),
-      { expiresIn: '1d' },
-    );
+    const code = crypto.randomInt(100000, 1000000).toString();
 
     const expirationDate = new Date(Date.now() + 24 * 60 * 60 * 1000); // token 1d
 
@@ -137,7 +133,7 @@ export class UsersService {
       passw: hashedPassword,
       email_verified: 0,
       intentos_token: 3,
-      token_verificacion: token,
+      token_verificacion: code,
       token_expiracion: expirationDate,
       fecha_creacion: new Date(),
       activo: 0,
@@ -153,22 +149,22 @@ export class UsersService {
         await this.mailService.sendVerificationEmail(
           newUser.email,
           newUser.nombre,
-          token,
+          code,
         );
-        console.log('Correo institucional detectado, enviando verificación…');
+        //console.log('Correo institucional detectado, enviando verificación…');
       } else {
         // Normal
         await this.mailService.sendVerificationEmail(
           newUser.email,
           newUser.nombre,
-          token,
+          code,
         );
       }
     } catch (error) {
       await this.userRepository.delete({ email: newUser.email });
       console.log(error);
       throw new BadRequestException(
-        'No se pudo enviar el correo. Verifica que tu correo exista.',
+        'Revisa que tu información sea correcta. Intenta de nuevo.',
       );
     }
 
@@ -176,32 +172,33 @@ export class UsersService {
   }
 
   //! funcion para activar cuenta de usuario
-  async verifyEmail(token: string): Promise<{ message: string }> {
+  async verifyEmail(email:string, token: string): Promise<{ message: string }> {
     try {
-      //^  Validar token JWT
-      const decoded = jwt.verify(
-        token,
-        this.configService.getOrThrow<string>('JWT_SECRET'),
-      ) as { email: string };
+      if(!email){
+        throw new BadRequestException('El correo es obligatorio');
+      }
+      if(!token){
+        throw new BadRequestException('El codigo es obligatorio');
+      }
 
       // Buscar usuario por email Y token
       const user = await this.userRepository.findOne({
         where: {
-          email: decoded.email,
+          email: email,
           token_verificacion: token,
         },
       });
 
       if (!user) {
         throw new BadRequestException(
-          'Token inválido o no pertenece al usuario',
+          'Código incorrecto. Si solicitaste un reenvío, ingresa el último que recibiste',
         );
       }
 
       // Validar expiración del token
       const now = new Date();
       if (!user.token_expiracion || user.token_expiracion < now) {
-        throw new BadRequestException('El token ha expirado, solicita otro');
+        throw new BadRequestException('El codigo ha expirado, solicita otro en la opción de reenvío.');
       }
 
       user.email_verified = 1;
@@ -210,10 +207,53 @@ export class UsersService {
       user.token_expiracion = null;
       await this.userRepository.save(user);
 
-      return { message: 'Correo verificado correctamente.' };
+      return { message: 'Cuenta verificada correctamente.' };
     } catch (error) {
       console.log(error);
-      throw new BadRequestException('Token inválido o expirado');
+      throw error;
+    }
+  }
+
+  //! funcion para reenviar correo de verificacion
+  async resendVerificationEmail(email: string): Promise<{ message: string }> {
+    try {
+      const emaill = email.trim().toLowerCase();
+
+      if (!emaill) {
+        throw new BadRequestException('El correo es obligatorio');
+      }
+
+      const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+      if (!emailRegex.test(emaill)) {
+        throw new BadRequestException('El correo no tiene un formato válido');
+      }
+
+      const existingUser = await this.userRepository.findOne({
+        where: { email: emaill },
+      });
+
+      if (!existingUser) {
+        throw new BadRequestException('Revisa que tu información sea correcta. Intenta de nuevo');
+      }
+
+      const code = crypto.randomInt(100000, 1000000).toString();
+
+      const expiration = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+      existingUser.token_verificacion = code;
+      existingUser.token_expiracion = expiration;
+
+      await this.userRepository.save(existingUser);
+
+      await this.mailService.resendVerificationEmail(
+        existingUser.email,
+        existingUser.nombre,
+        code,
+      );
+
+      return { message: 'Codigo enviado correctamente. Revise su bandeja de entrada.' };
+    } catch (error) {
+      throw error;
     }
   }
 
@@ -249,7 +289,7 @@ export class UsersService {
 
     if (!user) {
       throw new BadRequestException({
-        message: 'El correo no está registrado',
+        message: 'Revisa que tu información sea correcta. Intenta de nuevo',
         code: 1,
       });
     }
@@ -275,7 +315,7 @@ export class UsersService {
 
     if (!isPasswordValid) {
       throw new BadRequestException({
-        message: 'Contraseña incorrecta',
+        message: 'Revisa que tu información sea correcta. Intenta de nuevo',
         code: 1,
       });
     }
@@ -343,7 +383,7 @@ export class UsersService {
       });
 
       if (!existingUser) {
-        throw new BadRequestException('El correo no está registrado');
+        throw new BadRequestException('Revisa que tu información sea correcta. Intenta de nuevo');
       }
 
       const token = crypto.randomBytes(8).toString('hex');
@@ -380,8 +420,8 @@ export class UsersService {
       if (!emaill) throw new BadRequestException('El correo es obligatorio');
       if (!tokenn) throw new BadRequestException('El token es obligatorio');
 
-      if (tokenn.length !== 16) {
-        throw new BadRequestException('El token debe tener 16 caracteres');
+      if (tokenn.length !== 6) {
+        throw new BadRequestException('El token debe tener 6 caracteres');
       }
 
       const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
@@ -394,7 +434,7 @@ export class UsersService {
       });
 
       if (!existingUser) {
-        throw new BadRequestException('El correo no está registrado');
+        throw new BadRequestException('Revisa que tu información sea correcta. Intenta de nuevo');
       }
 
       if (!existingUser.token_verificacion) {
@@ -483,7 +523,7 @@ export class UsersService {
       });
 
       if (!user) {
-        throw new BadRequestException('El correo no está registrado');
+        throw new BadRequestException('Revisa que tu información sea correcta. Intenta de nuevo');
       }
 
       // Validar que no sea la misma contraseña

@@ -31,9 +31,19 @@ export class UsersController {
     return this.usersService.loginUser(email, passw);
   }
 
-  @Get('verify-email/:token')
-  async verifyEmail(@Param('token') token: string) {
-    return this.usersService.verifyEmail(token);
+  @Post('verify-email')
+  async verifyEmail(
+    @Body('email') email: string,
+    @Body('token') token: string,
+  ) {
+    return this.usersService.verifyEmail(email, token);
+  }
+
+  @Post('resend-code')
+  async resendCode(
+    @Body('email') email: string
+  ) {
+    return this.usersService.resendVerificationEmail(email);
   }
 
   @UseGuards(AuthGuard('jwt'))

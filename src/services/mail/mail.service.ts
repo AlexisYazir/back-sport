@@ -23,34 +23,63 @@ export class MailService {
       },
     });
 
-    const url = `https://back-sport.vercel.app/users/verify-email/${token}`;
+    const url = token;
 
     const mailOptions = {
       from: `"Sport Center" <${this.configService.get<string>('EMAIL_USER')}>`,
       to: email,
-      subject: 'Verifica tu cuenta',
+      subject: 'Activa tu cuenta',
       html: `
       <h2>¡Bienvenido a Sport Center, ${nombre}!</h2>
-      <p>Gracias por registrarte con nosotros. 
-      Para activar tu cuenta y comenzar a disfrutar de nuestros servicios, 
-      por favor verifica tu correo electrónico haciendo clic en el siguiente botón:</p>
-  
-      <p style="text-align: center; margin: 30px 0;">
-      <a href="${url}" target="_blank"
-        style="
-          background-color: #1a73e8;
-             color: white;
-             padding: 12px 25px;
-             text-decoration: none;
-             border-radius: 6px;
-             font-size: 16px;
-             font-weight: bold;
-        "
-      >
-        Verificar cuenta
-      </a>
-      </p>
+      <p>Gracias por registrarte con nosotros. </p>
+      <p>Este es tu codigo de verificación para activar tu cuenta:</p> </br>
+      <h1>${url}</h1>
+      <p>Este código expirará en 24 horas.</p>
       <p>Si no fuiste tú quien creó esta cuenta, puedes ignorar este mensaje sin problema.</p>
+  
+  <p>Saludos cordiales,<br>
+  <b>Sport Center</b></p>
+    `,
+    };
+
+    try {
+      await transporter.sendMail(mailOptions);
+      //console.log(`Correo enviado: ${email}`);
+    } catch (error) {
+      if (error instanceof Error) {
+        console.error('Error al enviar correo:', error.message);
+      } else {
+        console.error('Error desconocido al enviar correo');
+      }
+    }
+  }
+
+  //! funcion para enviar correo de activacion de cuenta
+  public async resendVerificationEmail(
+    email: string,
+    nombre: string,
+    token: string,
+  ): Promise<void> {
+    const transporter: Transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: this.configService.getOrThrow<string>('EMAIL_USER'),
+        pass: this.configService.getOrThrow<string>('EMAIL_PASS'),
+      },
+    });
+
+    const url = token;
+
+    const mailOptions = {
+      from: `"Sport Center" <${this.configService.get<string>('EMAIL_USER')}>`,
+      to: email,
+      subject: 'Activa tu cuenta',
+      html: `
+      <h2>¡Hola de nuevo, ${nombre}!</h2>
+      <p>Este es tu nuevo codigo de verificación para activar tu cuenta:</p> </br>
+      <h1>${url}</h1>
+      <p>Este código expirará en 24 horas.</p>
+      <p>Si no fuiste tú quien solitito este codigo, puedes ignorar este mensaje sin problema.</p>
   
   <p>Saludos cordiales,<br>
   <b>Sport Center</b></p>
