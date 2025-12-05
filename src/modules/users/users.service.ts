@@ -590,6 +590,10 @@ export class UsersService {
       } else if (!user.google_id) {
         // 4. Vincular Google si el usuario ya existía
         user.google_id = googleUser.googleId;
+        user.email_verified = 1;
+        user.activo = 1;
+        user.token_verificacion = '';
+        user.token_expiracion = null;
         await this.userRepository.save(user);
       }
 
