@@ -180,6 +180,9 @@ export class UsersService {
       if(!token){
         throw new BadRequestException('El codigo es obligatorio');
       }
+      if (token.length !== 6) {
+        throw new BadRequestException('El codigo debe tener 6 digitos');
+      }
 
       // Buscar usuario por email Y token
       const user = await this.userRepository.findOne({
@@ -209,7 +212,7 @@ export class UsersService {
 
       return { message: 'Cuenta verificada correctamente.' };
     } catch (error) {
-      console.log(error);
+      //console.log(error);
       throw error;
     }
   }
@@ -234,6 +237,9 @@ export class UsersService {
 
       if (!existingUser) {
         throw new BadRequestException('Revisa que tu información sea correcta. Intenta de nuevo');
+      }
+      if (existingUser.email_verified === 1) {
+        throw new BadRequestException('La cuenta ya está verificada.');
       }
 
       const code = crypto.randomInt(100000, 1000000).toString();
@@ -386,7 +392,7 @@ export class UsersService {
         throw new BadRequestException('Revisa que tu información sea correcta. Intenta de nuevo');
       }
 
-      const token = crypto.randomBytes(8).toString('hex');
+      const token = crypto.randomInt(100000, 1000000).toString();
 
       const expiration = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
@@ -547,6 +553,7 @@ export class UsersService {
     }
   }
 
+  //! funcion para inicio de sesion con google
   async loginWithGoogle(idToken: string) {
     try {
       // 1. Verificar token contra Google
@@ -603,6 +610,7 @@ export class UsersService {
     }
   }
 
+  //! funcion privada para verificar token de google
   private async verifyGoogleToken(idToken: string) {
     try {
       const ticket = await this.googleClient.verifyIdToken({
