@@ -114,11 +114,11 @@ export class UsersService {
 
     //^ validaciones para contraseña
     const passwordRegex =
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!#$%&¿?@])[A-Za-z\d!#$%&¿?@]{8,}$/;
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!#$%&¿?@*_/-])[A-Za-z\d!#$%&¿?@*_/-]{12,}$/;
 
     if (!passwordRegex.test(createUserDto.passw)) {
       throw new BadRequestException(
-        'La contraseña debe tener mínimo 8 caracteres, una mayúscula, una minúscula, un número y un carácter especial (!#$%&¿?@).',
+        'La contraseña debe tener mínimo 12 caracteres, una mayúscula, una minúscula, un número y un carácter especial (!#$%&¿?@*_-/), y sin recuencias(123)',
       );
     }
     const hashedPassword = await bcrypt.hash(createUserDto.passw, 10);
@@ -309,9 +309,9 @@ export class UsersService {
     }
 
     // Validacion de contraseña
-    if (!passw || passw.length < 8) {
+    if (!passw || passw.length < 12) {
       throw new BadRequestException({
-        message: 'La contraseña debe tener mínimo 8 caracteres.',
+        message: 'La contraseña debe tener mínimo 12 caracteres.',
         code: 3,
       });
     }
