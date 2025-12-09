@@ -391,6 +391,9 @@ export class UsersService {
       if (!existingUser) {
         throw new BadRequestException('Revisa que tu información sea correcta. Intenta de nuevo');
       }
+      if (!existingUser.email_verified == false) {
+        throw new BadRequestException('La cuenta aún no esta activada, revisa tu bandeja de entrada e Intenta de nuevo');
+      }
 
       const token = crypto.randomInt(100000, 1000000).toString();
 
