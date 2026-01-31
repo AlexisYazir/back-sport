@@ -31,16 +31,12 @@ export class UsersService {
   //! funcion para registrar el usuario
   async createUser(createUserDto: CreateUserDto): Promise<User> {
     //^ validaciones para correo
-    if (!createUserDto.email) {
-      throw new BadRequestException('El correo es obligatorio');
-    }
+    if (!createUserDto.email) { throw new BadRequestException('El correo es obligatorio'); }
     const email = createUserDto.email.trim().toLowerCase();
 
     // Regex para validar formato de correo
     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-    if (!emailRegex.test(email)) {
-      throw new BadRequestException('El correo no tiene un formato válido');
-    }
+    if (!emailRegex.test(email)) { throw new BadRequestException('El correo no tiene un formato válido'); }
 
     // Extraer dominio
     const domain = email.split('@')[1];
