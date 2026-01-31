@@ -341,9 +341,9 @@ export class UsersService {
     }
 
     // Validacion de contraseña
-    if (!passw || passw.length < 12) {
+    if (!passw || passw.length < 8) {
       throw new BadRequestException({
-        message: 'La contraseña debe tener mínimo 12 caracteres.',
+        message: 'La contraseña debe tener mínimo 8 caracteres.',
         code: 3,
       });
     }
