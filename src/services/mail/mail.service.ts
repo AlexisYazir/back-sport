@@ -10,11 +10,7 @@ export class MailService {
   constructor(private readonly configService: ConfigService) {}
 
   //! funcion para enviar correo de activacion de cuenta
-  public async sendVerificationEmail(
-    email: string,
-    nombre: string,
-    token: string,
-  ): Promise<void> {
+  public async sendVerificationEmail(email: string, nombre: string, token: string, ): Promise<void> {
     const transporter: Transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
@@ -31,13 +27,13 @@ export class MailService {
       subject: 'Activa tu cuenta',
       html: `
       <h2>¡Bienvenido a Sport Center, ${nombre}!</h2>
-      <p>Gracias por registrarte con nosotros. </p>
+      <p>Gracias por registrarte con nosotros. Tu cuenta ya esta casi lista.</p>
       <p>Este es tu codigo de verificación para activar tu cuenta:</p> </br>
       <h1>${url}</h1>
       <p>Este código expirará en 24 horas.</p>
       <p>Si no fuiste tú quien creó esta cuenta, puedes ignorar este mensaje sin problema.</p>
   
-  <p>Saludos cordiales,<br>
+  <p>Saludos cordiales<br>
   <b>Sport Center</b></p>
     `,
     };

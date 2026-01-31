@@ -197,6 +197,51 @@ export class UsersService {
           'Código incorrecto. Si solicitaste un reenvío, ingresa el último que recibiste',
         );
       }
+      if (
+        !user.token_expiracion ||
+        new Date() > user.token_expiracion
+      ) {
+        // En expiración, si se limpia todo
+        user.token_verificacion = '';
+        user.token_expiracion = null;
+        user.intentos_token = 0;
+        await this.userRepository.save(user);
+
+        throw new BadRequestException('El token ha expirado');
+      }
+
+      // sin intentos
+      if (
+        typeof user.intentos_token !== 'number' ||
+        user.intentos_token <= 0
+      ) {
+        user.token_verificacion = '';
+        user.token_expiracion = null;
+        user.intentos_token = 0;
+        await this.userRepository.save(user);
+        throw new BadRequestException(
+          'Se han agotado los intentos. Solicita un nuevo token.',
+        );
+      }
+
+      // token incorrecto
+      if (user.token_verificacion !== token) {
+        user.intentos_token -= 1;
+
+        await this.userRepository.save(user);
+
+        if (user.intentos_token <= 0) {
+          user.token_verificacion = '';
+          user.token_expiracion = null;
+          user.intentos_token = 0;
+          await this.userRepository.save(user);
+          throw new BadRequestException(
+            'Has agotado los intentos. Solicita un nuevo token.',
+          );
+        }
+
+        throw new BadRequestException('El token es incorrecto');
+      }
 
       // Validar expiración del token
       const now = new Date();

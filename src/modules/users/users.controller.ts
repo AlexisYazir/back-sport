@@ -24,25 +24,17 @@ export class UsersController {
   }
 
   @Post('login-user')
-  async loginUser(
-    @Body('email') email: string,
-    @Body('passw') passw: string,
-  ) {
+  async loginUser(@Body('email') email: string, @Body('passw') passw: string) {
     return this.usersService.loginUser(email, passw);
   }
 
   @Post('verify-email')
-  async verifyEmail(
-    @Body('email') email: string,
-    @Body('token') token: string,
-  ) {
+  async verifyEmail(@Body('email') email: string, @Body('token') token: string) {
     return this.usersService.verifyEmail(email, token);
   }
 
   @Post('resend-code')
-  async resendCode(
-    @Body('email') email: string
-  ) {
+  async resendCode(@Body('email') email: string) {
     return this.usersService.resendVerificationEmail(email);
   }
 
@@ -59,10 +51,7 @@ export class UsersController {
   }
 
   @Post('verify-user-token')
-  async verifyUserToken(
-    @Body('email') email: string,
-    @Body('token') token: string,
-  ) {
+  async verifyUserToken(@Body('email') email: string, @Body('token') token: string) {
     return this.usersService.verifyUserToken(email, token);
   }
 

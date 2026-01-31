@@ -8,7 +8,7 @@ export class AppController {
   @Get()
   getWelcome() {
     return {
-      message: '¡Backend corriendo! ',
+      message: 'Backend corriendo! ',
       status: 'online',
       timestamp: new Date().toISOString(),
     };
