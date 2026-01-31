@@ -172,45 +172,34 @@ export class UsersService {
   }
 
   //! funcion para activar cuenta de usuario
-  async verifyEmail(email:string, token: string): Promise<{ message: string }> {
+  // funcion para activar cuenta de usuario
+  async verifyEmail(email: string,token: string,): Promise<{ message: string }> {
     try {
-      if(!email){
-        throw new BadRequestException('El correo es obligatorio');
-      }
-      if(!token){
-        throw new BadRequestException('El codigo es obligatorio');
-      }
-      if (token.length !== 6) {
-        throw new BadRequestException('El codigo debe tener 6 digitos');
-      }
+      // Validaciones
+      if (!email) { throw new BadRequestException('El correo es obligatorio'); }
 
-      // Buscar usuario por email Y token
-      const user = await this.userRepository.findOne({
-        where: {
-          email: email,
-          token_verificacion: token,
-        },
-      });
+      if (!token) { throw new BadRequestException('El código es obligatorio'); }
 
-      if (!user) {
-        throw new BadRequestException(
-          'Código incorrecto. Si solicitaste un reenvío, ingresa el último que recibiste',
-        );
-      }
-      if (
-        !user.token_expiracion ||
-        new Date() > user.token_expiracion
-      ) {
-        // En expiración, si se limpia todo
+      if (token.length !== 6) { throw new BadRequestException('El código debe tener 6 dígitos'); }
+
+      // Buscar usuario SOLO por email
+      const user = await this.userRepository.findOne({ where: { email },});
+
+      if (!user) { throw new BadRequestException('Revisa que tu información sea correcta. Intenta de nuevo'); }
+
+      const now = new Date();
+
+      // Validar expiración
+      if (!user.token_expiracion || now > user.token_expiracion) {
         user.token_verificacion = '';
         user.token_expiracion = null;
         user.intentos_token = 0;
         await this.userRepository.save(user);
 
-        throw new BadRequestException('El token ha expirado');
+        throw new BadRequestException('El token ha expirado, solicita uno nuevo.');
       }
 
-      // sin intentos
+      // Validar intentos disponibles
       if (
         typeof user.intentos_token !== 'number' ||
         user.intentos_token <= 0
@@ -219,15 +208,15 @@ export class UsersService {
         user.token_expiracion = null;
         user.intentos_token = 0;
         await this.userRepository.save(user);
+
         throw new BadRequestException(
           'Se han agotado los intentos. Solicita un nuevo token.',
         );
       }
 
-      // token incorrecto
+      // Validar token incorrecto
       if (user.token_verificacion !== token) {
         user.intentos_token -= 1;
-
         await this.userRepository.save(user);
 
         if (user.intentos_token <= 0) {
@@ -235,29 +224,26 @@ export class UsersService {
           user.token_expiracion = null;
           user.intentos_token = 0;
           await this.userRepository.save(user);
+
           throw new BadRequestException(
             'Has agotado los intentos. Solicita un nuevo token.',
           );
         }
 
-        throw new BadRequestException('El token es incorrecto');
+        throw new BadRequestException('El token es incorrecto'+'. Te quedan '+user.intentos_token+' intentos.' );
       }
 
-      // Validar expiración del token
-      const now = new Date();
-      if (!user.token_expiracion || user.token_expiracion < now) {
-        throw new BadRequestException('El codigo ha expirado, solicita otro en la opción de reenvío.');
-      }
-
+      // Token válido → activar cuenta
       user.email_verified = 1;
       user.activo = 1;
       user.token_verificacion = '';
       user.token_expiracion = null;
+      user.intentos_token = 0;
+
       await this.userRepository.save(user);
 
       return { message: 'Cuenta verificada correctamente.' };
     } catch (error) {
-      //console.log(error);
       throw error;
     }
   }
