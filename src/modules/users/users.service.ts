@@ -423,7 +423,7 @@ export class UsersService {
       if (!existingUser) {
         throw new BadRequestException('Revisa que tu información sea correcta. Intenta de nuevo');
       }
-      if (!existingUser.email_verified == false) {
+      if (existingUser.email_verified != 1) {
         throw new BadRequestException('La cuenta aún no esta activada. Intenta de nuevo');
       }
 

@@ -113,7 +113,8 @@ export class MailService {
       to: email,
       subject: 'Recuperación de contraseña',
       html: `
-      <h2>Hola ${nombre},</h2>
+      <h2>Hola ${nombre} !</h2>
+      <p>Hemos recibido una solicitud para restablecer la contraseña de tu cuenta.</p>
       <p>Tu token de recuperación (expira en 24 horas):</p>
       <h3>${token}</h3>
 
