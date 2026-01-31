@@ -279,6 +279,7 @@ export class UsersService {
 
       existingUser.token_verificacion = code;
       existingUser.token_expiracion = expiration;
+      existingUser.intentos_token = 3;
 
       await this.userRepository.save(existingUser);
 
