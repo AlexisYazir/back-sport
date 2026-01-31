@@ -549,13 +549,22 @@ export class UsersService {
       const newPassword = psw?.trim();
 
       if (!emaill) throw new BadRequestException('El correo es obligatorio');
-      if (!newPassword)
-        throw new BadRequestException('La contraseña es obligatoria');
+      if (!newPassword) throw new BadRequestException('La contraseña es obligatoria');
 
       // Validación de correo
       const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
       if (!emailRegex.test(emaill)) {
         throw new BadRequestException('Formato de correo inválido.');
+      }
+
+      //^ validaciones para contraseña
+      const passwordRegex =
+        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!#$%&¿?@*_/-])[A-Za-z\d!#$%&¿?@*_/-]{12,}$/;
+
+      if (!passwordRegex.test(newPassword)) {
+        throw new BadRequestException(
+          'La contraseña debe tener mínimo 12 caracteres, una mayúscula, una minúscula, un número y un carácter especial (!#$%&¿?@*_-/), y sin recuencias(123)',
+        );
       }
 
       // Buscar usuario
