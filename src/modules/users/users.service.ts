@@ -168,7 +168,6 @@ export class UsersService {
   }
 
   //! funcion para activar cuenta de usuario
-  // funcion para activar cuenta de usuario
   async verifyEmail(email: string,token: string,): Promise<{ message: string }> {
     try {
       // Validaciones

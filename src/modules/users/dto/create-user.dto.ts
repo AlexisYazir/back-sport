@@ -1,23 +1,23 @@
 import { IsNotEmpty, IsEmail, IsOptional } from 'class-validator';
 
 export class CreateUserDto {
-  @IsNotEmpty()
+  @IsNotEmpty({ message: 'Todos los campos son obligatorios' })
   nombre: string;
 
-  @IsOptional()
+  @IsNotEmpty({ message: 'Todos los campos son obligatorios' })
   aPaterno: string;
 
-  @IsOptional()
+  @IsNotEmpty({ message: 'Todos los campos son obligatorios' })
   aMaterno: string;
 
   @IsEmail({}, { message: 'El correo no tiene un formato válido' })
-  @IsOptional()
+  @IsNotEmpty({ message: 'Todos los campos son obligatorios' })
   email?: string;
 
-  @IsOptional()
+  @IsNotEmpty({ message: 'Todos los campos son obligatorios' })
   telefono?: string;
 
-  @IsNotEmpty()
+  @IsNotEmpty({ message: 'Todos los campos son obligatorios' })
   passw: string;
 
   @IsOptional()
