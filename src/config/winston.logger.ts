@@ -10,7 +10,7 @@ const fileRotateTransport = new winston.transports.DailyRotateFile({
 });
 
 export const winstonLogger = winston.createLogger({
-  level: 'warn', //info todo
+  level: 'info', //info todo
   format: winston.format.combine(
     winston.format.timestamp(),
     winston.format.json(),
