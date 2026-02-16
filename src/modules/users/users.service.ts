@@ -15,7 +15,7 @@ import * as crypto from 'crypto';
 
 @Injectable()
 export class UsersService {
-  private readonly logger = new Logger(UsersService.name);
+  //private readonly logger = new Logger(UsersService.name);
   private googleClient: OAuth2Client;
   constructor(
     @InjectRepository(User)
@@ -292,88 +292,88 @@ export class UsersService {
   }
 
   //! funcion para inicio de sesion de usuario
-async loginUser(email: string, passw: string) {
-  this.logger.log(`Intento de login recibido para email: ${email}`);
+  async loginUser(email: string, passw: string) {
+    //this.logger.log(`Intento de login recibido para email: ${email}`);
 
-  // Validación de correo
-  if (!email || !email.trim()) {
-    this.logger.warn(`Login fallido: correo vacío o no enviado`);
-    throw new BadRequestException({
-      message: 'El correo es obligatorio',
-      code: 3,
-    });
+    // Validación de correo
+    if (!email || !email.trim()) {
+      //this.logger.warn(`Login fallido: correo vacío o no enviado`);
+      throw new BadRequestException({
+        message: 'El correo es obligatorio',
+        code: 3,
+      });
+    }
+
+    if (!passw || !passw.trim()) {
+      //this.logger.warn(`Login fallido para ${email}: contraseña vacía`);
+      throw new BadRequestException({
+        message: 'La contraseña es obligatoria',
+        code: 3,
+      });
+    }
+
+    // Validacion de correo vacio o formato incorrecto
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
+    if (!email || !emailRegex.test(email)) {
+      //this.logger.warn(`Login fallido: formato de correo inválido (${email})`);
+      throw new BadRequestException({
+        message: 'El correo no tiene un formato válido',
+        code: 3,
+      });
+    }
+
+    // Buscar usuario
+    const user = await this.userRepository.findOne({ where: { email } });
+
+    if (!user) {
+      //this.logger.warn(`Login fallido: usuario no encontrado (${email})`);
+      throw new BadRequestException({
+        message: 'Revisa que tu información sea correcta. Intenta de nuevo',
+        code: 1,
+      });
+    }
+
+    // Verificar si esta activado
+    if (user.email_verified === 0) {
+      //this.logger.warn(`Login bloqueado: cuenta no activada (${email})`);
+      throw new BadRequestException({
+        message: 'La cuenta no está activada. Revise su bandeja de entrada.',
+        code: 2,
+      });
+    }
+
+    // Validacion de contraseña
+    if (!passw || passw.length < 8) {
+      //this.logger.warn(`Login fallido: contraseña demasiado corta (${email})`);
+      throw new BadRequestException({
+        message: 'La contraseña debe tener mínimo 8 caracteres.',
+        code: 3,
+      });
+    }
+
+    // Verificar contraseña
+    const isPasswordValid = await bcrypt.compare(passw, user.passw);
+
+    if (!isPasswordValid) {
+      //this.logger.warn(`Login fallido: contraseña incorrecta (${email})`);
+      throw new BadRequestException({
+        message: 'Revisa que tu información sea correcta. Intenta de nuevo',
+        code: 1,
+      });
+    }
+
+    // Generar token
+    const token = jwt.sign(
+      { id: user.id_usuario, email: user.email, rol: user.rol },
+      this.configService.getOrThrow<string>('JWT_SECRET'),
+      { expiresIn: '1d' },
+    );
+
+    //this.logger.log(`Login exitoso para usuario ID: ${user.id_usuario} (${email})`);
+
+    return { token };
   }
-
-  if (!passw || !passw.trim()) {
-    this.logger.warn(`Login fallido para ${email}: contraseña vacía`);
-    throw new BadRequestException({
-      message: 'La contraseña es obligatoria',
-      code: 3,
-    });
-  }
-
-  // Validacion de correo vacio o formato incorrecto
-  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-
-  if (!email || !emailRegex.test(email)) {
-    this.logger.warn(`Login fallido: formato de correo inválido (${email})`);
-    throw new BadRequestException({
-      message: 'El correo no tiene un formato válido',
-      code: 3,
-    });
-  }
-
-  // Buscar usuario
-  const user = await this.userRepository.findOne({ where: { email } });
-
-  if (!user) {
-    this.logger.warn(`Login fallido: usuario no encontrado (${email})`);
-    throw new BadRequestException({
-      message: 'Revisa que tu información sea correcta. Intenta de nuevo',
-      code: 1,
-    });
-  }
-
-  // Verificar si esta activado
-  if (user.email_verified === 0) {
-    this.logger.warn(`Login bloqueado: cuenta no activada (${email})`);
-    throw new BadRequestException({
-      message: 'La cuenta no está activada. Revise su bandeja de entrada.',
-      code: 2,
-    });
-  }
-
-  // Validacion de contraseña
-  if (!passw || passw.length < 8) {
-    this.logger.warn(`Login fallido: contraseña demasiado corta (${email})`);
-    throw new BadRequestException({
-      message: 'La contraseña debe tener mínimo 8 caracteres.',
-      code: 3,
-    });
-  }
-
-  // Verificar contraseña
-  const isPasswordValid = await bcrypt.compare(passw, user.passw);
-
-  if (!isPasswordValid) {
-    this.logger.warn(`Login fallido: contraseña incorrecta (${email})`);
-    throw new BadRequestException({
-      message: 'Revisa que tu información sea correcta. Intenta de nuevo',
-      code: 1,
-    });
-  }
-
-  // Generar token
-  const token = jwt.sign(
-    { id: user.id_usuario, email: user.email, rol: user.rol },
-    this.configService.getOrThrow<string>('JWT_SECRET'),
-    { expiresIn: '1d' },
-  );
-
-  this.logger.log(`Login exitoso para usuario ID: ${user.id_usuario} (${email})`);
-
-  return { token };
-}
 
   //! funcion para actualizar datos de perfil de usuario
   async updateUserProfile(id_usuario: number, dto: UpdateUserDto) {
