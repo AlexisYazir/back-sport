@@ -1,9 +1,6 @@
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
-// import { HttpLoggerMiddleware } from './config/http-logger.middleware';
+import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-// import { WinstonModule } from 'nest-winston';
-// import * as winston from 'winston';
 
 import { UsersModule } from './modules/users/users.module';
 import { ProductsModule } from './modules/products/products.module';
@@ -14,27 +11,6 @@ import { AppController } from './app.controller';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-
-    // LOGGER CONFIGURATION
-    // WinstonModule.forRoot({
-    //   transports: [
-    //     new winston.transports.Console(),
-
-    //     new winston.transports.File({
-    //       filename: 'logs/error.log',
-    //       level: 'error',
-    //     }),
-
-    //     new winston.transports.File({
-    //       filename: 'logs/combined.log',
-    //     }),
-    //   ],
-    //   format: winston.format.combine(
-    //     winston.format.timestamp(),
-    //     winston.format.errors({ stack: true }),
-    //     winston.format.json(),
-    //   ),
-    // }),
 
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
@@ -60,8 +36,3 @@ import { AppController } from './app.controller';
   controllers: [AppController],
 })
 export class AppModule {}
-// implements NestModule {
-//   configure(consumer: MiddlewareConsumer) {
-//     consumer.apply(HttpLoggerMiddleware).forRoutes('*');
-//   }
-// }

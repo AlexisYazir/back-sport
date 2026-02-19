@@ -12,19 +12,13 @@ export class Product {
   descripcion: string;
 
   @Column()
-  categoria: number;
+  id_categoria: number;
 
   @Column()
-  marca: number;
+  id_marca: number;
 
-  @Column({ type: 'json' })
-  imagenes: string[];
-
-  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
-  precio: number;
-
-  @Column({ type: 'int', nullable: true })
-  activo: number;
+  @Column({ default: false })
+  activo: boolean;
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   fecha_creacion: Date;
