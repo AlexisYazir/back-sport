@@ -1,10 +1,4 @@
-import {
-  IsNotEmpty,
-  IsString,
-  IsNumber,
-  IsArray,
-  IsOptional,
-} from 'class-validator';
+import { IsNotEmpty, IsString, IsNumber, IsArray } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateProductVariantDto {
@@ -26,7 +20,7 @@ export class CreateProductVariantDto {
   @IsNumber()
   stock: number;
 
-  @IsOptional()
+  @IsNotEmpty({ message: 'Las imagenes son obligatorias' })
   @IsArray()
   @IsString({ each: true })
   imagenes?: string[];

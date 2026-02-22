@@ -690,4 +690,18 @@ export class UsersService {
     }
   }
 
+    async getRecentUsersCreated(): Promise<any[]> {
+    try {
+      const result = await this.userRepository.query(
+        `SELECT * FROM get_recients_users();`
+      );
+
+      return result;
+
+    } catch (error) {
+      console.error('ERROR REAL:', error);
+      throw error;
+    }
+  }
+
 }

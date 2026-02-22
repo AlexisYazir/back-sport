@@ -1,0 +1,9 @@
+1.  APARTADO PRODCUTOS: 
+    En el apartado  de prodcutos, creo el producto base, ahi mismo puedo ver los prodcutos que estan activos/inactivos
+    y que ya tienen stock(solo con stock), osea una vez que pasaron por el modulo de inventario, creacion de variantes y de sus
+    valores.
+    Puedo editar ahi todo sobre un prodcuto una vez que este completamente creado, y puedo desactivar y activar
+    pero ahi no puedo editar su stock o precio.
+
+2.  APARTADO INVNETARIO:
+    Aqui aparecen los prodcutos recien creados en el apartado de prodcutos (sin stock ni precio), aqui  

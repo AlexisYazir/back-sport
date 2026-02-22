@@ -1,21 +1,10 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-// import { WinstonModule } from 'nest-winston';
-// import { winstonLogger } from './config/winston.logger';
 import morgan from 'morgan';
 
-// npm install winston nest-winston
-// npm install winston-daily-rotate-file
-
 async function bootstrap() {
-  const app = await NestFactory.create(
-    AppModule, //{
-    //logger: WinstonModule.createLogger({
-    //   instance: winstonLogger,
-    // }),
-    //}
-  );
+  const app = await NestFactory.create(AppModule);
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -28,7 +17,12 @@ async function bootstrap() {
   app.enableCors({
     origin: ['http://localhost:4200', 'https://sc-ecommerce.netlify.app'],
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-CSRF-Token', // Agregar este header (puede ser en minúsculas o mayúsculas)
+      'x-csrf-token', // También en minúsculas por si acaso
+    ],
     credentials: true,
   });
 

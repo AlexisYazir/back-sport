@@ -64,4 +64,9 @@ export class UsersController {
   async loginGoogle(@Body('idToken') idToken: string) {
     return this.usersService.loginWithGoogle(idToken);
   }
+
+  @Get('get-recent-users-created')
+  async getRecentUsersCreated() {
+    return this.usersService.getRecentUsersCreated();
+  }
 }
