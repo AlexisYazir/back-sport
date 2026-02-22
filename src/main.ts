@@ -15,7 +15,11 @@ async function bootstrap() {
   );
 
   app.enableCors({
-    origin: ['http://localhost:4200', 'https://sc-ecommerce.netlify.app'],
+    origin: [
+      'http://localhost:4200',
+      'https://sc-ecommerce.netlify.app',
+      'https://sport-center-sitie.netlify.app',
+    ],
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
       'Content-Type',
