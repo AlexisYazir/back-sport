@@ -8,6 +8,6 @@ export class Category {
   @Column({ length: 100 })
   nombre: string;
 
-  @Column()
-  id_padre: number;
+  @Column({ type: 'int', nullable: true }) // ← Especificar tipo explícitamente
+  id_padre: number | null;
 }

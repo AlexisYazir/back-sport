@@ -1,4 +1,13 @@
-import { Controller, Post, Body, Get, Param } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  Param,
+  HttpCode,
+  HttpStatus,
+  Put,
+} from '@nestjs/common';
 import { ProductsService } from './products.service';
 
 import { CreateProductDto } from './dto/product/create-product.dto';
@@ -6,6 +15,8 @@ import { CreateAttributeDto } from './dto/product/create-attribute.dto';
 import { CreateVarAttributeValuesDto } from './dto/product/create-var-att_vls.dto';
 import { CreateProductVariantDto } from './dto/product/create-product_variant.dto';
 import { UpdateProductInvDto } from './dto/product/update-product-inv.dto';
+import { UpdateProductFullDto } from './dto/product/update-product-full.dto';
+import { UpdateProductVariantAttributeDto } from './dto/product/update.product-var-attr.dto';
 
 import { CreateCategorieDto } from './dto/categories/create-categorie.dto';
 import { UpdateCategorieDto } from './dto/categories/update-categorie.dto';
@@ -44,11 +55,36 @@ export class ProductsController {
     return this.productsService.createAttribute(createAttributeDto);
   }
 
-  @Post('update-product-inventory')
+  @Put('update-product-inventory')
   async updateProductInventory(
     @Body() updateProductInvDto: UpdateProductInvDto,
   ) {
     return this.productsService.updateProductInv(updateProductInvDto);
+  }
+
+  @Put('update-product-full')
+  @HttpCode(HttpStatus.OK)
+  async updateProductFull(@Body() dto: UpdateProductFullDto) {
+    const result = await this.productsService.updateProductFull(dto);
+
+    return {
+      message: 'Producto base actualizado correctamente',
+      data: result,
+    };
+  }
+
+  @Put('update-product-variant-attributes')
+  @HttpCode(HttpStatus.OK)
+  async updateProductVariantAttributes(
+    @Body() dto: UpdateProductVariantAttributeDto,
+  ) {
+    const result = await this.productsService.updateProductVarAttr(dto);
+
+    return {
+      message:
+        'Datos de producto: variante y atributos actualizados correctamente',
+      data: result,
+    };
   }
 
   @Get('get-all-products')

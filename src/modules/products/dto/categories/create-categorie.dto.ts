@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, IsNumber } from 'class-validator';
+import { IsNotEmpty, IsString, IsNumber, IsOptional } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateCategorieDto {
@@ -6,7 +6,8 @@ export class CreateCategorieDto {
   @IsString()
   nombre: string;
 
+  @IsOptional() // ← Permite que sea opcional
   @Type(() => Number)
   @IsNumber()
-  id_padre: number;
+  id_padre?: number | null; // ← Puede ser número o null
 }

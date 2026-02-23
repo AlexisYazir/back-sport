@@ -6,6 +6,10 @@ import { Repository, DataSource  } from 'typeorm';
 import { CreateProductDto } from './dto/product/create-product.dto';
 import { Product } from './entities/product/product.entity';
 import { UpdateProductInvDto } from './dto/product/update-product-inv.dto';
+import { UpdateProductFullDto } from './dto/product/update-product-full.dto';
+import { UpdateProductResult } from './dto/product/update-product-full.dto';
+import { UpdateProductVariantAttributeDto } from './dto/product/update.product-var-attr.dto';
+import { UpdateProductVarAttResult } from './dto/product/update.product-var-attr.dto';
 
 import { CreateProductVariantDto } from './dto/product/create-product_variant.dto';
 import { ProductVariant } from './entities/product/product_variant.entity';
@@ -45,6 +49,7 @@ export class ProductsService {
     private readonly categoryRepository: Repository<Category>,
   ) {}
 
+  //* ---------- FUNCIONES PARA PRODUCTOS
   //! funcion para registrar un producto
   async createProduct(createProductDto: CreateProductDto): Promise<Product> {
     try {
@@ -84,7 +89,7 @@ export class ProductsService {
     return await this.productVariantRepository.save(variant);
   }
 
-   //! funcion para registrar un atributo de producto
+  //! funcion para registrar un atributo de producto
   async createAttribute(dto: CreateAttributeDto): Promise<Attribute> {
     const attribute = await this.attributeRepository.findOneBy({
       nombre: dto.nombre,
@@ -129,24 +134,20 @@ export class ProductsService {
       const result = await this.productRepository.query(
         `SELECT * FROM get_all_products();`
       );
-
       return result;
-
     } catch (error) {
       console.error('ERROR REAL:', error);
       throw error;
     }
   }
 
-    //! funcion para consultar todos los productos recientemente creados
+  //! funcion para consultar todos los productos recientemente creados
   async getRecientProducts(): Promise<any[]> {
     try {
       const result = await this.productRepository.query(
         `SELECT * FROM get_recients_products();`
       );
-
       return result;
-
     } catch (error) {
       console.error('ERROR REAL:', error);
       throw error;
@@ -159,15 +160,12 @@ export class ProductsService {
       const result = await this.productRepository.query(
         `SELECT * FROM get_products_with_variants_without_attributes();`
       );
-
       return result;
-
     } catch (error) {
       console.error('ERROR REAL:', error);
       throw error;
     }
   }
-
 
   //! funcion para consultar las variantes de un producto
   async getVariantsByProduct(id: number): Promise<ProductVariant[]> {
@@ -176,58 +174,111 @@ export class ProductsService {
     });
   }
 
-    //! funcion para consultar todos los productos
+  //! funcion para consultar todos los productos
   async getProductDetail(id: number): Promise<any[]> {
     try {
       const result = await this.productRepository.query(
         `SELECT * FROM get_all_products() where id_producto = ${id};`
       );
-
       return result;
-
     } catch (error) {
       console.error('ERROR REAL:', error);
       throw error;
     }
   }
 
-    //! funcion para consultar todos los productos
+  //! funcion para consultar todos los productos
   async getInventoryProducts(): Promise<any[]> {
     try {
       const result = await this.productRepository.query(
         `SELECT * FROM get_inventory_products();`
       );
-
       return result;
-
     } catch (error) {
       console.error('ERROR REAL:', error);
       throw error;
     }
   }
 
+  //! funcion para actualizar un producto
+  async updateProductInv(dto: { id_producto: number, estado: boolean }): Promise<number> {
+    try {
+      const product = await this.productRepository.findOne({
+        where: { id_producto: dto.id_producto }
+      });
 
-  async getMarcas(): Promise<Marca[]> {
-    return await this.marcaRepository.find();
+      if (!product) {
+        throw new BadRequestException('Producto no encontrado');
+      }
+
+      product.activo = dto.estado;
+      
+      await this.productRepository.save(product);
+
+      return 1;
+    } catch (error) {
+      throw error;
+    }
   }
 
-  async getCategories(): Promise<Category[]> {
-    return await this.categoryRepository.find();
+  //! funcion para actualizar datos generales de producto
+  async updateProductFull(dto: UpdateProductFullDto): Promise<UpdateProductResult> {
+    const result: UpdateProductResult[] = await this.dataSource.query(
+      `
+      SELECT * FROM update_full_product(
+        $1, $2, $3, $4, $5
+      )
+      `,
+      [
+        dto.id_producto,
+        dto.id_marca,
+        dto.id_categoria,
+        dto.nombre,
+        dto.descripcion,
+      ]
+    );
+
+    return result[0];
   }
 
-  getAttributes(): Promise<Attribute[]> {
+  //! Funcion para actualizar datos de producto: variante y atributos
+  async updateProductVarAttr(dto: UpdateProductVariantAttributeDto): Promise<UpdateProductVarAttResult> {
+    const result: UpdateProductVarAttResult[] = await this.dataSource.query(
+      `
+      SELECT * FROM update_product_var_attr(
+        $1,
+        $2, $3, $4, $5, $6
+      )
+      `,
+      [
+        dto.id_producto,
+
+        dto.id_variante,
+        dto.sku,
+        JSON.stringify(dto.imagenes),
+        dto.stock,
+        dto.precio,
+      ]
+    );
+
+    return result[0];
+  }
+  
+  //* ---------- FUNCIONES PARA ATRIBUTOS
+  //! funcion para consultar todas los atributos
+  async getAttributes(): Promise<Attribute[]> {
     return this.attributeRepository.find();
   }
 
+
+  //* ---------- FUNCIONES PARA MARCAS
   //! funcion para registrar una variante de producto
   async createMarca(dto: CreateMarcaDto): Promise<Marca> {
     const marca = await this.marcaRepository.findOneBy({
       nombre: dto.nombre,
     });
 
-    if (marca) {
-      throw new BadRequestException('La marca ya existe');
-    }
+    if (marca) {  throw new BadRequestException('La marca ya existe'); }
 
     const variant = this.marcaRepository.create({
       nombre: dto.nombre,
@@ -239,14 +290,11 @@ export class ProductsService {
 
   //! funcion para actualizar una marca
   async updateMarca( dto: UpdateMarcaDto ): Promise<Marca> {
-    // Verificar que exista
     const marca = await this.marcaRepository.findOne({
       where: { id_marca: dto.id_marca },
     });
 
-    if (!marca) {
-      throw new BadRequestException('La marca no existe');
-    }
+    if (!marca) {  throw new BadRequestException('La marca no existe'); }
 
     // Si se está cambiando el nombre, validar duplicado
     if (dto.nombre && dto.nombre !== marca.nombre) {
@@ -254,43 +302,20 @@ export class ProductsService {
         nombre: dto.nombre,
       });
 
-      if (existe) {
-        throw new BadRequestException('Ya existe una marca con ese nombre');
-      }
+      if (existe) { throw new BadRequestException('Ya existe una marca con ese nombre'); }
     }
 
-    // Merge de datos nuevos
     this.marcaRepository.merge(marca, dto);
 
     return await this.marcaRepository.save(marca);
   }
 
-  //! funcion para actualizar un producto
-  async updateProductInv(dto: UpdateProductInvDto): Promise<Number> {
-    try {
-      const result = await this.dataSource.query(
-      `SELECT update_product_variant($1, $2, $3, $4, $5) AS affected`,
-      [
-        dto.id_producto,
-        dto.id_variante,
-        dto.precio,
-        dto.stock,
-        dto.estado,
-      ],
-    );
-
-    const affected = Number(result[0].affected);
-
-    if (affected === 0) {
-      throw new BadRequestException('No se actualizó ningún registro');
-    } 
-    return affected
-    } catch (error) {
-      return error;
-    }
-    
+   //! funcion para consultar todas las marcas
+  async getMarcas(): Promise<Marca[]> {
+    return await this.marcaRepository.find();
   }
 
+  //* ---------- FUNCIONES PARA CATEGORIAS
   //! funcion para registrar una variante de producto
   async createCategory(dto: CreateCategorieDto): Promise<Category> {
     const category = await this.categoryRepository.findOneBy({
@@ -309,6 +334,7 @@ export class ProductsService {
     return await this.categoryRepository.save(variant);
   }
 
+  //! funcion para actualizar una categoria
   async updateCategory(dto: UpdateCategorieDto): Promise<Category> {
     const category = await this.categoryRepository.findOne({
       where: { id_categoria: dto.id_categoria },
@@ -322,5 +348,11 @@ export class ProductsService {
 
     return await this.categoryRepository.save(category);
   }
+
+  //! funcion para consultar todas las categorias
+  async getCategories(): Promise<Category[]> {
+    return await this.categoryRepository.find();
+  }
+
 
 }
