@@ -12,6 +12,7 @@ import * as jwt from 'jsonwebtoken';
 import * as dns from 'dns/promises';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
+import e from 'express';
 
 @Injectable()
 export class UsersService {
@@ -38,50 +39,6 @@ export class UsersService {
     // Regex para validar formato de correo
     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
     if (!emailRegex.test(email)) { throw new BadRequestException('El correo no tiene un formato válido'); }
-
-    // Extraer dominio
-    const domain = email.split('@')[1];
-
-    // Lista de dominios institucionales
-    const institutionalDomains = [
-      'edu.mx',
-      'unam.mx',
-      'ipn.mx',
-      'tecnm.mx',
-      'ut.edu.mx',
-      'uthh.edu.mx',
-      'uabc.mx',
-      'uaq.mx',
-    ];
-
-    const isInstitutional = institutionalDomains.some((d) =>
-      domain.endsWith(d),
-    );
-
-    let isRealEmail = false;
-
-    if (isInstitutional) {
-      //^ Validación DNS MX para correos institucionales
-      try {
-        const mxRecords = await dns.resolveMx(domain);
-        if (mxRecords.length > 0) {
-          isRealEmail = true;
-        }
-      } catch {
-        throw new BadRequestException(
-          'El dominio institucional no tiene registros MX válidos.',
-        );
-      }
-    } else {
-      //^ Validación con Zeruh para correos no institucionales
-      isRealEmail = await this.mailService.validateEmailWithZeruh(email);
-
-      if (!isRealEmail) {
-        throw new BadRequestException(
-          'El correo no es válido o no puede recibir mensajes. Por favor ingresa un correo real.',
-        );
-      }
-    }
 
     // Verificar si el usuario ya existe
     const existingUser = await this.userRepository.findOne({
@@ -141,27 +98,17 @@ export class UsersService {
 
     // enviar correo
     try {
-      if (isInstitutional) {
-        //  para institucionales
         await this.mailService.sendVerificationEmail(
           newUser.email,
           newUser.nombre,
           code,
         );
-        //console.log('Correo institucional detectado, enviando verificación…');
-      } else {
-        // Normal
-        await this.mailService.sendVerificationEmail(
-          newUser.email,
-          newUser.nombre,
-          code,
-        );
-      }
+      
     } catch (error) {
       await this.userRepository.delete({ email: newUser.email });
       console.log(error);
       throw new BadRequestException(
-        'Revisa que tu información sea correcta. Intenta de nuevo.',
+        'Revisa que tu información sea correcta. Intenta de nuevo 1.' + error,
       );
     }
 
