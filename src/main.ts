@@ -31,7 +31,7 @@ async function bootstrap() {
   });
 
   // Morgan sigue funcionando para logs HTTP
-  app.use(morgan('combined'));
+  app.use(morgan('common'));
 
   await app.listen(3000);
 }

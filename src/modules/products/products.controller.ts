@@ -52,6 +52,7 @@ export class ProductsController {
 
   @Post('create-attribute')
   async createAttribute(@Body() createAttributeDto: CreateAttributeDto) {
+    console.log(createAttributeDto);
     return this.productsService.createAttribute(createAttributeDto);
   }
 
@@ -144,7 +145,7 @@ export class ProductsController {
     return this.productsService.getCategories();
   }
 
-  @Post('update-categorie')
+  @Put('update-categorie')
   async updateCategorie(@Body() updateCategorieDto: UpdateCategorieDto) {
     return this.productsService.updateCategory(updateCategorieDto);
   }

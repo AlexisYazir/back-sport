@@ -109,12 +109,6 @@ export class ProductsService {
   //! funcion para registrar los valores de los atributos de una variante
   async createVariantAttributeValue(dto: CreateVarAttributeValuesDto): Promise<VariantAttributeValue> {
     try {
-      const atributo = await this.variantAttributeValueRepository.findOneBy({
-        id_atributo: dto.id_atributo,
-      });
-      if (!atributo) {
-        throw new BadRequestException('El atributo no existe');
-      }
       const attribute = this.variantAttributeValueRepository.create({
         id_variante: dto.id_variante,
         id_atributo: dto.id_atributo,
@@ -243,6 +237,9 @@ export class ProductsService {
 
   //! Funcion para actualizar datos de producto: variante y atributos
   async updateProductVarAttr(dto: UpdateProductVariantAttributeDto): Promise<UpdateProductVarAttResult> {
+    if(dto.stock <= 0 || dto.stock === null) {
+      throw new BadRequestException('El stock no puede ser negativo o cero');
+    }
     const result: UpdateProductVarAttResult[] = await this.dataSource.query(
       `
       SELECT * FROM update_product_var_attr(
@@ -266,7 +263,7 @@ export class ProductsService {
   
   //* ---------- FUNCIONES PARA ATRIBUTOS
   //! funcion para consultar todas los atributos
-  async getAttributes(): Promise<Attribute[]> {
+  getAttributes(): Promise<Attribute[]> {
     return this.attributeRepository.find();
   }
 
@@ -342,6 +339,12 @@ export class ProductsService {
 
     if (!category) {
       throw new BadRequestException('La categoría no existe');
+    }
+    const categoryName = await this.categoryRepository.findOneBy({
+      nombre: dto.nombre,
+    });
+    if(categoryName) {
+      throw new BadRequestException('Ya existe una categoría con ese nombre');
     }
 
     this.categoryRepository.merge(category, dto);

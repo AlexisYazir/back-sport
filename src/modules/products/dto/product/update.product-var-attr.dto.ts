@@ -1,4 +1,4 @@
-import { IsNumber, IsString, IsArray } from 'class-validator';
+import { IsNumber, IsString, IsArray, IsNotEmpty } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class UpdateProductVariantAttributeDto {
@@ -12,16 +12,19 @@ export class UpdateProductVariantAttributeDto {
 
   @Type(() => String)
   @IsString()
+  @IsNotEmpty({ message: 'El SKU es obligatorio' })
   sku: string;
 
   @Type(() => Array)
   @IsArray()
   imagenes: string[];
 
+  @IsNotEmpty({ message: '' })
   @Type(() => Number)
   @IsNumber()
   stock: number;
 
+  @IsNotEmpty({ message: 'El precio es obligatorio' })
   @Type(() => Number)
   @IsNumber()
   precio: number;
