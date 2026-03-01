@@ -194,7 +194,7 @@ export class ProductsService {
     }
   }
 
-  //! funcion para actualizar un producto
+  //! funcion para actualizar estado de un producto
   async updateProductInv(dto: { id_producto: number, estado: boolean }): Promise<number> {
     try {
       const product = await this.productRepository.findOne({
@@ -279,7 +279,7 @@ export class ProductsService {
 
     const variant = this.marcaRepository.create({
       nombre: dto.nombre,
-      sitio_web: dto.sitio_web,
+      imagen: dto.imagen,
     });
 
     return await this.marcaRepository.save(variant);

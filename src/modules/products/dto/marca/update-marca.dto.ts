@@ -11,7 +11,7 @@ export class UpdateMarcaDto {
   @IsString()
   nombre: string;
 
-  @IsNotEmpty({ message: 'El sitio web es obligatorio' })
+  @IsNotEmpty({ message: 'La imagen es obligatoria' })
   @IsString()
-  sitio_web: string;
+  imagen: string;
 }

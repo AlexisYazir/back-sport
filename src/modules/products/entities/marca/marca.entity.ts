@@ -9,5 +9,5 @@ export class Marca {
   nombre: string;
 
   @Column('text')
-  sitio_web: string;
+  imagen: string;
 }
