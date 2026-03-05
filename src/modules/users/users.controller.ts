@@ -86,4 +86,25 @@ export class UsersController {
   async getRecentUsersCreated() {
     return this.usersService.getRecentUsersCreated();
   }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(3)
+  @Get('get-roles')
+  async getRoles() {
+    return this.usersService.getRoles();
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(3)
+  @Get('get-users')
+  async getUsers() {
+    return this.usersService.getUsers();
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(3)
+  @Patch('update-user')
+  updateUserStatus(@Body() updateData: UpdateUserDto) {
+    return this.usersService.updateUserStatus(updateData);
+  }
 }

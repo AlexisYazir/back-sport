@@ -22,6 +22,10 @@ export class UpdateUserDto {
   email?: string;
 
   @IsOptional()
+  @IsNumber()
+  activo?: number;
+
+  @IsOptional()
   telefono?: string;
 
   @IsOptional()

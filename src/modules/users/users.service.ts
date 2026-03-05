@@ -7,6 +7,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { OAuth2Client } from 'google-auth-library';
 import { ConfigService } from '@nestjs/config';
 import { User } from './entities/user.entity';
+import { Roles } from './entities/roles.entity';
 import { Repository } from 'typeorm';
 import * as jwt from 'jsonwebtoken';
 import * as dns from 'dns/promises';
@@ -21,6 +22,8 @@ export class UsersService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(Roles)
+    private readonly rolesRepository: Repository<Roles>,
     private readonly configService: ConfigService,
     private readonly mailService: MailService,
     
@@ -699,6 +702,33 @@ export class UsersService {
       console.error('ERROR REAL:', error);
       throw error;
     }
+  }
+
+  //! funcion para consultar roles de usuario
+  async getRoles(): Promise<Roles[]> {
+      return await this.rolesRepository.find();
+  }
+
+  //! funcion para consultar todos los usuarios
+  async getUsers(): Promise<User[]> {
+      return await this.userRepository.find();
+  }
+
+  //! funcion para actualizar el estado de un usuario(rol, activo)
+  async updateUserStatus(updateData: UpdateUserDto) {
+
+    const user = await this.userRepository.findOne({
+      where: { id_usuario: updateData.id_usuario }
+    });
+
+    if (!user) {
+      throw new BadRequestException('Usuario no encontrado');
+    }
+
+    user.rol = updateData.rol ?? user.rol;
+    user.activo = updateData.activo ?? user.activo;
+
+    return await this.userRepository.save(user);
   }
 
 }
