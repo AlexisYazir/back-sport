@@ -1,6 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
 
-@Entity('attributes')
+@Entity('core.attributes')
 export class Attribute {
   @PrimaryGeneratedColumn()
   id_atributo: number;

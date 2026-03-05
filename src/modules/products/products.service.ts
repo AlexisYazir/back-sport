@@ -1,7 +1,7 @@
 /* eslint-disable */
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource  } from 'typeorm';
+import { Repository, DataSource, Not } from 'typeorm';
 
 import { CreateProductDto } from './dto/product/create-product.dto';
 import { Product } from './entities/product/product.entity';
@@ -27,6 +27,7 @@ import { Marca } from './entities/marca/marca.entity';
 import { CreateCategorieDto } from './dto/categories/create-categorie.dto';
 import { UpdateCategorieDto } from './dto/categories/update-categorie.dto';
 import { Category } from './entities/categorie/categorie.entity';
+import { throwError } from 'rxjs';
 
 @Injectable()
 export class ProductsService {
@@ -73,6 +74,14 @@ export class ProductsService {
     const product = await this.productRepository.findOneBy({
       id_producto: dto.id_producto,
     });
+
+    const variante = await this.productVariantRepository.findOneBy({
+      sku: dto.sku,
+    });
+
+    if(variante) {
+      throw new BadRequestException("EL codigo ya esxiste");
+    }
 
     if (!product) {
       throw new BadRequestException('El producto no existe');
@@ -126,7 +135,7 @@ export class ProductsService {
   async getAllProducts(): Promise<any[]> {
     try {
       const result = await this.productRepository.query(
-        `SELECT * FROM get_all_products();`
+        `SELECT * FROM core.get_all_products();`
       );
       return result;
     } catch (error) {
@@ -139,7 +148,7 @@ export class ProductsService {
   async getRecientProducts(): Promise<any[]> {
     try {
       const result = await this.productRepository.query(
-        `SELECT * FROM get_recients_products();`
+        `SELECT * FROM core.get_recients_products();`
       );
       return result;
     } catch (error) {
@@ -152,7 +161,7 @@ export class ProductsService {
   async getProductsWithoutVariantsAttributes(): Promise<any[]> {
     try {
       const result = await this.productRepository.query(
-        `SELECT * FROM get_products_with_variants_without_attributes();`
+        `SELECT * FROM core.get_products_with_variants_without_attributes();`
       );
       return result;
     } catch (error) {
@@ -172,7 +181,7 @@ export class ProductsService {
   async getProductDetail(id: number): Promise<any[]> {
     try {
       const result = await this.productRepository.query(
-        `SELECT * FROM get_all_products() where id_producto = ${id};`
+        `SELECT * FROM core.get_all_products() where id_producto = ${id};`
       );
       return result;
     } catch (error) {
@@ -185,7 +194,7 @@ export class ProductsService {
   async getInventoryProducts(): Promise<any[]> {
     try {
       const result = await this.productRepository.query(
-        `SELECT * FROM get_inventory_products();`
+        `SELECT * FROM core.get_inventory_products();`
       );
       return result;
     } catch (error) {
@@ -219,7 +228,7 @@ export class ProductsService {
   async updateProductFull(dto: UpdateProductFullDto): Promise<UpdateProductResult> {
     const result: UpdateProductResult[] = await this.dataSource.query(
       `
-      SELECT * FROM update_full_product(
+      SELECT * FROM core.update_full_product(
         $1, $2, $3, $4, $5
       )
       `,
@@ -240,9 +249,22 @@ export class ProductsService {
     if(dto.stock <= 0 || dto.stock === null) {
       throw new BadRequestException('El stock no puede ser negativo o cero');
     }
+    const existingVariant = await this.productVariantRepository.findOne({
+      where: {
+        sku: dto.sku,
+        id_variante: Not(dto.id_variante)
+      }
+    });
+
+    if (existingVariant) {
+      throw new BadRequestException(
+        'El SKU(Codigo) ya está en uso por otra variante'
+      );
+    }
+
     const result: UpdateProductVarAttResult[] = await this.dataSource.query(
       `
-      SELECT * FROM update_product_var_attr(
+      SELECT * FROM core.update_product_var_attr(
         $1,
         $2, $3, $4, $5, $6
       )

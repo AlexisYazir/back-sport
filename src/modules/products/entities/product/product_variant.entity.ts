@@ -1,6 +1,7 @@
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, Index } from 'typeorm';
 
-@Entity('product_variants')
+@Index(['sku'], { unique: true })
+@Entity('core.product_variants')
 export class ProductVariant {
   @PrimaryGeneratedColumn()
   id_variante: number;

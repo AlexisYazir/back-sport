@@ -1,6 +1,6 @@
 import { Entity, Column, PrimaryColumn } from 'typeorm';
 
-@Entity('variant_attribute_values')
+@Entity('core.variant_attribute_values')
 export class VariantAttributeValue {
   @PrimaryColumn()
   id_variante: number;
