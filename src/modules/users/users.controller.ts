@@ -3,6 +3,8 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
 import { AuthGuard } from '@nestjs/passport';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 import {
   Controller,
   Get,
@@ -28,7 +30,7 @@ export class UsersController {
   async loginUser(@Body('email') email: string, @Body('passw') passw: string) {
     return this.usersService.loginUser(email, passw);
   }
-
+  
   @Post('verify-email')
   async verifyEmail(@Body('email') email: string, @Body('token') token: string) {
     return this.usersService.verifyEmail(email, token);
@@ -44,6 +46,18 @@ export class UsersController {
   async updateProfile(@Req() req: any, @Body() updateUserDto: UpdateUserDto) {
     const id_usuario = req.user.id_usuario;
     return this.usersService.updateUserProfile(id_usuario, updateUserDto);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('profile')
+  async getProfile(@Req() req: any){
+    const id_usuario = req.user.id_usuario;
+    return this.usersService.getProfile(id_usuario);
+  }
+
+  @Post('refresh-token')
+  async refreshToken(@Body('refreshToken') refreshToken: string) {
+    return this.usersService.refreshToken(refreshToken);
   }
 
   @Post('verify-user-email')
@@ -66,6 +80,8 @@ export class UsersController {
     return this.usersService.loginWithGoogle(idToken);
   }
 
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(3)
   @Get('get-recent-users-created')
   async getRecentUsersCreated() {
     return this.usersService.getRecentUsersCreated();

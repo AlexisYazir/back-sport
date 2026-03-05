@@ -240,11 +240,8 @@ export class UsersService {
 
   //! funcion para inicio de sesion de usuario
   async loginUser(email: string, passw: string) {
-    //this.logger.log(`Intento de login recibido para email: ${email}`);
-
     // Validación de correo
     if (!email || !email.trim()) {
-      //this.logger.warn(`Login fallido: correo vacío o no enviado`);
       throw new BadRequestException({
         message: 'El correo es obligatorio',
         code: 3,
@@ -252,7 +249,6 @@ export class UsersService {
     }
 
     if (!passw || !passw.trim()) {
-      //this.logger.warn(`Login fallido para ${email}: contraseña vacía`);
       throw new BadRequestException({
         message: 'La contraseña es obligatoria',
         code: 3,
@@ -263,7 +259,6 @@ export class UsersService {
     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
     if (!email || !emailRegex.test(email)) {
-      //this.logger.warn(`Login fallido: formato de correo inválido (${email})`);
       throw new BadRequestException({
         message: 'El correo no tiene un formato válido',
         code: 3,
@@ -272,9 +267,9 @@ export class UsersService {
 
     // Buscar usuario
     const user = await this.userRepository.findOne({ where: { email } });
+    console.log(user);
 
     if (!user) {
-      //this.logger.warn(`Login fallido: usuario no encontrado (${email})`);
       throw new BadRequestException({
         message: 'Revisa que tu información sea correcta. Intenta de nuevo',
         code: 1,
@@ -283,7 +278,6 @@ export class UsersService {
 
     // Verificar si esta activado
     if (user.email_verified === 0) {
-      //this.logger.warn(`Login bloqueado: cuenta no activada (${email})`);
       throw new BadRequestException({
         message: 'La cuenta no está activada. Revise su bandeja de entrada.',
         code: 2,
@@ -292,7 +286,6 @@ export class UsersService {
 
     // Validacion de contraseña
     if (!passw || passw.length < 8) {
-      //this.logger.warn(`Login fallido: contraseña demasiado corta (${email})`);
       throw new BadRequestException({
         message: 'La contraseña debe tener mínimo 8 caracteres.',
         code: 3,
@@ -303,23 +296,77 @@ export class UsersService {
     const isPasswordValid = await bcrypt.compare(passw, user.passw);
 
     if (!isPasswordValid) {
-      //this.logger.warn(`Login fallido: contraseña incorrecta (${email})`);
       throw new BadRequestException({
         message: 'Revisa que tu información sea correcta. Intenta de nuevo',
         code: 1,
       });
     }
 
-    // Generar token
-    const token = jwt.sign(
-      { id: user.id_usuario, email: user.email, rol: user.rol },
-      this.configService.getOrThrow<string>('JWT_SECRET'),
-      { expiresIn: '1d' },
-    );
+    // Payload del token
+  const payload = {
+    id_usuario: user.id_usuario,
+    email: user.email,
+    nombre: user.nombre,
+    rol: user.rol,
+  };
 
-    //this.logger.log(`Login exitoso para usuario ID: ${user.id_usuario} (${email})`);
+  const accessToken = jwt.sign(
+    payload,
+    this.configService.getOrThrow<string>('JWT_SECRET'),
+    { expiresIn: '15m' },
+  );
 
-    return { token };
+  const refreshToken = jwt.sign(
+    payload,
+    this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
+    { expiresIn: '7d' },
+  );
+
+    return {
+      accessToken,
+      refreshToken,
+    };
+  }
+
+  //! funcion para validaciones de token
+  async refreshToken(refreshToken: string) {
+    try {
+
+      const decoded = jwt.verify(
+        refreshToken,
+        this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
+      ) as any;
+
+      const payload = {
+        id_usuario: decoded.id_usuario,
+        email: decoded.email,
+        nombre: decoded.nombre,
+        rol: decoded.rol,
+      };
+
+      const newAccessToken = jwt.sign(
+        payload,
+        this.configService.getOrThrow<string>('JWT_SECRET'),
+        { expiresIn: '15m' },
+      );
+
+      return {
+        accessToken: newAccessToken,
+      };
+
+    } catch (error) {
+      throw new BadRequestException('Refresh token inválido');
+    }
+  }
+
+  //! funcion para perfil de usuario
+  async getProfile(id_usuario: number){
+    console.log(id_usuario);
+    const user = await this.userRepository.findOne({ where: {id_usuario}})
+    console.log(user);
+    if(!user) throw new BadRequestException("El usuario no exite.")
+
+    return user
   }
 
   //! funcion para actualizar datos de perfil de usuario
@@ -557,6 +604,7 @@ export class UsersService {
       // 1. Verificar token contra Google
       const googleUser = await this.verifyGoogleToken(idToken);
 
+      // console.log(googleUser);
       if (!googleUser.email_verified) {
         throw new BadRequestException('El correo de Google no está verificado.');
       }
@@ -574,7 +622,7 @@ export class UsersService {
       user = this.userRepository.create({
         nombre: googleUser.name,
         aPaterno: googleUser.aPaterno,
-        aMaterno: googleUser.aPaterno,
+        aMaterno: googleUser.aMaterno,
         fecha_creacion: new Date(),
         email: googleUser.email,
         passw: hashedPassword,
@@ -600,6 +648,7 @@ export class UsersService {
         {
           id: user.id_usuario,
           email: user.email,
+          nombre: user.nombre,
           rol: user.rol,
         },
         this.configService.getOrThrow<string>('JWT_SECRET'),
@@ -614,30 +663,31 @@ export class UsersService {
 
   //! funcion privada para verificar token de google
   private async verifyGoogleToken(idToken: string) {
-    try {
-      const ticket = await this.googleClient.verifyIdToken({
-        idToken,
-        audience: this.configService.get('GOOGLE_CLIENT_ID'),
-      });
+    const ticket = await this.googleClient.verifyIdToken({
+      idToken,
+      audience: this.configService.get('GOOGLE_CLIENT_ID'),
+    });
 
-      const payload = ticket.getPayload();
-      if (!payload) throw new Error('Payload vacío');
-      console.log(payload);
+    const payload = ticket.getPayload();
+    if (!payload) throw new Error('Payload vacío');
 
-      return {
-        email: payload.email ?? '',
-        name: payload.given_name ?? '',
-        googleId: payload.sub ?? '',
-        aPaterno: payload.family_name ?? '',
-        email_verified: payload.email_verified ?? false,
-      };
+    const apellidosArray = (payload.family_name ?? '').trim().split(' ');
 
-    } catch (err) {
-      throw new BadRequestException('Token de Google inválido');
-    }
+    const aPaterno = apellidosArray[0] ?? '';
+    const aMaterno = apellidosArray.length > 1 ? apellidosArray.slice(1).join(' ') : '';
+
+    return {
+      email: payload.email ?? '',
+      name: payload.given_name ?? '',
+      googleId: payload.sub ?? '',
+      aPaterno,
+      aMaterno,
+      email_verified: payload.email_verified ?? false,
+    };
   }
 
-    async getRecentUsersCreated(): Promise<any[]> {
+  //! funcion para consultar los usuarios recientes
+  async getRecentUsersCreated(): Promise<any[]> {
     try {
       const result = await this.userRepository.query(
         `SELECT * FROM core.get_recients_users();`

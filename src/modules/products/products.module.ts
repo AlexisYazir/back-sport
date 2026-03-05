@@ -9,6 +9,7 @@ import { Product } from './entities/product/product.entity';
 import { Attribute } from './entities/product/atributtes.entity';
 import { Marca } from './entities/marca/marca.entity';
 import { Category } from './entities/categorie/categorie.entity';
+import { Orders } from './entities/orders/orders.entity';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { Category } from './entities/categorie/categorie.entity';
       Attribute,
       Marca,
       Category,
+      Orders,
     ]),
   ],
   controllers: [ProductsController],

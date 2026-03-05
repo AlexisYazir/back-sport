@@ -4,7 +4,7 @@ import { MailModule } from '../../services/mail/mail.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersService } from './users.service';
 import { User } from './entities/user.entity';
-import { JwtStrategy } from './jwt.strategy';
+import { JwtStrategy } from '../auth/jwt.strategy';
 import { Module } from '@nestjs/common';
 
 @Module({

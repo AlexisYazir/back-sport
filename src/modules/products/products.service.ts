@@ -27,7 +27,8 @@ import { Marca } from './entities/marca/marca.entity';
 import { CreateCategorieDto } from './dto/categories/create-categorie.dto';
 import { UpdateCategorieDto } from './dto/categories/update-categorie.dto';
 import { Category } from './entities/categorie/categorie.entity';
-import { throwError } from 'rxjs';
+
+import { Orders } from './entities/orders/orders.entity';
 
 @Injectable()
 export class ProductsService {
@@ -48,6 +49,9 @@ export class ProductsService {
     //categorias
     @InjectRepository(Category)
     private readonly categoryRepository: Repository<Category>,
+    //ordenes
+    @InjectRepository(Orders)
+    private readonly ordersRepository: Repository<Orders>,
   ) {}
 
   //* ---------- FUNCIONES PARA PRODUCTOS
@@ -379,5 +383,9 @@ export class ProductsService {
     return await this.categoryRepository.find();
   }
 
+  //! funcion para trer las ordenes de los usuarios, por parte del empleado
+  async getOrderss(): Promise<Orders[]> {
+    return await this.ordersRepository.find();
+  }
 
 }
