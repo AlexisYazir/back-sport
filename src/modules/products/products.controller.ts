@@ -28,6 +28,8 @@ import { Roles } from '../auth/roles.decorator';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from '../auth/roles.guard';
 
+import { CreateInventoryMovementDto } from './dto/inventory/create-inventory_movement.dto';
+
 @Controller('products')
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
@@ -58,6 +60,20 @@ export class ProductsController {
     return this.productsService.createVariantAttributeValue(
       createVarAttributeValuesDto,
     );
+  }
+
+  @Post('create-inventory-movement')
+  async createInventoryMovement(
+    @Body() createInventoryMovementDto: CreateInventoryMovementDto,
+  ) {
+    return this.productsService.createInventoryMovement(
+      createInventoryMovementDto,
+    );
+  }
+
+  @Get('inventory-movements')
+  async getInventoryMovements() {
+    return this.productsService.getInventoryMovements();
   }
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
@@ -92,12 +108,10 @@ export class ProductsController {
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(3)
-  @Put('update-product-variant-attributes')
+  @Put('update-product-variant')
   @HttpCode(HttpStatus.OK)
-  async updateProductVariantAttributes(
-    @Body() dto: UpdateProductVariantAttributeDto,
-  ) {
-    const result = await this.productsService.updateProductVarAttr(dto);
+  async updateProductVariant(@Body() dto: UpdateProductVariantAttributeDto) {
+    const result = await this.productsService.updateProductVariant(dto);
 
     return {
       message:

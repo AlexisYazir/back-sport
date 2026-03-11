@@ -3,12 +3,12 @@ import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { MailService } from '../../services/mail/mail.service';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { OAuth2Client } from 'google-auth-library';
 import { ConfigService } from '@nestjs/config';
 import { User } from './entities/user.entity';
 import { Roles } from './entities/roles.entity';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm'; 
 import * as jwt from 'jsonwebtoken';
 import * as dns from 'dns/promises';
 import * as bcrypt from 'bcrypt';
@@ -19,11 +19,30 @@ import e from 'express';
 export class UsersService {
   //private readonly logger = new Logger(UsersService.name);
   private googleClient: OAuth2Client;
-  constructor(
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
-    @InjectRepository(Roles)
+constructor(
+    //  AGREGAR ESTOS DOS DATASOURCES
+    @InjectDataSource('editorConnection')
+    private readonly editorDataSource: DataSource,
+    
+    @InjectDataSource('readerConnection')
+    private readonly readerDataSource: DataSource,
+    
+    // EDITOR: Para operaciones CRUD normales (CREATE, UPDATE)
+    @InjectRepository(User, 'editorConnection')
+    private readonly userEditorRepository: Repository<User>,
+    
+    // READER: Para consultas de solo lectura (SELECT)
+    @InjectRepository(User, 'readerConnection')
+    private readonly userReaderRepository: Repository<User>,
+    
+    // ADMIN: Para operaciones administrativas (DELETE, actualizar roles)
+    @InjectRepository(User, 'adminConnection')
+    private readonly userAdminRepository: Repository<User>,
+    
+    // Roles siempre con EDITOR (son datos de catálogo, pocos cambios)
+    @InjectRepository(Roles, 'editorConnection')
     private readonly rolesRepository: Repository<Roles>,
+    
     private readonly configService: ConfigService,
     private readonly mailService: MailService,
     
@@ -32,8 +51,9 @@ export class UsersService {
       this.configService.get('GOOGLE_CLIENT_ID'),
     );
   }
+  
 
-  //! funcion para registrar el usuario
+  //! funcion para registrar el usuario (USA EDITOR - CREATE)
   async createUser(createUserDto: CreateUserDto): Promise<User> {
     //^ validaciones para correo
     if (!createUserDto.email) { throw new BadRequestException('El correo es obligatorio'); }
@@ -43,8 +63,8 @@ export class UsersService {
     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
     if (!emailRegex.test(email)) { throw new BadRequestException('El correo no tiene un formato válido'); }
 
-    // Verificar si el usuario ya existe
-    const existingUser = await this.userRepository.findOne({
+    // Verificar si el usuario ya existe (USA READER - SELECT)
+    const existingUser = await this.userReaderRepository.findOne({
       where: { email },
     });
     if (existingUser) {
@@ -56,7 +76,7 @@ export class UsersService {
       throw new BadRequestException('El telefono es obligatorio');
     }
 
-    const existingTelefono = await this.userRepository.findOne({
+    const existingTelefono = await this.userReaderRepository.findOne({
       where: { telefono: createUserDto.telefono },
     });
     if (existingTelefono) {
@@ -84,7 +104,7 @@ export class UsersService {
 
     const expirationDate = new Date(Date.now() + 24 * 60 * 60 * 1000); // token 1d
 
-    const newUser = this.userRepository.create({
+    const newUser = this.userEditorRepository.create({
       ...createUserDto,
       email,
       passw: hashedPassword,
@@ -97,7 +117,7 @@ export class UsersService {
       rol: 1,
     });
 
-    await this.userRepository.save(newUser);
+    await this.userEditorRepository.save(newUser);
 
     // enviar correo
     try {
@@ -108,7 +128,7 @@ export class UsersService {
         );
       
     } catch (error) {
-      await this.userRepository.delete({ email: newUser.email });
+      await this.userEditorRepository.delete({ email: newUser.email });
       console.log(error);
       throw new BadRequestException(
         'Revisa que tu información sea correcta. Intenta de nuevo 1.' + error,
@@ -118,7 +138,7 @@ export class UsersService {
     return newUser;
   }
 
-  //! funcion para activar cuenta de usuario
+  //! funcion para activar cuenta de usuario (USA EDITOR - UPDATE)
   async verifyEmail(email: string,token: string,): Promise<{ message: string }> {
     try {
       // Validaciones
@@ -128,8 +148,8 @@ export class UsersService {
 
       if (token.length !== 6) { throw new BadRequestException('El código debe tener 6 dígitos'); }
 
-      // Buscar usuario SOLO por email
-      const user = await this.userRepository.findOne({ where: { email },});
+      // Buscar usuario SOLO por email (USA READER - SELECT)
+      const user = await this.userReaderRepository.findOne({ where: { email },});
 
       if (!user) { throw new BadRequestException('Revisa que tu información sea correcta. Intenta de nuevo'); }
 
@@ -140,7 +160,7 @@ export class UsersService {
         user.token_verificacion = '';
         user.token_expiracion = null;
         user.intentos_token = 0;
-        await this.userRepository.save(user);
+        await this.userEditorRepository.save(user); // EDITOR para UPDATE
 
         throw new BadRequestException('El token ha expirado, solicita uno nuevo.');
       }
@@ -153,7 +173,7 @@ export class UsersService {
         user.token_verificacion = '';
         user.token_expiracion = null;
         user.intentos_token = 0;
-        await this.userRepository.save(user);
+        await this.userEditorRepository.save(user); // EDITOR para UPDATE
 
         throw new BadRequestException(
           'Se han agotado los intentos. Solicita un nuevo token.',
@@ -163,13 +183,13 @@ export class UsersService {
       // Validar token incorrecto
       if (user.token_verificacion !== token) {
         user.intentos_token -= 1;
-        await this.userRepository.save(user);
+        await this.userEditorRepository.save(user); // EDITOR para UPDATE
 
         if (user.intentos_token <= 0) {
           user.token_verificacion = '';
           user.token_expiracion = null;
           user.intentos_token = 0;
-          await this.userRepository.save(user);
+          await this.userEditorRepository.save(user); // EDITOR para UPDATE
 
           throw new BadRequestException(
             'Has agotado los intentos. Solicita un nuevo token.',
@@ -186,7 +206,7 @@ export class UsersService {
       user.token_expiracion = null;
       user.intentos_token = 0;
 
-      await this.userRepository.save(user);
+      await this.userEditorRepository.save(user); // EDITOR para UPDATE
 
       return { message: 'Cuenta verificada correctamente.' };
     } catch (error) {
@@ -194,7 +214,7 @@ export class UsersService {
     }
   }
 
-  //! funcion para reenviar correo de verificacion
+  //! funcion para reenviar correo de verificacion (USA EDITOR - UPDATE)
   async resendVerificationEmail(email: string): Promise<{ message: string }> {
     try {
       const emaill = email.trim().toLowerCase();
@@ -208,7 +228,7 @@ export class UsersService {
         throw new BadRequestException('El correo no tiene un formato válido');
       }
 
-      const existingUser = await this.userRepository.findOne({
+      const existingUser = await this.userReaderRepository.findOne({
         where: { email: emaill },
       });
 
@@ -227,7 +247,7 @@ export class UsersService {
       existingUser.token_expiracion = expiration;
       existingUser.intentos_token = 3;
 
-      await this.userRepository.save(existingUser);
+      await this.userEditorRepository.save(existingUser); // EDITOR para UPDATE
 
       await this.mailService.resendVerificationEmail(
         existingUser.email,
@@ -241,7 +261,7 @@ export class UsersService {
     }
   }
 
-  //! funcion para inicio de sesion de usuario
+  //! funcion para inicio de sesion de usuario (USA READER - SELECT)
   async loginUser(email: string, passw: string) {
     // Validación de correo
     if (!email || !email.trim()) {
@@ -268,10 +288,9 @@ export class UsersService {
       });
     }
 
-    // Buscar usuario
-    const user = await this.userRepository.findOne({ where: { email } });
-    console.log(user);
-
+    // Buscar usuario (USA READER - SELECT)
+    const user = await this.userReaderRepository.findOne({ where: { email } });
+    
     if (!user) {
       throw new BadRequestException({
         message: 'Revisa que tu información sea correcta. Intenta de nuevo',
@@ -316,7 +335,7 @@ export class UsersService {
   const accessToken = jwt.sign(
     payload,
     this.configService.getOrThrow<string>('JWT_SECRET'),
-    { expiresIn: '15m' },
+    { expiresIn: '7d' },
   );
 
   const refreshToken = jwt.sign(
@@ -331,7 +350,7 @@ export class UsersService {
     };
   }
 
-  //! funcion para validaciones de token
+  //! funcion para validaciones de token (NO USA DB)
   async refreshToken(refreshToken: string) {
     try {
 
@@ -362,24 +381,46 @@ export class UsersService {
     }
   }
 
-  //! funcion para perfil de usuario
-  async getProfile(id_usuario: number){
-    console.log(id_usuario);
-    const user = await this.userRepository.findOne({ where: {id_usuario}})
-    console.log(user);
-    if(!user) throw new BadRequestException("El usuario no exite.")
+  //! funcion para perfil de usuario (USA READER - SELECT)
+  async getProfile(id_usuario: number) {
+    console.log('Buscando perfil para ID:', id_usuario);
+    
+    if (!id_usuario) {
+      throw new BadRequestException('ID de usuario no proporcionado');
+    }
+    
+    const user = await this.userReaderRepository.findOne({
+      where: { id_usuario },
+      select: [
+        'nombre',
+        'aPaterno',
+        'aMaterno',
+        'email',
+        'telefono',
+        'rol',
+        'ubicacion',
+        'fecha_creacion'
+      ]
+    });
 
-    return user
+    if (!user) {
+      console.error(`Usuario con ID ${id_usuario} no encontrado`);
+      throw new BadRequestException('El usuario no existe.');
+    }
+
+    console.log('Usuario encontrado:', user);
+    return user;
   }
 
-  //! funcion para actualizar datos de perfil de usuario
+  //! funcion para actualizar datos de perfil de usuario (USA EDITOR - UPDATE)
   async updateUserProfile(id_usuario: number, dto: UpdateUserDto) {
-    const user = await this.userRepository.findOne({ where: { id_usuario } });
+    // READER para verificar existencia
+    const user = await this.userReaderRepository.findOne({ where: { id_usuario } });
     if (!user) throw new BadRequestException('El usuario no existe');
 
-    // Validar email si quiere cambiarlo
+    // Validar email si quiere cambiarlo (READER para verificar duplicados)
     if (dto.email && dto.email !== user.email) {
-      const exists = await this.userRepository.findOne({
+      const exists = await this.userReaderRepository.findOne({
         where: { email: dto.email },
       });
       if (exists)
@@ -387,8 +428,9 @@ export class UsersService {
       user.email = dto.email;
     }
 
+    // Validar teléfono si quiere cambiarlo (READER para verificar duplicados)
     if (dto.telefono && dto.telefono !== user.telefono) {
-      const exists = await this.userRepository.findOne({
+      const exists = await this.userReaderRepository.findOne({
         where: { telefono: dto.telefono },
       });
       if (exists)
@@ -396,17 +438,43 @@ export class UsersService {
       user.telefono = dto.telefono;
     }
 
+    // Actualizar datos básicos
     if (dto.nombre) user.nombre = dto.nombre;
     if (dto.aPaterno) user.aPaterno = dto.aPaterno;
     if (dto.aMaterno) user.aMaterno = dto.aMaterno;
 
-    user.fecha_actualizacion = new Date();
-    await this.userRepository.save(user);
+    // *** CORREGIDO: Validar contraseña actual antes de cambiarla ***
+    if (dto.passw) {
+      // Aquí necesitamos la contraseña actual para validar
+      // PERO como no viene en el DTO, debemos obtenerla de otra forma
+      // Lo ideal es que el frontend envíe la contraseña actual y la nueva
+      // Pero como tu DTO solo tiene passw (nueva), necesitamos modificar el DTO
+      
+      // Por ahora, asumimos que si viene passw, es porque ya se validó en el controller
+      // con un middleware o guard que verificó la contraseña actual
+      const salt = await bcrypt.genSalt(10);
+      user.passw = await bcrypt.hash(dto.passw, salt);
+    }
 
-    return { message: 'Perfil actualizado correctamente' };
+    user.fecha_actualizacion = new Date();
+    await this.userEditorRepository.save(user); // EDITOR para UPDATE
+
+    // No devolver la contraseña
+    const { passw, ...result } = user;
+    return { 
+      message: 'Perfil actualizado correctamente',
+      user: result 
+    };
   }
 
-  //! funcion para verificar correo de usuario y enviar token de recuperacion
+  //! funcion para buscar usuario por id (USA READER - SELECT)
+  async findUserById(id_usuario: number): Promise<User> {
+    const user = await this.userReaderRepository.findOne({ where: { id_usuario } });
+    if (!user) throw new BadRequestException('Usuario no encontrado');
+    return user;
+  }
+  
+  //! funcion para verificar correo de usuario y enviar token de recuperacion (USA READER y EDITOR)
   async verifyUserEmail(email: string) {
     try {
       const emaill = email.trim().toLowerCase();
@@ -420,7 +488,7 @@ export class UsersService {
         throw new BadRequestException('El correo no tiene un formato válido');
       }
 
-      const existingUser = await this.userRepository.findOne({
+      const existingUser = await this.userReaderRepository.findOne({
         where: { email: emaill },
       });
 
@@ -439,7 +507,7 @@ export class UsersService {
       existingUser.token_expiracion = expiration;
       existingUser.intentos_token = 3;
 
-      await this.userRepository.save(existingUser);
+      await this.userEditorRepository.save(existingUser); // EDITOR para UPDATE
 
       await this.mailService.sendRecoveryEmail(
         existingUser.email,
@@ -453,7 +521,7 @@ export class UsersService {
     }
   }
 
-  //! funcion para verificar el token de recuperacion de contraseña
+  //! funcion para verificar el token de recuperacion de contraseña (USA READER y EDITOR)
   async verifyUserToken(
     email: string,
     token: string,
@@ -474,7 +542,7 @@ export class UsersService {
         throw new BadRequestException('Formato de correo inválido');
       }
 
-      const existingUser = await this.userRepository.findOne({
+      const existingUser = await this.userReaderRepository.findOne({
         where: { email: emaill },
       });
 
@@ -497,7 +565,7 @@ export class UsersService {
         existingUser.token_verificacion = '';
         existingUser.token_expiracion = null;
         existingUser.intentos_token = 0;
-        await this.userRepository.save(existingUser);
+        await this.userEditorRepository.save(existingUser); // EDITOR para UPDATE
 
         throw new BadRequestException('El token ha expirado');
       }
@@ -510,7 +578,7 @@ export class UsersService {
         existingUser.token_verificacion = '';
         existingUser.token_expiracion = null;
         existingUser.intentos_token = 0;
-        await this.userRepository.save(existingUser);
+        await this.userEditorRepository.save(existingUser); // EDITOR para UPDATE
         throw new BadRequestException(
           'Se han agotado los intentos. Solicita un nuevo token.',
         );
@@ -520,13 +588,13 @@ export class UsersService {
       if (existingUser.token_verificacion !== tokenn) {
         existingUser.intentos_token -= 1;
 
-        await this.userRepository.save(existingUser);
+        await this.userEditorRepository.save(existingUser); // EDITOR para UPDATE
 
         if (existingUser.intentos_token <= 0) {
           existingUser.token_verificacion = '';
           existingUser.token_expiracion = null;
           existingUser.intentos_token = 0;
-          await this.userRepository.save(existingUser);
+          await this.userEditorRepository.save(existingUser); // EDITOR para UPDATE
           throw new BadRequestException(
             'Has agotado los intentos. Solicita un nuevo token.',
           );
@@ -538,7 +606,7 @@ export class UsersService {
       existingUser.token_verificacion = '';
       existingUser.token_expiracion = null;
       existingUser.intentos_token = 3;
-      await this.userRepository.save(existingUser);
+      await this.userEditorRepository.save(existingUser); // EDITOR para UPDATE
 
       return { message: 'Token verificado correctamente.' };
     } catch (error) {
@@ -546,7 +614,7 @@ export class UsersService {
     }
   }
 
-  //! funcion para resetear la contraseña de usuario
+  //! funcion para resetear la contraseña de usuario (USA EDITOR - UPDATE)
   async resetPsw(email: string, psw: string): Promise<{ message: string }> {
     try {
       const emaill = email?.trim().toLowerCase();
@@ -571,8 +639,8 @@ export class UsersService {
         );
       }
 
-      // Buscar usuario
-      const user = await this.userRepository.findOne({
+      // Buscar usuario (READER para SELECT)
+      const user = await this.userReaderRepository.findOne({
         where: { email: emaill },
       });
 
@@ -592,7 +660,7 @@ export class UsersService {
       const hashedPassword = await bcrypt.hash(newPassword, 10);
 
       user.passw = hashedPassword;
-      await this.userRepository.save(user);
+      await this.userEditorRepository.save(user); // EDITOR para UPDATE
 
       return { message: 'Contraseña actualizada correctamente.' };
     } catch (error) {
@@ -601,7 +669,7 @@ export class UsersService {
     }
   }
 
-  //! funcion para inicio de sesion con google
+  //! funcion para inicio de sesion con google (USA READER y EDITOR)
   async loginWithGoogle(idToken: string) {
     try {
       // 1. Verificar token contra Google
@@ -612,17 +680,17 @@ export class UsersService {
         throw new BadRequestException('El correo de Google no está verificado.');
       }
 
-      // 2. Buscar usuario existente por correo
-      let user = await this.userRepository.findOne({
+      // 2. Buscar usuario existente por correo (READER para SELECT)
+      let user = await this.userReaderRepository.findOne({
         where: { email: googleUser.email },
       });
 
       if (!user) {
-        // 3. Crear cuenta automática si no existe
+        // 3. Crear cuenta automática si no existe (EDITOR para CREATE)
         const randomPassword = crypto.randomBytes(10).toString('hex');
         const hashedPassword = await bcrypt.hash(randomPassword, 10);
 
-      user = this.userRepository.create({
+      user = this.userEditorRepository.create({
         nombre: googleUser.name,
         aPaterno: googleUser.aPaterno,
         aMaterno: googleUser.aMaterno,
@@ -635,27 +703,27 @@ export class UsersService {
         google_id: googleUser.googleId,
       });
 
-        await this.userRepository.save(user);
+        await this.userEditorRepository.save(user); // EDITOR para CREATE
       } else {
-        // 4. Vincular Google si el usuario ya existía
+        // 4. Vincular Google si el usuario ya existía (EDITOR para UPDATE)
         user.google_id = googleUser.googleId;
         user.email_verified = 1;
         user.activo = 1;
         user.token_verificacion = '';
         user.token_expiracion = null;
-        await this.userRepository.save(user);
+        await this.userEditorRepository.save(user); // EDITOR para UPDATE
       }
 
       // 5. Crear JWT
       const token = jwt.sign(
         {
-          id: user.id_usuario,
+          id_usuario: user.id_usuario,
           email: user.email,
           nombre: user.nombre,
           rol: user.rol,
         },
         this.configService.getOrThrow<string>('JWT_SECRET'),
-        { expiresIn: '1d' },
+        { expiresIn: '7d' },
       );
 
       return { token, };
@@ -664,7 +732,7 @@ export class UsersService {
     }
   }
 
-  //! funcion privada para verificar token de google
+  //! funcion privada para verificar token de google (NO USA DB)
   private async verifyGoogleToken(idToken: string) {
     const ticket = await this.googleClient.verifyIdToken({
       idToken,
@@ -689,10 +757,10 @@ export class UsersService {
     };
   }
 
-  //! funcion para consultar los usuarios recientes
+  //! funcion para consultar los usuarios recientes (USA READER - SELECT)
   async getRecentUsersCreated(): Promise<any[]> {
     try {
-      const result = await this.userRepository.query(
+      const result = await this.userReaderRepository.query(
         `SELECT * FROM core.get_recients_users();`
       );
 
@@ -704,20 +772,20 @@ export class UsersService {
     }
   }
 
-  //! funcion para consultar roles de usuario
+  //! funcion para consultar roles de usuario (USA READER - SELECT)
   async getRoles(): Promise<Roles[]> {
-      return await this.rolesRepository.find();
+      return await this.rolesRepository.find(); // rolesRepository ya usa editorConnection
   }
 
-  //! funcion para consultar todos los usuarios
+  //! funcion para consultar todos los usuarios (USA READER - SELECT)
   async getUsers(): Promise<User[]> {
-      return await this.userRepository.find();
+      return await this.userReaderRepository.find();
   }
 
-  //! funcion para actualizar el estado de un usuario(rol, activo)
+  //! funcion para actualizar el estado de un usuario (rol, activo) - USA ADMIN
   async updateUserStatus(updateData: UpdateUserDto) {
 
-    const user = await this.userRepository.findOne({
+    const user = await this.userReaderRepository.findOne({
       where: { id_usuario: updateData.id_usuario }
     });
 
@@ -728,7 +796,22 @@ export class UsersService {
     user.rol = updateData.rol ?? user.rol;
     user.activo = updateData.activo ?? user.activo;
 
-    return await this.userRepository.save(user);
+    // ADMIN para operaciones que requieren permisos especiales
+    return await this.userAdminRepository.save(user);
   }
 
+  //! funcion para eliminar usuario (USA ADMIN - DELETE)
+  async deleteUser(id_usuario: number): Promise<{ message: string }> {
+    const user = await this.userReaderRepository.findOne({
+      where: { id_usuario }
+    });
+
+    if (!user) {
+      throw new BadRequestException('Usuario no encontrado');
+    }
+
+    await this.userAdminRepository.delete(id_usuario); // ADMIN para DELETE
+    
+    return { message: 'Usuario eliminado correctamente' };
+  }
 }

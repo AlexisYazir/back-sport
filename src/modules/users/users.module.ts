@@ -10,7 +10,10 @@ import { Module } from '@nestjs/common';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Roles]),
+    //  IMPORTANTE: Especificar las conexiones para CADA repositorio
+    TypeOrmModule.forFeature([User, Roles], 'editorConnection'),
+    TypeOrmModule.forFeature([User, Roles], 'readerConnection'),
+    TypeOrmModule.forFeature([User, Roles], 'adminConnection'),
     PassportModule,
     MailModule,
   ],

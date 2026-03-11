@@ -1,4 +1,10 @@
-import { IsNumber, IsString, IsArray, IsNotEmpty } from 'class-validator';
+import {
+  IsNumber,
+  IsString,
+  IsArray,
+  IsNotEmpty,
+  IsObject,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class UpdateProductVariantAttributeDto {
@@ -19,15 +25,14 @@ export class UpdateProductVariantAttributeDto {
   @IsArray()
   imagenes: string[];
 
-  @IsNotEmpty({ message: '' })
-  @Type(() => Number)
-  @IsNumber()
-  stock: number;
-
   @IsNotEmpty({ message: 'El precio es obligatorio' })
   @Type(() => Number)
   @IsNumber()
   precio: number;
+
+  @IsNotEmpty({ message: 'Los atributos son obligatorios' })
+  @IsObject()
+  atributos: Record<string, any>;
 }
 
 export interface UpdateProductVarAttResult {

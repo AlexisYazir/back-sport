@@ -15,9 +15,9 @@ export class ProductVariant {
   @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
   precio: number;
 
-  @Column({ type: 'int', nullable: true })
-  stock: number;
-
   @Column({ type: 'jsonb', default: () => "'[]'" })
   imagenes: string[];
+
+  @Column({ type: 'jsonb', default: () => "'{}'" })
+  atributos: Record<string, any>;
 }

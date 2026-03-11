@@ -7,4 +7,7 @@ export class Attribute {
 
   @Column({ length: 100 })
   nombre: string;
+
+  @Column()
+  id_padre: number;
 }

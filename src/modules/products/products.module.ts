@@ -10,18 +10,58 @@ import { Attribute } from './entities/product/atributtes.entity';
 import { Marca } from './entities/marca/marca.entity';
 import { Category } from './entities/categorie/categorie.entity';
 import { Orders } from './entities/orders/orders.entity';
+import { Inventory } from './entities/inventory/inventory.entity';
+import { InventoryMovements } from './entities/inventory/inventory_movements.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
-      Product,
-      ProductVariant,
-      VariantAttributeValue,
-      Attribute,
-      Marca,
-      Category,
-      Orders,
-    ]),
+    //  EDITOR CONNECTION
+    TypeOrmModule.forFeature(
+      [
+        Product,
+        ProductVariant,
+        VariantAttributeValue,
+        Attribute,
+        Marca,
+        Category,
+        Orders,
+        Inventory,
+        InventoryMovements,
+      ],
+      'editorConnection',
+    ), // AGREGADO
+
+    //  READER CONNECTION
+    TypeOrmModule.forFeature(
+      [
+        Product,
+        ProductVariant,
+        VariantAttributeValue,
+        Attribute,
+        Marca,
+        Category,
+        Orders,
+        Inventory,
+        InventoryMovements,
+      ],
+      'readerConnection',
+    ), // AGREGADO
+
+    //  ADMIN CONNECTION
+    TypeOrmModule.forFeature(
+      [
+        Product,
+        ProductVariant,
+        VariantAttributeValue,
+        Attribute,
+        Marca,
+        Category,
+        Orders,
+        Inventory,
+        InventoryMovements,
+      ],
+      'adminConnection',
+    ), //  AGREGADO
   ],
   controllers: [ProductsController],
   providers: [ProductsService],
