@@ -6,6 +6,7 @@ import { UsersModule } from './modules/users/users.module';
 import { ProductsModule } from './modules/products/products.module';
 import { AppController } from './app.controller';
 import { BackupModule } from './modules/backups/backup.module';
+import { CompanyModule } from './modules/company/company.module';
 
 @Module({
   imports: [
@@ -97,6 +98,7 @@ import { BackupModule } from './modules/backups/backup.module';
     UsersModule,
     ProductsModule,
     BackupModule,
+    CompanyModule,
   ],
   controllers: [AppController],
 })
