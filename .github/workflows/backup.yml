@@ -1,1 +1,59 @@
+name: Database Backup to Cloudflare R2
 
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Create full backup
+        run: |
+          pg_dump -Fc "${{ secrets.DATABASE_URL_BACKUP }}" > full_backup_$(date +%Y%m%d_%H%M%S).dump
+
+      - name: Create critical tables backup
+        run: |
+          pg_dump -Fc \
+            -t users \
+            -t orders \
+            -t order_items \
+            -t pagos \
+            -t inventory \
+            -t inventory_movements \
+            -t products \
+            -t product_variants \
+            "${{ secrets.DATABASE_URL_BACKUP }}" > critical_backup_$(date +%Y%m%d_%H%M%S).dump
+
+      - name: Upload full backup to Cloudflare R2
+        uses: shallwefootball/s3-upload-action@v1
+        with:
+          aws_key_id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          aws_secret_access_key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          aws_bucket: ${{ secrets.R2_BUCKET }}
+          endpoint: ${{ secrets.R2_ENDPOINT }}
+          source_file: 'full_backup_*.dump'
+          destination_dir: 'full'
+
+      - name: Upload critical backup to Cloudflare R2
+        uses: shallwefootball/s3-upload-action@v1
+        with:
+          aws_key_id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          aws_secret_access_key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          aws_bucket: ${{ secrets.R2_BUCKET }}
+          endpoint: ${{ secrets.R2_ENDPOINT }}
+          source_file: 'critical_backup_*.dump'
+          destination_dir: 'critical'
+
+      - name: Cleanup
+        run: rm -f *.dump
