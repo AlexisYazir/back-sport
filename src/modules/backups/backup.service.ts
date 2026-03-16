@@ -21,6 +21,7 @@ const execAsync = promisify(exec);
 export class BackupService {
   private readonly logger = new Logger(BackupService.name);
   private readonly s3: S3Client;
+  private readonly isProduction: boolean;
 
   constructor(private readonly configService: ConfigService) {
     this.s3 = new S3Client({
@@ -31,6 +32,7 @@ export class BackupService {
         secretAccessKey: this.configService.get<string>('R2_SECRET_ACCESS_KEY')!,
       },
     });
+    this.isProduction = process.env.NODE_ENV === 'production';
   }
 
   private getBucket() {
@@ -44,15 +46,27 @@ export class BackupService {
   }
 
   // =====================================================
-  // CREATE FULL BACKUP
+  // CREATE FULL BACKUP - AHORA CON DETECCIÓN DE ENTORNO
   // =====================================================
   async createBackup() {
+    // 🚨 EN PRODUCCIÓN (Vercel) - NO ejecutar pg_dump
+    if (this.isProduction) {
+      this.logger.log('📦 En producción: los backups automáticos los maneja GitHub Actions');
+      return { 
+        success: false, 
+        message: 'Los backups automáticos los maneja GitHub Actions',
+        info: 'Los backups se crean diariamente a las 3 AM',
+        action: 'Usa GitHub Actions para crear backups'
+      };
+    }
+
+    // 🖥️ EN DESARROLLO LOCAL - Ejecutar pg_dump normalmente
     const dbUrl = this.configService.get('DATABASE_URL_BACKUP');
     const filename = `full/backup_${this.getFormattedDate()}.dump`;
     const tempPath = path.join(process.cwd(), filename.replace('/','_'));
 
     try {
-      this.logger.log('📦 Creating full database backup');
+      this.logger.log('📦 Creating full database backup (local)');
 
       await execAsync(`pg_dump -Fc "${dbUrl}" -f "${tempPath}"`);
 
@@ -76,9 +90,22 @@ export class BackupService {
   }
 
   // =====================================================
-  // CREATE CRITICAL TABLES BACKUP
+  // CREATE CRITICAL TABLES BACKUP - CON DETECCIÓN
   // =====================================================
   async createCriticalTablesBackup() {
+    // 🚨 EN PRODUCCIÓN (Vercel) - NO ejecutar pg_dump
+    if (this.isProduction) {
+      this.logger.log('📦 En producción: los backups críticos los maneja GitHub Actions');
+      return { 
+        success: false, 
+        message: 'Los backups críticos los maneja GitHub Actions',
+        info: 'Los backups se crean diariamente a las 3 AM',
+        action: 'Usa GitHub Actions para crear backups'
+      };
+    }
+
+    // 🖥️ EN DESARROLLO LOCAL - Ejecutar pg_dump normalmente
+    this.logger.log('📦 Creating critical tables backup (local)');
     const dbUrl = this.configService.get('DATABASE_URL_BACKUP');
 
     const tables = [
@@ -122,7 +149,7 @@ export class BackupService {
   }
 
   // =====================================================
-  // LIST BACKUPS
+  // LIST BACKUPS - SIN CAMBIOS
   // =====================================================
   async listBackups() {
     const res = await this.s3.send(
@@ -139,12 +166,10 @@ export class BackupService {
   }
 
   // =====================================================
-  // DOWNLOAD BACKUP
+  // DOWNLOAD BACKUP - SIN CAMBIOS
   // =====================================================
   async downloadBackup(type: string, name: string) {
-
     const decodedName = decodeURIComponent(name);
-
     const key = `${type}/${decodedName}`;
 
     const result = await this.s3.send(
@@ -156,11 +181,11 @@ export class BackupService {
 
     return result.Body;
   }
+
   // =====================================================
-  // DELETE BACKUP
+  // DELETE BACKUP - SIN CAMBIOS
   // =====================================================
   async deleteBackup(type: string, name: string) {
-
     const key = `${type}/${name}`;
 
     await this.s3.send(
@@ -174,20 +199,24 @@ export class BackupService {
   }
 
   // =====================================================
-  // DAILY CRON
+  // DAILY CRON - SOLO PARA DESARROLLO LOCAL
   // =====================================================
   @Cron('0 3 * * *')
   async scheduledDailyBackup() {
-    this.logger.log('⏰ Running daily backup');
+    // En producción, GitHub Actions maneja esto
+    if (this.isProduction) {
+      this.logger.log('⏰ GitHub Actions maneja los backups programados');
+      return;
+    }
 
+    this.logger.log('⏰ Running daily backup (local)');
     await this.createBackup();
     await this.createCriticalTablesBackup();
-
     await this.cleanupOldBackups(7);
   }
 
   // =====================================================
-  // DELETE OLD BACKUPS
+  // DELETE OLD BACKUPS - SIN CAMBIOS
   // =====================================================
   async cleanupOldBackups(days = 7) {
     const res = await this.s3.send(
