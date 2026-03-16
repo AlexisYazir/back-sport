@@ -12,7 +12,6 @@ import {
   ListObjectsV2Command,
   GetObjectCommand,
   DeleteObjectCommand,
-  HeadObjectCommand,
 } from '@aws-sdk/client-s3';
 
 const execAsync = promisify(exec);
@@ -21,7 +20,6 @@ const execAsync = promisify(exec);
 export class BackupService {
   private readonly logger = new Logger(BackupService.name);
   private readonly s3: S3Client;
-  private readonly isProduction: boolean;
 
   constructor(private readonly configService: ConfigService) {
     this.s3 = new S3Client({
@@ -32,7 +30,6 @@ export class BackupService {
         secretAccessKey: this.configService.get<string>('R2_SECRET_ACCESS_KEY')!,
       },
     });
-    this.isProduction = process.env.NODE_ENV === 'production';
   }
 
   private getBucket() {
@@ -45,28 +42,14 @@ export class BackupService {
       .toString().padStart(2,'0')}_${d.getHours().toString().padStart(2,'0')}-${d.getMinutes().toString().padStart(2,'0')}`;
   }
 
-  // =====================================================
-  // CREATE FULL BACKUP - AHORA CON DETECCIÓN DE ENTORNO
-  // =====================================================
+  //! CREATE FULL BACKUP
   async createBackup() {
-    // 🚨 EN PRODUCCIÓN (Vercel) - NO ejecutar pg_dump
-    if (this.isProduction) {
-      this.logger.log('📦 En producción: los backups automáticos los maneja GitHub Actions');
-      return { 
-        success: false, 
-        message: 'Los backups automáticos los maneja GitHub Actions',
-        info: 'Los backups se crean diariamente a las 3 AM',
-        action: 'Usa GitHub Actions para crear backups'
-      };
-    }
-
-    // 🖥️ EN DESARROLLO LOCAL - Ejecutar pg_dump normalmente
     const dbUrl = this.configService.get('DATABASE_URL_BACKUP');
     const filename = `full/backup_${this.getFormattedDate()}.dump`;
     const tempPath = path.join(process.cwd(), filename.replace('/','_'));
 
     try {
-      this.logger.log('📦 Creating full database backup (local)');
+      this.logger.log('Creating full database backup');
 
       await execAsync(`pg_dump -Fc "${dbUrl}" -f "${tempPath}"`);
 
@@ -89,23 +72,9 @@ export class BackupService {
     }
   }
 
-  // =====================================================
-  // CREATE CRITICAL TABLES BACKUP - CON DETECCIÓN
-  // =====================================================
+  //! CREATE CRITICAL TABLES BACKUP
   async createCriticalTablesBackup() {
-    // 🚨 EN PRODUCCIÓN (Vercel) - NO ejecutar pg_dump
-    if (this.isProduction) {
-      this.logger.log('📦 En producción: los backups críticos los maneja GitHub Actions');
-      return { 
-        success: false, 
-        message: 'Los backups críticos los maneja GitHub Actions',
-        info: 'Los backups se crean diariamente a las 3 AM',
-        action: 'Usa GitHub Actions para crear backups'
-      };
-    }
-
-    // 🖥️ EN DESARROLLO LOCAL - Ejecutar pg_dump normalmente
-    this.logger.log('📦 Creating critical tables backup (local)');
+    this.logger.log('Creating critical tables backup');
     const dbUrl = this.configService.get('DATABASE_URL_BACKUP');
 
     const tables = [
@@ -148,9 +117,7 @@ export class BackupService {
     }
   }
 
-  // =====================================================
-  // LIST BACKUPS - SIN CAMBIOS
-  // =====================================================
+  //! LIST BACKUPS
   async listBackups() {
     const res = await this.s3.send(
       new ListObjectsV2Command({
@@ -165,11 +132,11 @@ export class BackupService {
     }));
   }
 
-  // =====================================================
-  // DOWNLOAD BACKUP - SIN CAMBIOS
-  // =====================================================
+  //! DOWNLOAD BACKUP
   async downloadBackup(type: string, name: string) {
+
     const decodedName = decodeURIComponent(name);
+
     const key = `${type}/${decodedName}`;
 
     const result = await this.s3.send(
@@ -181,11 +148,9 @@ export class BackupService {
 
     return result.Body;
   }
-
-  // =====================================================
-  // DELETE BACKUP - SIN CAMBIOS
-  // =====================================================
+  //! DELETE BACKUP
   async deleteBackup(type: string, name: string) {
+
     const key = `${type}/${name}`;
 
     await this.s3.send(
@@ -198,26 +163,18 @@ export class BackupService {
     return { success: true };
   }
 
-  // =====================================================
-  // DAILY CRON - SOLO PARA DESARROLLO LOCAL
-  // =====================================================
+  //! DAILY CRON
   @Cron('0 3 * * *')
   async scheduledDailyBackup() {
-    // En producción, GitHub Actions maneja esto
-    if (this.isProduction) {
-      this.logger.log('⏰ GitHub Actions maneja los backups programados');
-      return;
-    }
+    this.logger.log('Running daily backup');
 
-    this.logger.log('⏰ Running daily backup (local)');
     await this.createBackup();
     await this.createCriticalTablesBackup();
+
     await this.cleanupOldBackups(7);
   }
 
-  // =====================================================
-  // DELETE OLD BACKUPS - SIN CAMBIOS
-  // =====================================================
+  //! DELETE OLD BACKUPS
   async cleanupOldBackups(days = 7) {
     const res = await this.s3.send(
       new ListObjectsV2Command({
@@ -234,7 +191,7 @@ export class BackupService {
       const age = now - obj.LastModified.getTime();
 
       if (age > maxAge) {
-        this.logger.log(`🗑 deleting old backup ${obj.Key}`);
+        this.logger.log(`[x] deleting old backup ${obj.Key}`);
 
         await this.s3.send(
           new DeleteObjectCommand({

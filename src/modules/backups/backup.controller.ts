@@ -19,9 +19,6 @@ import { Readable } from 'stream';
 export class BackupController {
   constructor(private readonly backupService: BackupService) {}
 
-  // =====================================================
-  // CREAR BACKUP COMPLETO
-  // =====================================================
   @Post('create')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(3)
@@ -29,9 +26,6 @@ export class BackupController {
     return this.backupService.createBackup();
   }
 
-  // =====================================================
-  // CREAR BACKUP DE TABLAS CRÍTICAS
-  // =====================================================
   @Post('create-critical')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(3)
@@ -39,9 +33,6 @@ export class BackupController {
     return this.backupService.createCriticalTablesBackup();
   }
 
-  // =====================================================
-  // LISTAR BACKUPS
-  // =====================================================
   @Get('list')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(3)
@@ -49,11 +40,8 @@ export class BackupController {
     return this.backupService.listBackups();
   }
 
-  // =====================================================
-  // DESCARGAR BACKUP
-  // =====================================================
- @Get('download/:type/:name')
- @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Get('download/:type/:name')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(3)
   async downloadBackup(
     @Param('type') type: string,
@@ -70,9 +58,6 @@ export class BackupController {
     });
   }
 
-  // =====================================================
-  // ELIMINAR BACKUP
-  // =====================================================
   @Delete('delete/:type/:name')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(3)
@@ -83,9 +68,6 @@ export class BackupController {
     return this.backupService.deleteBackup(type, name);
   }
 
-  // =====================================================
-  // LIMPIAR BACKUPS ANTIGUOS
-  // =====================================================
   @Post('cleanup/:days')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(3)
