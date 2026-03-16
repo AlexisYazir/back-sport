@@ -36,24 +36,26 @@ jobs:
             "${{ secrets.DATABASE_URL_BACKUP }}" > critical_backup_$(date +%Y%m%d_%H%M%S).dump
 
       - name: Upload full backup to Cloudflare R2
-        uses: shallwefootball/s3-upload-action@v1
+        uses: adityak74/s3-upload-action@main
         with:
           aws_key_id: ${{ secrets.R2_ACCESS_KEY_ID }}
           aws_secret_access_key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           aws_bucket: ${{ secrets.R2_BUCKET }}
-          endpoint: ${{ secrets.R2_ENDPOINT }}
-          source_file: 'full_backup_*.dump'
+          source_dir: '.'
           destination_dir: 'full'
+          endpoint: ${{ secrets.R2_ENDPOINT }}
+          region: 'auto'
 
       - name: Upload critical backup to Cloudflare R2
-        uses: shallwefootball/s3-upload-action@v1
+        uses: adityak74/s3-upload-action@main
         with:
           aws_key_id: ${{ secrets.R2_ACCESS_KEY_ID }}
           aws_secret_access_key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           aws_bucket: ${{ secrets.R2_BUCKET }}
-          endpoint: ${{ secrets.R2_ENDPOINT }}
-          source_file: 'critical_backup_*.dump'
+          source_dir: '.'
           destination_dir: 'critical'
+          endpoint: ${{ secrets.R2_ENDPOINT }}
+          region: 'auto'
 
       - name: Cleanup
         run: rm -f *.dump
