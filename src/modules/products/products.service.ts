@@ -2,6 +2,7 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { Repository, DataSource, Not } from 'typeorm';
+import * as XLSX from 'xlsx';
 
 import { CreateProductDto } from './dto/product/create-product.dto';
 import { Product } from './entities/product/product.entity';
@@ -31,8 +32,20 @@ import { Category } from './entities/categorie/categorie.entity';
 import { Orders } from './entities/orders/orders.entity';
 
 import { CreateInventoryMovementDto } from './dto/inventory/create-inventory_movement.dto';
+import { CreateInventoryMovementSkuDto } from './dto/inventory/create-inventory-movement-sku.dto';
 import { InventoryMovements } from './entities/inventory/inventory_movements.entity';
 import { Inventory } from './entities/inventory/inventory.entity';
+
+export interface ExcelImportResult {
+  success: number;
+  errors: Array<{
+    row: number;
+    sku: string;
+    error: string;
+    data: any;
+  }>;
+  total: number;
+}
 
 @Injectable()
 export class ProductsService {
@@ -342,44 +355,133 @@ export class ProductsService {
 
   //* ---------- FUNCIONES PARA INVENTARIO
   //! funcion para registrar movimientos y actualizar inventario (EDITOR - CREATE/UPDATE)
-  async createInventoryMovement(
-    createInventoryMovementDto: CreateInventoryMovementDto,
+  async createInventoryMovementBySku(
+    dto: CreateInventoryMovementSkuDto,
   ): Promise<InventoryMovements> {
     try {
-      // READER para verificar existencia
+      // 1. Buscar la variante por SKU
+      const variant = await this.productVariantReaderRepository.findOne({
+        where: { sku: dto.sku },
+      });
+
+      if (!variant) {
+        throw new BadRequestException(`No se encontró ninguna variante con el SKU: ${dto.sku}`);
+      }
+
+      // 2. Verificar que existe inventario para esa variante
       const inventory = await this.inventoryReaderRepository.findOne({
-        where: { id_variante: createInventoryMovementDto.id_variante },
+        where: { id_variante: variant.id_variante },
+      });
+
+      if (!inventory) {
+        throw new BadRequestException(
+          `No hay inventario registrado para la variante con SKU: ${dto.sku}`
+        );
+      }
+
+      // 3. Validar stock negativo en salidas
+      if (dto.tipo.toLowerCase() === 'salida' && inventory.stock_actual < dto.cantidad) {
+        throw new BadRequestException(
+          `Stock insuficiente. Disponible: ${inventory.stock_actual}, Solicitado: ${dto.cantidad}`
+        );
+      }
+
+      // 4. Crear el movimiento
+    const movementData = {
+      id_variante: variant.id_variante,
+      tipo: dto.tipo,
+      cantidad: dto.tipo.toLowerCase() === 'salida' ? -Math.abs(dto.cantidad) : dto.cantidad,
+      costo_unitario: dto.costo_unitario || 0,
+      referencia_tipo: dto.referencia_tipo || 'manual',
+      referencia_id: dto.referencia_id || 0,
+    };
+
+    const movement = this.inventoryMovementsEditorRepository.create(movementData);
+    await this.inventoryMovementsEditorRepository.save(movement);
+
+      // 5. Actualizar stock
+      if (dto.tipo.toLowerCase() === 'salida') {
+        inventory.stock_actual -= dto.cantidad;
+      } else {
+        inventory.stock_actual += dto.cantidad;
+      }
+      
+      await this.inventoryEditorRepository.save(inventory);
+
+      // 6. Retornar movimiento con info adicional
+      return {
+        ...movement,
+        sku: variant.sku,
+        producto_id: variant.id_producto
+      } as any;
+
+    } catch (error) {
+      console.error('Error al crear movimiento:', error);
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new BadRequestException('Error al crear movimiento de inventario');
+    }
+  }
+
+  //! funcion para crear movimientos de inventario
+  async createInventoryMovement(
+    dto: CreateInventoryMovementDto,
+  ): Promise<InventoryMovements> {
+    try {
+      const inventory = await this.inventoryReaderRepository.findOne({
+        where: { id_variante: dto.id_variante },
       });
 
       if (!inventory) {
         throw new BadRequestException('Inventario no encontrado');
       }
 
-      // EDITOR para crear movimiento
-      const movement = this.inventoryMovementsEditorRepository.create({
-        ...createInventoryMovementDto,
-      });
-
+      const movement = this.inventoryMovementsEditorRepository.create(dto);
       await this.inventoryMovementsEditorRepository.save(movement);
 
-      // EDITOR para actualizar stock
-      inventory.stock_actual += createInventoryMovementDto.cantidad;
+      // Para la función original, asumimos que cantidad positiva es entrada, negativa es salida
+      inventory.stock_actual += dto.cantidad;
       await this.inventoryEditorRepository.save(inventory);
 
       return movement;
 
     } catch (error) {
-      console.error('Error al crear movimiento de inventario:', error);
-      throw new BadRequestException('Error al crear movimiento de inventario', error);
+      console.error('Error al crear movimiento:', error);
+      throw new BadRequestException('Error al crear movimiento de inventario');
     }
+  }
+
+  //! Función para importación masiva desde CSV/Excel
+  async bulkCreateInventoryMovements(
+    movements: CreateInventoryMovementSkuDto[],
+  ): Promise<{ success: number; errors: any[] }> {
+    const results = {
+      success: 0,
+      errors: [] as any[],
+    };
+
+    for (const [index, movement] of movements.entries()) {
+      try {
+        await this.createInventoryMovementBySku(movement);
+        results.success++;
+      } catch (error) {
+        results.errors.push({
+          row: index + 2,
+          sku: movement.sku,
+          error: error.message,
+          data: movement,
+        });
+      }
+    }
+
+    return results;
   }
 
   //! funcion para consultar movimientos de inventario (READER - SELECT)
   async getInventoryMovements(): Promise<InventoryMovements[]> {
     try {
-      const movements = await this.inventoryMovementsReaderRepository.find({
-        order: { fecha: 'DESC' },
-      });
+      const movements = await this.inventoryMovementsReaderRepository.query( ` SELECT * FROM core.get_inventory_movements() `);
 
       return movements;
     } catch (error) {

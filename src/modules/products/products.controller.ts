@@ -29,6 +29,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from '../auth/roles.guard';
 
 import { CreateInventoryMovementDto } from './dto/inventory/create-inventory_movement.dto';
+import { CreateInventoryMovementSkuDto } from './dto/inventory/create-inventory-movement-sku.dto';
 
 @Controller('products')
 export class ProductsController {
@@ -62,6 +63,8 @@ export class ProductsController {
     );
   }
 
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(3)
   @Post('create-inventory-movement')
   async createInventoryMovement(
     @Body() createInventoryMovementDto: CreateInventoryMovementDto,
@@ -71,6 +74,17 @@ export class ProductsController {
     );
   }
 
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(3)
+  @Post('inventory-movements/bulk')
+  async bulkCreateInventoryMovements(
+    @Body() body: { movements: CreateInventoryMovementSkuDto[] },
+  ) {
+    return this.productsService.bulkCreateInventoryMovements(body.movements);
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(3)
   @Get('inventory-movements')
   async getInventoryMovements() {
     return this.productsService.getInventoryMovements();

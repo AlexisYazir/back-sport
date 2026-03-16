@@ -1,48 +1,95 @@
-import { Controller, Post, Get, Param, Res } from '@nestjs/common';
+/* eslint-disable */
+import {
+  Controller,
+  Post,
+  Get,
+  Delete,
+  Param,
+  Res,
+  UseGuards,
+  StreamableFile 
+} from '@nestjs/common';
 import { BackupService } from './backup.service';
-import type { Response } from 'express';
+import { AuthGuard } from '@nestjs/passport';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
+import { Readable } from 'stream';
 
 @Controller('backup')
 export class BackupController {
   constructor(private readonly backupService: BackupService) {}
 
-  @Post('inventory-movements')
-  async backupInventoryMovements() {
-    return this.backupService.backupInventoryMovements();
+  // =====================================================
+  // CREAR BACKUP COMPLETO
+  // =====================================================
+  @Post('create')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(3)
+  async createBackup() {
+    return this.backupService.createBackup();
   }
 
-  @Post('full')
-  async backupFullDatabase() {
-    return this.backupService.backupFullDatabase();
+  // =====================================================
+  // CREAR BACKUP DE TABLAS CRÍTICAS
+  // =====================================================
+  @Post('create-critical')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(3)
+  async createCriticalTablesBackup() {
+    return this.backupService.createCriticalTablesBackup();
   }
 
-  @Post('critical-tables')
-  async backupCriticalTables() {
-    return this.backupService.backupCriticalTables();
-  }
-
+  // =====================================================
+  // LISTAR BACKUPS
+  // =====================================================
   @Get('list')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(3)
   async listBackups() {
     return this.backupService.listBackups();
   }
 
-  @Get('download/:filename')
+  // =====================================================
+  // DESCARGAR BACKUP
+  // =====================================================
+ @Get('download/:type/:name')
+ @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(3)
   async downloadBackup(
-    @Param('filename') filename: string,
-    @Res() res: Response,
-  ) {
-    try {
-      const filePath = await this.backupService.getBackupFilePath(filename);
-      res.download(filePath, filename);
-    } catch (error) {
-      console.log(error);
-      res.status(404).json({ message: 'Archivo no encontrado' });
-    }
+    @Param('type') type: string,
+    @Param('name') name: string,
+  ): Promise<StreamableFile> {
+
+    const stream = await this.backupService.downloadBackup(type, name);
+
+    const decodedName = decodeURIComponent(name);
+
+    return new StreamableFile(stream as Readable, {
+      disposition: `attachment; filename="${decodedName}"`,
+      type: 'application/octet-stream',
+    });
   }
 
-  @Get('sizes')
-  async getBackupSizes() {
-    const backups = await this.backupService.listBackups();
-    return this.backupService.getBackupSizes(backups.backups);
+  // =====================================================
+  // ELIMINAR BACKUP
+  // =====================================================
+  @Delete('delete/:type/:name')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(3)
+  async deleteBackup(
+    @Param('type') type: string,
+    @Param('name') name: string,
+  ) {
+    return this.backupService.deleteBackup(type, name);
+  }
+
+  // =====================================================
+  // LIMPIAR BACKUPS ANTIGUOS
+  // =====================================================
+  @Post('cleanup/:days')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(3)
+  async cleanupOldBackups(@Param('days') days: number) {
+    return this.backupService.cleanupOldBackups(Number(days));
   }
 }
