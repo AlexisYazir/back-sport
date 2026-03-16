@@ -9,12 +9,12 @@ jobs:
     
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4  # 👈 Actualizado a v4
 
-      - name: Install PostgreSQL client and AWS CLI
+      - name: Install PostgreSQL client
         run: |
           sudo apt-get update
-          sudo apt-get install -y postgresql-client awscli
+          sudo apt-get install -y postgresql-client
 
       - name: Create critical tables backup
         run: |
@@ -29,14 +29,22 @@ jobs:
             -t product_variants \
             "${{ secrets.DATABASE_URL_BACKUP }}" > critical_backup_$(date +%Y%m%d_%H%M%S).dump
 
-      - name: Upload to Cloudflare R2 with AWS CLI
+      - name: List files before upload
+        run: ls -la
+
+      - name: Upload to Cloudflare R2
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           AWS_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT }}
           AWS_REGION: auto
         run: |
-          aws s3 cp critical_backup_*.dump s3://${{ secrets.R2_BUCKET }}/critical/ --endpoint-url ${{ secrets.R2_ENDPOINT }}
+          # Verificar que el archivo existe
+          echo "Archivos encontrados:"
+          ls -la critical_backup_*.dump
+          
+          # Subir archivo
+          aws s3 cp critical_backup_*.dump s3://${{ secrets.R2_BUCKET }}/critical/ --endpoint-url ${{ secrets.R2_ENDPOINT }} --debug
 
       - name: Cleanup
         run: rm -f *.dump
