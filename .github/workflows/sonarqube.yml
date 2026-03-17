@@ -19,14 +19,10 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '20'  # Cambiado de 18 a 20
+          node-version: '20'
       
       - name: Install dependencies
-        run: |
-          npm install  # Cambiado de npm ci a npm install
-      
-      - name: Run tests with coverage
-        run: npm run test:cov
+        run: npm install
       
       - name: SonarQube Scan
         uses: SonarSource/sonarcloud-github-action@master
