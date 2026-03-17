@@ -27,7 +27,9 @@ export class BackupService {
       endpoint: this.configService.get<string>('R2_ENDPOINT')!,
       credentials: {
         accessKeyId: this.configService.get<string>('R2_ACCESS_KEY_ID')!,
-        secretAccessKey: this.configService.get<string>('R2_SECRET_ACCESS_KEY')!,
+        secretAccessKey: this.configService.get<string>(
+          'R2_SECRET_ACCESS_KEY',
+        )!,
       },
     });
   }
@@ -38,15 +40,20 @@ export class BackupService {
 
   private getFormattedDate(): string {
     const d = new Date();
-    return `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate()
-      .toString().padStart(2,'0')}_${d.getHours().toString().padStart(2,'0')}-${d.getMinutes().toString().padStart(2,'0')}`;
+    return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d
+      .getDate()
+      .toString()
+      .padStart(
+        2,
+        '0',
+      )}_${d.getHours().toString().padStart(2, '0')}-${d.getMinutes().toString().padStart(2, '0')}`;
   }
 
   //! CREATE FULL BACKUP
   async createBackup() {
     const dbUrl = this.configService.get('DATABASE_URL_BACKUP');
     const filename = `full/backup_${this.getFormattedDate()}.dump`;
-    const tempPath = path.join(process.cwd(), filename.replace('/','_'));
+    const tempPath = path.join(process.cwd(), filename.replace('/', '_'));
 
     try {
       this.logger.log('Creating full database backup');
@@ -89,14 +96,12 @@ export class BackupService {
     ];
 
     const filename = `critical/critical_${this.getFormattedDate()}.dump`;
-    const tempPath = path.join(process.cwd(), filename.replace('/','_'));
+    const tempPath = path.join(process.cwd(), filename.replace('/', '_'));
 
     try {
-      const tableFlags = tables.map(t => `-t ${t}`).join(' ');
+      const tableFlags = tables.map((t) => `-t ${t}`).join(' ');
 
-      await execAsync(
-        `pg_dump -Fc ${tableFlags} "${dbUrl}" -f "${tempPath}"`,
-      );
+      await execAsync(`pg_dump -Fc ${tableFlags} "${dbUrl}" -f "${tempPath}"`);
 
       const file = await fs.readFile(tempPath);
 
@@ -134,7 +139,6 @@ export class BackupService {
 
   //! DOWNLOAD BACKUP
   async downloadBackup(type: string, name: string) {
-
     const decodedName = decodeURIComponent(name);
 
     const key = `${type}/${decodedName}`;
@@ -150,7 +154,6 @@ export class BackupService {
   }
   //! DELETE BACKUP
   async deleteBackup(type: string, name: string) {
-
     const key = `${type}/${name}`;
 
     await this.s3.send(
