@@ -49,7 +49,7 @@ export class BackupService {
       )}_${d.getHours().toString().padStart(2, '0')}-${d.getMinutes().toString().padStart(2, '0')}`;
   }
 
-  //! CREATE FULL BACKUP
+  //! Crear backup completo
   async createBackup() {
     const dbUrl = this.configService.get('DATABASE_URL_BACKUP');
     const filename = `full/backup_${this.getFormattedDate()}.dump`;
@@ -79,7 +79,7 @@ export class BackupService {
     }
   }
 
-  //! CREATE CRITICAL TABLES BACKUP
+  //! Crear backup de tablas criticas
   async createCriticalTablesBackup() {
     this.logger.log('Creating critical tables backup');
     const dbUrl = this.configService.get('DATABASE_URL_BACKUP');
