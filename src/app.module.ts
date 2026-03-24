@@ -1,6 +1,7 @@
-import { Module } from '@nestjs/common';
+import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { IastMiddleware } from '../iast-agent';
 
 import { UsersModule } from './modules/users/users.module';
 import { ProductsModule } from './modules/products/products.module';
@@ -17,7 +18,7 @@ import { CompanyModule } from './modules/company/company.module';
 
     // Configuración por defecto (EDITOR - para la app web)
     TypeOrmModule.forRootAsync({
-      name: 'editorConnection', // Nombre para identificar la conexión
+      name: 'editorConnection',
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
@@ -30,7 +31,7 @@ import { CompanyModule } from './modules/company/company.module';
           ssl: {
             rejectUnauthorized: false,
           },
-          connectionLimit: 20, // Más conexiones para editor
+          connectionLimit: 20,
         },
       }),
     }),
@@ -44,13 +45,13 @@ import { CompanyModule } from './modules/company/company.module';
         type: 'postgres',
         url: configService.get('DATABASE_URL_ADMIN'),
         autoLoadEntities: true,
-        synchronize: false, // ¡NUNCA true en producción!
+        synchronize: false,
         ssl: true,
         extra: {
           ssl: {
             rejectUnauthorized: false,
           },
-          connectionLimit: 5, // Pocas conexiones para admin
+          connectionLimit: 5,
         },
       }),
     }),
@@ -70,7 +71,7 @@ import { CompanyModule } from './modules/company/company.module';
           ssl: {
             rejectUnauthorized: false,
           },
-          connectionLimit: 30, // Muchas conexiones para lecturas
+          connectionLimit: 30,
         },
       }),
     }),
@@ -90,7 +91,7 @@ import { CompanyModule } from './modules/company/company.module';
           ssl: {
             rejectUnauthorized: false,
           },
-          connectionLimit: 2, // Muy pocas conexiones para backup
+          connectionLimit: 2,
         },
       }),
     }),
@@ -102,4 +103,9 @@ import { CompanyModule } from './modules/company/company.module';
   ],
   controllers: [AppController],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    // Aplicar el middleware IAST a todas las rutas
+    consumer.apply(IastMiddleware).forRoutes('*');
+  }
+}

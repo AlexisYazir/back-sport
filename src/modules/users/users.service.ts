@@ -1,4 +1,4 @@
-// /* eslint-disable */
+/* eslint-disable */
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -15,7 +15,7 @@ import * as crypto from 'crypto';
 
 @Injectable()
 export class UsersService {
-  //private readonly logger = new Logger(UsersService.name);
+  private readonly logger = new Logger(UsersService.name);
   private googleClient: OAuth2Client;
   constructor(
     //  AGREGAR ESTOS DOS DATASOURCES
@@ -132,7 +132,7 @@ export class UsersService {
       );
     } catch (error) {
       await this.userEditorRepository.delete({ email: newUser.email });
-      console.log(error);
+      this.logger.error(error);
       throw new BadRequestException(
         'Revisa que tu información sea correcta. Intenta de nuevo 1.' + error,
       );
@@ -407,7 +407,7 @@ export class UsersService {
 
   //! funcion para perfil de usuario (USA READER - SELECT)
   async getProfile(id_usuario: number) {
-    console.log('Buscando perfil para ID:', id_usuario);
+    this.logger.error('Buscando perfil para ID:', id_usuario);
 
     if (!id_usuario) {
       throw new BadRequestException('ID de usuario no proporcionado');
@@ -428,11 +428,11 @@ export class UsersService {
     });
 
     if (!user) {
-      console.error(`Usuario con ID ${id_usuario} no encontrado`);
+      this.logger.error(`Usuario con ID ${id_usuario} no encontrado`);
       throw new BadRequestException('El usuario no existe.');
     }
 
-    console.log('Usuario encontrado:', user);
+    this.logger.error('Usuario encontrado:', user);
     return user;
   }
 
@@ -701,7 +701,7 @@ export class UsersService {
 
       return { message: 'Contraseña actualizada correctamente.' };
     } catch (error) {
-      //console.log('Reset psw error:', error);
+      //this.logger.error('Reset psw error:', error);
       throw error;
     }
   }
@@ -712,7 +712,7 @@ export class UsersService {
       // 1. Verificar token contra Google
       const googleUser = await this.verifyGoogleToken(idToken);
 
-      // console.log(googleUser);
+      //this.logger.log(googleUser);
       if (!googleUser.email_verified) {
         throw new BadRequestException(
           'El correo de Google no está verificado.',
@@ -806,7 +806,7 @@ export class UsersService {
 
       return result;
     } catch (error) {
-      console.error('ERROR REAL:', error);
+      this.logger.error('ERROR REAL:', error);
       throw error;
     }
   }

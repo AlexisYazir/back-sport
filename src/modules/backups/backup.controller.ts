@@ -74,4 +74,74 @@ export class BackupController {
   async cleanupOldBackups(@Param('days') days: number) {
     return this.backupService.cleanupOldBackups(Number(days));
   }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(3)
+  @Get('monitor/connections')
+  async connections() {
+    return this.backupService.getActiveConnections();
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(3)
+  @Get('monitor/locks')
+  async locks() {
+    return this.backupService.getDetailedLocks();
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(3)
+  @Get('monitor/block-locks')
+  async getBlockingLocks() {
+    return this.backupService.getBlockingLocks();
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(3)
+  @Get('monitor/long-queries')
+  async longQueries() {
+    return this.backupService.getLongRunningQueries();
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(3)
+  @Get('monitor/explain')
+  async explain() {
+    return this.backupService.explainOrdersWithUsers();
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(3)
+  @Get('stats/most-queried')
+  async getMostQueriedTables() {
+    return this.backupService.getMostQueriedTables();
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(3)
+  @Get('stats/table-sizes')
+  async getTableSizes() {
+    return this.backupService.getTableSizes();
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(3)
+  @Get('stats/index-info')
+  async getIndexInfo() {
+    return this.backupService.getIndexInfo();
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(3)
+  @Get('stats/lock-stats')
+  async getTableLockStats() {
+    return this.backupService.getTableLockStats();
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(3)
+  @Get('stats/scan-stats')
+  async getTableScanStats() {
+    return this.backupService.getTableScanStats();
+  }
 }

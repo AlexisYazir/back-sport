@@ -1,8 +1,7 @@
 /* eslint-disable */
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { Repository, DataSource, Not } from 'typeorm';
-import * as XLSX from 'xlsx';
 
 import { CreateProductDto } from './dto/product/create-product.dto';
 import { Product } from './entities/product/product.entity';
@@ -20,6 +19,8 @@ import { VariantAttributeValue } from './entities/product/variant_attr_vals.enti
 
 import { CreateAttributeDto } from './dto/product/create-attribute.dto';
 import { Attribute } from './entities/product/atributtes.entity';
+
+import { Sports } from './entities/sports/sport.entity';
 
 import { CreateMarcaDto } from './dto/marca/create-marca.tdo';
 import { UpdateMarcaDto } from './dto/marca/update-marca.dto';
@@ -49,6 +50,7 @@ export interface ExcelImportResult {
 
 @Injectable()
 export class ProductsService {
+  private readonly logger = new Logger(ProductsService.name);
   constructor(
     // Inyectar DataSource específico para cada conexión
     @InjectDataSource('editorConnection') // Importante: especificar la conexión
@@ -76,6 +78,8 @@ export class ProductsService {
     private readonly variantAttributeValueReaderRepository: Repository<VariantAttributeValue>,
     @InjectRepository(Attribute, 'readerConnection')
     private readonly attributeReaderRepository: Repository<Attribute>,
+    @InjectRepository(Sports, 'readerConnection')
+    private readonly sportReaderRepository: Repository<Sports>,
     
     // ADMIN: Para operaciones que requieren permisos especiales
     @InjectRepository(Product, 'adminConnection')
@@ -122,7 +126,7 @@ export class ProductsService {
 
       return await this.productEditorRepository.save(product);
     } catch (error) {
-      console.error('Error al crear producto:', error);
+      this.logger.error('Error al crear producto: ', error);
       throw new BadRequestException('Error al crear el producto', error);
     }
   }
@@ -187,7 +191,7 @@ export class ProductsService {
 
       return await this.variantAttributeValueEditorRepository.save(attribute);
     } catch (error) {
-      console.log(error);
+      this.logger.error("Error al crear atributo de variante: ", error);
       throw new BadRequestException('Error al crear atributo de variante');
     }
   }
@@ -200,7 +204,7 @@ export class ProductsService {
       );
       return result;
     } catch (error) {
-      console.error('ERROR REAL:', error);
+      this.logger.error('Error al cargar todos los productos: ', error);
       throw error;
     }
   }
@@ -213,7 +217,7 @@ export class ProductsService {
       );
       return result;
     } catch (error) {
-      console.error('ERROR REAL:', error);
+      this.logger.error('ERROR REAL:', error);
       throw error;
     }
   }
@@ -226,7 +230,7 @@ export class ProductsService {
       );
       return result;
     } catch (error) {
-      console.error('ERROR REAL:', error);
+      this.logger.error('Error al consultar productos variantes:', error);
       throw error;
     }
   }
@@ -242,6 +246,7 @@ export class ProductsService {
       return variants;
 
     } catch (error) {
+      this.logger.error("Error al consultar variantes de producto por id: ", error)
       throw new Error('Error fetching product variants');
     }
   }
@@ -254,9 +259,98 @@ export class ProductsService {
       );
       return result;
     } catch (error) {
-      console.error('ERROR REAL:', error);
+      this.logger.error("Error al cargar los detalles de un producto: ", error)
       throw error;
     }
+  }
+
+  async getOrderDetail(id: number): Promise<any[]> {
+    try {
+      const result = await this.readerDataSource.query(
+        `SELECT 
+              o.id_orden,
+              o.fecha_entrega as fecha_creacion,
+              oi.cantidad, 
+              oi.total
+        FROM core.orders o
+        JOIN core.order_items oi 
+              ON oi.id_orden = o.id_orden
+        JOIN core.product_variants v 
+              ON v.id_variante = oi.id_variante
+        WHERE v.id_producto = $1
+        ORDER BY o.fecha_creacion;`,
+        [id]
+      );
+      return result;
+    } catch (error) {
+      this.logger.error("Error al cargar los detalles de venta: ", error)
+      throw error;
+    }
+  }
+
+  async getAllOrders(): Promise<any[]> {
+    const result = await this.readerDataSource.query(
+      `
+        SELECT 
+            p.id_producto,
+            p.nombre,
+
+            c.nombre AS categoria,
+            cp.nombre AS categoria_padre,
+
+            COALESCE(d.deportes, '[]') AS deportes,
+            COALESCE(img.imagenes, '[]') AS imagenes,
+
+            v.total_vendido,
+            v.ingresos_totales
+
+        FROM core.products p
+
+        LEFT JOIN core.categories c 
+            ON c.id_categoria = p.id_categoria
+
+        LEFT JOIN core.categories cp 
+            ON cp.id_categoria = c.id_padre
+
+        -- SOLO productos con ventas
+        INNER JOIN (
+            SELECT 
+                v.id_producto,
+                SUM(oi.cantidad) AS total_vendido,
+                SUM(oi.total) AS ingresos_totales
+            FROM core.product_variants v
+            INNER JOIN core.order_items oi 
+                ON oi.id_variante = v.id_variante
+            GROUP BY v.id_producto
+        ) v ON v.id_producto = p.id_producto
+
+        -- deportes
+        LEFT JOIN (
+            SELECT 
+                pd.id_producto,
+                jsonb_agg(DISTINCT d.nombre) AS deportes
+            FROM core.product_deportes pd
+            JOIN core.deportes d 
+                ON d.id_deporte = pd.id_deporte
+            GROUP BY pd.id_producto
+        ) d ON d.id_producto = p.id_producto
+
+        -- imagenes
+        LEFT JOIN (
+            SELECT 
+                v.id_producto,
+                jsonb_agg(DISTINCT v.imagenes) AS imagenes
+            FROM core.product_variants v
+            GROUP BY v.id_producto
+        ) img ON img.id_producto = p.id_producto
+
+        WHERE p.activo = TRUE
+
+        ORDER BY v.total_vendido DESC;
+      `
+    )
+
+    return result
   }
 
   //! funcion para consultar todos los productos (READER - SELECT)
@@ -267,7 +361,7 @@ export class ProductsService {
       );
       return result;
     } catch (error) {
-      console.error('ERROR REAL:', error);
+      this.logger.error('ERROR REAL:', error);
       throw error;
     }
   }
@@ -416,7 +510,7 @@ export class ProductsService {
       } as any;
 
     } catch (error) {
-      console.error('Error al crear movimiento:', error);
+      this.logger.error('Error al crear movimiento:', error);
       if (error instanceof BadRequestException) {
         throw error;
       }
@@ -447,7 +541,7 @@ export class ProductsService {
       return movement;
 
     } catch (error) {
-      console.error('Error al crear movimiento:', error);
+      this.logger.error('Error al crear movimiento:', error);
       throw new BadRequestException('Error al crear movimiento de inventario');
     }
   }
@@ -485,7 +579,7 @@ export class ProductsService {
 
       return movements;
     } catch (error) {
-      console.error('Error al obtener movimientos de inventario:', error);
+      this.logger.error('Error al obtener movimientos de inventario:', error);
       throw new BadRequestException(
         'Error al obtener movimientos de inventario',
         error,
@@ -542,9 +636,10 @@ export class ProductsService {
 
   //! funcion para consultar todas las marcas (READER - SELECT)
   async getMarcas(): Promise<Marca[]> {
-    return await this.marcaReaderRepository.find();
+    return await this.marcaReaderRepository.find({
+      order: { nombre: 'ASC' }
+    });
   }
-
   //* ---------- FUNCIONES PARA CATEGORIAS
   //! funcion para registrar una variante de producto (EDITOR - CREATE)
   async createCategory(dto: CreateCategorieDto): Promise<Category> {
@@ -565,29 +660,33 @@ export class ProductsService {
     return await this.categoryEditorRepository.save(variant);
   }
 
-  //! funcion para actualizar una categoria (EDITOR - UPDATE)
-  async updateCategory(dto: UpdateCategorieDto): Promise<Category> {
-    // READER para verificar existencia
-    const category = await this.categoryReaderRepository.findOne({
-      where: { id_categoria: dto.id_categoria },
-    });
+//! funcion para actualizar una categoria (EDITOR - UPDATE)
+async updateCategory(dto: UpdateCategorieDto): Promise<Category> {
+  // READER para verificar existencia
+  const category = await this.categoryReaderRepository.findOne({
+    where: { id_categoria: dto.id_categoria },
+  });
 
-    if (!category) {
-      throw new BadRequestException('La categoría no existe');
-    }
-    
-    // READER para verificar nombre duplicado
-    const categoryName = await this.categoryReaderRepository.findOneBy({
-      nombre: dto.nombre,
-    });
-    if(categoryName) {
-      throw new BadRequestException('Ya existe una categoría con ese nombre');
-    }
-
-    this.categoryEditorRepository.merge(category, dto);
-
-    return await this.categoryEditorRepository.save(category); // EDITOR para UPDATE
+  if (!category) {
+    throw new BadRequestException('La categoría no existe');
   }
+  
+  // READER para verificar nombre duplicado EXCLUYENDO la categoría actual
+  const categoryName = await this.categoryReaderRepository.findOne({
+    where: {
+      nombre: dto.nombre,
+      id_categoria: Not(dto.id_categoria)
+    }
+  });
+  
+  if (categoryName) {
+    throw new BadRequestException('Ya existe una categoría con ese nombre');
+  }
+
+  this.categoryEditorRepository.merge(category, dto);
+
+  return await this.categoryEditorRepository.save(category);
+}
 
   //! funcion para consultar todas las categorias (READER - SELECT)
   async getCategories(): Promise<Category[]> {
@@ -597,5 +696,37 @@ export class ProductsService {
   //! funcion para traer las ordenes de los usuarios, por parte del empleado (READER - SELECT)
   async getOrderss(): Promise<Orders[]> {
     return await this.ordersReaderRepository.find();
+  }
+
+  //* PARA EL MENU
+  async getCategoriesByParent(parentId: number): Promise<Category[]> {
+    return await this.categoryReaderRepository.find({
+      where: { id_padre: parentId },
+      order: { nombre: 'ASC' }
+    });
+  }
+
+  // Obtener deportes (atributos con id_padre = 40)
+  async getSports(): Promise<Sports[]> {
+    return await this.sportReaderRepository.find({
+      order: { nombre: 'ASC' }
+    });
+  }
+
+  // Obtener menú completo
+  async getCompleteMenu(): Promise<any> {
+    const [sports, clothing, accessories, brands] = await Promise.all([
+      this.getSports(),
+      this.getCategoriesByParent(1),      // Ropa (id_padre = 1)
+      this.getCategoriesByParent(34),     // Accesorios (id_padre = 34)
+      this.getMarcas()
+    ]);
+
+    return {
+      sports,
+      clothing,
+      accessories,
+      brands
+    };
   }
 }

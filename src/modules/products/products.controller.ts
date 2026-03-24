@@ -139,6 +139,20 @@ export class ProductsController {
     return this.productsService.getAllProducts();
   }
 
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(2, 3)
+  @Get('get-all-orders')
+  async getAllOrders() {
+    return this.productsService.getAllOrders();
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(2, 3)
+  @Get('get-order-details/:id')
+  async getOrderDetail(@Param('id') id: string) {
+    return this.productsService.getOrderDetail(Number(id));
+  }
+
   @Get('get-product-details/:id')
   async getProductDetail(@Param('id') id: number) {
     return this.productsService.getProductDetail(+id);
@@ -220,9 +234,31 @@ export class ProductsController {
 
   //* Funciones para ordenes
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(2)
-  @Get('get-all-orders-employee')
+  @Roles(2, 3)
+  @Get('get-all-orders')
   async getOrdersEmployee() {
     return this.productsService.getOrderss();
+  }
+
+  //* PARA EL MENU
+  @Get('menu/categories-by-parent/:parentId')
+  async getCategoriesByParent(@Param('parentId') parentId: number) {
+    return this.productsService.getCategoriesByParent(+parentId);
+  }
+
+  @Get('menu/sports')
+  async getSports() {
+    return this.productsService.getSports();
+  }
+
+  @Get('menu/brands')
+  async getBrands() {
+    return this.productsService.getMarcas();
+  }
+
+  @Get('menu/complete-menu')
+  async getCompleteMenu() {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+    return this.productsService.getCompleteMenu();
   }
 }

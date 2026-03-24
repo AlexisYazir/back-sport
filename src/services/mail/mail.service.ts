@@ -1,12 +1,12 @@
 /* eslint-disable */
 import { ConfigService } from '@nestjs/config';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
 import { Transporter } from 'nodemailer';
-import axios from 'axios';
 
 @Injectable()
 export class MailService {
+  private readonly logger = new Logger(MailService.name);
   constructor(private readonly configService: ConfigService) {}
 
   //! funcion para enviar correo de activacion de cuenta
@@ -40,7 +40,7 @@ export class MailService {
 
     try {
       await transporter.sendMail(mailOptions);
-      //console.log(`Correo enviado: ${email}`);
+      this.logger.log(`Correo enviado: ${email}`);
     } catch (error) {
       if (error instanceof Error) {
         console.error('Error al enviar correo:', error.message);
@@ -84,7 +84,7 @@ export class MailService {
 
     try {
       await transporter.sendMail(mailOptions);
-      console.log(`Correo enviado: ${email}`);
+      this.logger.log(`Correo enviado: ${email}`);
     } catch (error) {
       if (error instanceof Error) {
         console.error('Error al enviar correo:', error.message);
@@ -124,25 +124,5 @@ export class MailService {
     };
 
     await transporter.sendMail(mailOptions);
-  }
-
-  //! funcion para validar existencia de correo con Zeruh
-  public async validateEmailWithZeruh(email: string): Promise<boolean> {
-    const apiKey = this.configService.get<string>('ZERUH_API_KEY');
-    try {
-      const response = await axios.get(`https://api.zeruh.com/v1/verify`, {
-        params: {
-          api_key: apiKey,
-          email_address: email,
-        },
-      });
-
-      const zeruhStatus = response.data?.result?.status;
-
-      return zeruhStatus === 'deliverable';
-    } catch (error) {
-      console.log('Error al validar correo con Zeruh:', error);
-      return false;
-    }
   }
 }

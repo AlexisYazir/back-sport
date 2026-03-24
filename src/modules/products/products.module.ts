@@ -12,6 +12,7 @@ import { Category } from './entities/categorie/categorie.entity';
 import { Orders } from './entities/orders/orders.entity';
 import { Inventory } from './entities/inventory/inventory.entity';
 import { InventoryMovements } from './entities/inventory/inventory_movements.entity';
+import { Sports } from './entities/sports/sport.entity';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { InventoryMovements } from './entities/inventory/inventory_movements.ent
         ProductVariant,
         VariantAttributeValue,
         Attribute,
+        Sports,
         Marca,
         Category,
         Orders,
@@ -38,6 +40,7 @@ import { InventoryMovements } from './entities/inventory/inventory_movements.ent
         ProductVariant,
         VariantAttributeValue,
         Attribute,
+        Sports,
         Marca,
         Category,
         Orders,
@@ -54,6 +57,7 @@ import { InventoryMovements } from './entities/inventory/inventory_movements.ent
         ProductVariant,
         VariantAttributeValue,
         Attribute,
+        Sports,
         Marca,
         Category,
         Orders,
