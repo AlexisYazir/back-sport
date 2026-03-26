@@ -289,7 +289,74 @@ export class ProductsService {
   async getAllProducts(): Promise<any[]> {
     try {
       const result = await this.productReaderRepository.query(
-        `SELECT * FROM core.get_all_products() WHERE activo=true`
+        `
+        SELECT
+          p.id_producto,
+          p.nombre AS producto,
+          p.descripcion,
+          p.activo,
+          p.fecha_creacion,
+          m.nombre AS marca,
+          m.imagen AS imagen_marca,
+          c.nombre AS categoria,
+          cp.nombre AS categoria_padre,
+          COALESCE(d.deportes, '[]'::jsonb) AS deportes,
+          COALESCE(
+            jsonb_agg(
+              DISTINCT jsonb_build_object(
+                'id_variante', v.id_variante,
+                'sku', v.sku,
+                'precio', v.precio,
+                'stock', vi.stock_actual,
+                'imagenes', v.imagenes,
+                'atributos',
+                  (
+                    SELECT jsonb_object_agg(a.nombre, vav.valor)
+                    FROM core.variant_attribute_values vav
+                    JOIN core.attributes a
+                      ON a.id_atributo = vav.id_atributo
+                    WHERE vav.id_variante = v.id_variante
+                  )
+              )
+            ) FILTER (WHERE v.id_variante IS NOT NULL),
+            '[]'::jsonb
+          ) AS variantes
+        FROM core.products p
+        LEFT JOIN core.marcas m
+          ON m.id_marca = p.id_marca
+        LEFT JOIN core.categories c
+          ON c.id_categoria = p.id_categoria
+        LEFT JOIN core.categories cp
+          ON cp.id_categoria = c.id_padre
+        LEFT JOIN core.product_variants v
+          ON v.id_producto = p.id_producto
+        INNER JOIN core.inventory vi
+    	ON vi.id_variante = v.id_variante
+      AND vi.stock_actual > 0
+        LEFT JOIN (
+          SELECT
+            pd.id_producto,
+            jsonb_agg(DISTINCT d.nombre ORDER BY d.nombre) AS deportes
+          FROM core.product_deportes pd
+          JOIN core.deportes d
+            ON d.id_deporte = pd.id_deporte
+          GROUP BY pd.id_producto
+        ) d
+          ON d.id_producto = p.id_producto
+        WHERE p.activo = TRUE
+        GROUP BY
+          p.id_producto,
+          p.nombre,
+          p.descripcion,
+          p.activo,
+          p.fecha_creacion,
+          m.nombre,
+          m.imagen,
+          c.nombre,
+          cp.nombre,
+          d.deportes
+        ORDER BY p.fecha_creacion DESC;
+        `
       );
       return result;
     } catch (error) {
@@ -344,7 +411,73 @@ export class ProductsService {
   async getProductDetail(id: number): Promise<any[]> {
     try {
       const result = await this.productReaderRepository.query(
-        `SELECT * FROM core.get_all_products() where id_producto = ${id};`
+        `
+        SELECT
+          p.id_producto,
+          p.nombre AS producto,
+          p.descripcion,
+          p.activo,
+          p.fecha_creacion,
+          m.nombre AS marca,
+          m.imagen AS imagen_marca,
+          c.nombre AS categoria,
+          cp.nombre AS categoria_padre,
+          COALESCE(d.deportes, '[]'::jsonb) AS deportes,
+          COALESCE(
+            jsonb_agg(
+              DISTINCT jsonb_build_object(
+                'id_variante', v.id_variante,
+                'sku', v.sku,
+                'precio', v.precio,
+                'stock', COALESCE(vi.stock_actual, 0),
+                'imagenes', v.imagenes,
+                'atributos',
+                  (
+                    SELECT jsonb_object_agg(a.nombre, vav.valor)
+                    FROM core.variant_attribute_values vav
+                    JOIN core.attributes a
+                      ON a.id_atributo = vav.id_atributo
+                    WHERE vav.id_variante = v.id_variante
+                  )
+              )
+            ) FILTER (WHERE v.id_variante IS NOT NULL),
+            '[]'::jsonb
+          ) AS variantes
+        FROM core.products p
+        LEFT JOIN core.marcas m
+          ON m.id_marca = p.id_marca
+        LEFT JOIN core.categories c
+          ON c.id_categoria = p.id_categoria
+        LEFT JOIN core.categories cp
+          ON cp.id_categoria = c.id_padre
+        LEFT JOIN core.product_variants v
+          ON v.id_producto = p.id_producto
+        LEFT JOIN core.inventory vi
+          ON vi.id_variante = v.id_variante
+        LEFT JOIN (
+          SELECT
+            pd.id_producto,
+            jsonb_agg(DISTINCT d.nombre ORDER BY d.nombre) AS deportes
+          FROM core.product_deportes pd
+          JOIN core.deportes d
+            ON d.id_deporte = pd.id_deporte
+          GROUP BY pd.id_producto
+        ) d
+          ON d.id_producto = p.id_producto
+        WHERE p.id_producto = $1
+        GROUP BY
+          p.id_producto,
+          p.nombre,
+          p.descripcion,
+          p.activo,
+          p.fecha_creacion,
+          m.nombre,
+          m.imagen,
+          c.nombre,
+          cp.nombre,
+          d.deportes
+        `,
+        [id]
       );
       return result;
     } catch (error) {
