@@ -4,6 +4,7 @@ import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { Repository, DataSource, Not } from 'typeorm';
 
 import { CreateProductDto } from './dto/product/create-product.dto';
+import { CreateProductSportsDto } from './dto/product/create-product-sports.dto';
 import { Product } from './entities/product/product.entity';
 import { UpdateProductInvDto } from './dto/product/update-product-inv.dto';
 import { UpdateProductFullDto } from './dto/product/update-product-full.dto';
@@ -21,6 +22,7 @@ import { CreateAttributeDto } from './dto/product/create-attribute.dto';
 import { Attribute } from './entities/product/atributtes.entity';
 
 import { Sports } from './entities/sports/sport.entity';
+import { ProductSport } from './entities/sports/product-sport.entity';
 
 import { CreateMarcaDto } from './dto/marca/create-marca.tdo';
 import { UpdateMarcaDto } from './dto/marca/update-marca.dto';
@@ -36,6 +38,10 @@ import { CreateInventoryMovementDto } from './dto/inventory/create-inventory_mov
 import { CreateInventoryMovementSkuDto } from './dto/inventory/create-inventory-movement-sku.dto';
 import { InventoryMovements } from './entities/inventory/inventory_movements.entity';
 import { Inventory } from './entities/inventory/inventory.entity';
+import {
+  CloudinaryService,
+  CloudinaryUploadResult,
+} from './services/cloudinary.service';
 
 export interface ExcelImportResult {
   success: number;
@@ -64,6 +70,8 @@ export class ProductsService {
     private readonly productEditorRepository: Repository<Product>,
     @InjectRepository(ProductVariant, 'editorConnection')
     private readonly productVariantEditorRepository: Repository<ProductVariant>,
+    @InjectRepository(ProductSport, 'editorConnection')
+    private readonly productSportEditorRepository: Repository<ProductSport>,
     @InjectRepository(VariantAttributeValue, 'editorConnection')
     private readonly variantAttributeValueEditorRepository: Repository<VariantAttributeValue>,
     @InjectRepository(Attribute, 'editorConnection')
@@ -110,6 +118,7 @@ export class ProductsService {
     private readonly inventoryReaderRepository: Repository<Inventory>,
     @InjectRepository(InventoryMovements, 'readerConnection')
     private readonly inventoryMovementsReaderRepository: Repository<InventoryMovements>,
+    private readonly cloudinaryService: CloudinaryService,
   ) {}
 
   //* ---------- FUNCIONES PARA PRODUCTOS
@@ -128,6 +137,86 @@ export class ProductsService {
     } catch (error) {
       this.logger.error('Error al crear producto: ', error);
       throw new BadRequestException('Error al crear el producto', error);
+    }
+  }
+
+  async assignProductSports(dto: CreateProductSportsDto): Promise<{
+    id_producto: number;
+    deportes_asignados: number;
+  }> {
+    try {
+      const product = await this.productReaderRepository.findOneBy({
+        id_producto: dto.id_producto,
+      });
+
+      if (!product) {
+        throw new BadRequestException('El producto no existe');
+      }
+
+      const sportIds = Array.from(
+        new Set((dto.ids_deportes ?? []).map(Number).filter((id) => Number.isInteger(id) && id > 0)),
+      );
+
+      if (sportIds.length > 0) {
+        const existingSports = await this.sportReaderRepository.query(
+          `SELECT id_deporte FROM core.deportes WHERE id_deporte = ANY($1::int[])`,
+          [sportIds],
+        );
+
+        if (existingSports.length !== sportIds.length) {
+          throw new BadRequestException('Uno o mas deportes seleccionados no existen');
+        }
+      }
+
+      await this.editorDataSource.transaction(async (manager) => {
+        await manager.query(
+          `DELETE FROM core.product_deportes WHERE id_producto = $1`,
+          [dto.id_producto],
+        );
+
+        if (sportIds.length === 0) {
+          return;
+        }
+
+        const values = sportIds
+          .map((_, index) => `($1, $${index + 2})`)
+          .join(', ');
+
+        await manager.query(
+          `INSERT INTO core.product_deportes (id_producto, id_deporte) VALUES ${values}`,
+          [dto.id_producto, ...sportIds],
+        );
+      });
+
+      return {
+        id_producto: dto.id_producto,
+        deportes_asignados: sportIds.length,
+      };
+    } catch (error) {
+      this.logger.error('Error al asignar deportes al producto: ', error);
+
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      throw new BadRequestException('Error al asignar deportes al producto');
+    }
+  }
+
+  async uploadImage(
+    file: Express.Multer.File,
+    folder?: string,
+  ): Promise<CloudinaryUploadResult> {
+    try {
+      return await this.cloudinaryService.uploadProductImage(file, folder);
+    } catch (error) {
+      this.logger.error('Error al subir imagen a Cloudinary: ', error);
+
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      throw new BadRequestException('No se pudo subir la imagen a Cloudinary');
     }
   }
 
@@ -356,9 +445,22 @@ export class ProductsService {
   //! funcion para consultar todos los productos (READER - SELECT)
   async getInventoryProducts(): Promise<any[]> {
     try {
-      const result = await this.productReaderRepository.query(
-        `SELECT * FROM core.get_inventory_products();`
-      );
+      const result = await this.productReaderRepository.query(`
+        SELECT
+          inv.*,
+          COALESCE(variant_image.imagenes->>0, '') AS imagen_producto,
+          COALESCE(inv.imagen, '') AS imagen_marca
+        FROM core.get_inventory_products() inv
+        LEFT JOIN LATERAL (
+          SELECT pv.imagenes
+          FROM core.product_variants pv
+          WHERE pv.id_producto = inv.id_producto
+            AND jsonb_typeof(pv.imagenes) = 'array'
+            AND jsonb_array_length(pv.imagenes) > 0
+          ORDER BY pv.id_variante ASC
+          LIMIT 1
+        ) variant_image ON TRUE;
+      `);
       return result;
     } catch (error) {
       this.logger.error('ERROR REAL:', error);
@@ -376,6 +478,34 @@ export class ProductsService {
 
       if (!product) {
         throw new BadRequestException('Producto no encontrado');
+      }
+
+      if (dto.estado) {
+        const inventorySummary = await this.productReaderRepository.query(
+          `
+          SELECT id_producto, precio, stock
+          FROM core.get_inventory_products()
+          WHERE id_producto = $1
+          LIMIT 1;
+          `,
+          [dto.id_producto],
+        );
+
+        const currentInventory = inventorySummary[0];
+        const stock = currentInventory?.stock ? Number(currentInventory.stock) : 0;
+        const precio = currentInventory?.precio ? Number(currentInventory.precio) : 0;
+
+        if (stock <= 0) {
+          throw new BadRequestException(
+            'No se puede activar el producto porque no tiene stock disponible',
+          );
+        }
+
+        if (precio <= 0) {
+          throw new BadRequestException(
+            'No se puede activar el producto porque no tiene precio configurado',
+          );
+        }
       }
 
       product.activo = dto.estado;
@@ -575,7 +705,15 @@ export class ProductsService {
   //! funcion para consultar movimientos de inventario (READER - SELECT)
   async getInventoryMovements(): Promise<InventoryMovements[]> {
     try {
-      const movements = await this.inventoryMovementsReaderRepository.query( ` SELECT * FROM core.get_inventory_movements() `);
+      const movements = await this.inventoryMovementsReaderRepository.query(`
+        SELECT
+          m.*,
+          COALESCE(pv.imagenes, '[]'::jsonb) AS imagenes_variante,
+          COALESCE(pv.imagenes->>0, '') AS imagen_variante
+        FROM core.get_inventory_movements() m
+        LEFT JOIN core.product_variants pv
+          ON pv.id_variante = m.id_variante
+      `);
 
       return movements;
     } catch (error) {
@@ -583,6 +721,43 @@ export class ProductsService {
       throw new BadRequestException(
         'Error al obtener movimientos de inventario',
         error,
+      );
+    }
+  }
+
+  async getVariantsForInventoryMovement(): Promise<any[]> {
+    try {
+      return await this.productVariantReaderRepository.query(`
+        SELECT
+          pv.id_variante,
+          pv.id_producto,
+          pv.sku,
+          pv.precio,
+          COALESCE(i.stock_actual, 0) AS stock_actual,
+          p.nombre AS producto,
+          m.nombre AS marca,
+          COALESCE(pv.imagenes, '[]'::jsonb) AS imagenes,
+          COALESCE(pv.imagenes->>0, '') AS imagen
+        FROM core.product_variants pv
+        INNER JOIN core.products p
+          ON p.id_producto = pv.id_producto
+        LEFT JOIN core.marcas m
+          ON m.id_marca = p.id_marca
+        LEFT JOIN core.inventory i
+          ON i.id_variante = pv.id_variante
+        ORDER BY
+          CASE WHEN COALESCE(i.stock_actual, 0) = 0 THEN 0 ELSE 1 END ASC,
+          COALESCE(i.stock_actual, 0) ASC,
+          p.nombre ASC,
+          pv.sku ASC;
+      `);
+    } catch (error) {
+      this.logger.error(
+        'Error al obtener variantes para movimientos de inventario:',
+        error,
+      );
+      throw new BadRequestException(
+        'Error al obtener variantes para movimientos de inventario',
       );
     }
   }

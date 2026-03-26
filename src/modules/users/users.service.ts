@@ -1,5 +1,10 @@
 /* eslint-disable */
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  Logger,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { MailService } from '../../services/mail/mail.service';
@@ -7,16 +12,34 @@ import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { OAuth2Client } from 'google-auth-library';
 import { ConfigService } from '@nestjs/config';
 import { User } from './entities/user.entity';
+import { UserSession } from './entities/user-session.entity';
 import { Roles } from './entities/roles.entity';
 import { Repository, DataSource } from 'typeorm';
 import * as jwt from 'jsonwebtoken';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 
+interface SessionContext {
+  ipAddress: string | null;
+  userAgent: string | null;
+  deviceName?: string;
+}
+
+interface SessionTokenPayload {
+  id_usuario: number;
+  email: string;
+  nombre: string;
+  rol: number;
+  sessionId: string;
+}
+
 @Injectable()
 export class UsersService {
   private readonly logger = new Logger(UsersService.name);
   private googleClient: OAuth2Client;
+  private readonly accessTokenTtl = '15m';
+  private readonly refreshTokenTtl = '7d';
+  private readonly refreshTokenDurationMs = 7 * 24 * 60 * 60 * 1000;
   constructor(
     //  AGREGAR ESTOS DOS DATASOURCES
     @InjectDataSource('editorConnection')
@@ -37,6 +60,12 @@ export class UsersService {
     @InjectRepository(User, 'adminConnection')
     private readonly userAdminRepository: Repository<User>,
 
+    @InjectRepository(UserSession, 'editorConnection')
+    private readonly userSessionEditorRepository: Repository<UserSession>,
+
+    @InjectRepository(UserSession, 'readerConnection')
+    private readonly userSessionReaderRepository: Repository<UserSession>,
+
     // Roles siempre con EDITOR (son datos de catálogo, pocos cambios)
     @InjectRepository(Roles, 'editorConnection')
     private readonly rolesRepository: Repository<Roles>,
@@ -47,6 +76,149 @@ export class UsersService {
     this.googleClient = new OAuth2Client(
       this.configService.get('GOOGLE_CLIENT_ID'),
     );
+  }
+
+  private normalizeEmail(email: string): string {
+    return email.trim().toLowerCase();
+  }
+
+  private buildTokenPayload(
+    user: User,
+    sessionId: string,
+  ): SessionTokenPayload {
+    return {
+      id_usuario: user.id_usuario,
+      email: user.email,
+      nombre: user.nombre,
+      rol: user.rol,
+      sessionId,
+    };
+  }
+
+  private getRefreshExpirationDate(): Date {
+    return new Date(Date.now() + this.refreshTokenDurationMs);
+  }
+
+  private async persistSession(
+    user: User,
+    refreshToken: string,
+    context: SessionContext,
+    sessionRecord: UserSession,
+  ): Promise<UserSession> {
+    const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
+    const session = {
+      ...sessionRecord,
+      refresh_token_hash: refreshTokenHash,
+      device_name: context.deviceName ?? sessionRecord.device_name ?? null,
+      user_agent: context.userAgent ?? sessionRecord.user_agent ?? null,
+      ip_address: context.ipAddress ?? sessionRecord.ip_address ?? null,
+      expira_en: this.getRefreshExpirationDate(),
+      revocada_en: null,
+      motivo_revocacion: null,
+      ultima_actividad: new Date(),
+    };
+
+    return this.userSessionEditorRepository.save(session);
+  }
+
+  private createSessionRecord(
+    user: User,
+    context: SessionContext,
+    existingSession?: UserSession,
+  ): UserSession {
+    return existingSession
+      ? {
+          ...existingSession,
+          device_name: context.deviceName ?? existingSession.device_name ?? null,
+          user_agent: context.userAgent ?? existingSession.user_agent ?? null,
+          ip_address: context.ipAddress ?? existingSession.ip_address ?? null,
+          expira_en: this.getRefreshExpirationDate(),
+          ultima_actividad: new Date(),
+        }
+      : this.userSessionEditorRepository.create({
+          id_sesion: crypto.randomUUID(),
+          id_usuario: user.id_usuario,
+          device_name: context.deviceName ?? null,
+          user_agent: context.userAgent ?? null,
+          ip_address: context.ipAddress ?? null,
+          expira_en: this.getRefreshExpirationDate(),
+          ultima_actividad: new Date(),
+        });
+  }
+
+  private async issueSessionTokens(
+    user: User,
+    context: SessionContext,
+    existingSession?: UserSession,
+  ) {
+    const session = this.createSessionRecord(user, context, existingSession);
+
+    const payload = this.buildTokenPayload(user, session.id_sesion);
+    const accessToken = jwt.sign(
+      payload,
+      this.configService.getOrThrow<string>('JWT_SECRET'),
+      { expiresIn: this.accessTokenTtl },
+    );
+
+    const refreshToken = jwt.sign(
+      payload,
+      this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
+      { expiresIn: this.refreshTokenTtl },
+    );
+
+    const savedSession = await this.persistSession(user, refreshToken, context, session);
+
+    return {
+      accessToken,
+      refreshToken,
+      sessionId: savedSession.id_sesion,
+      accessTokenExpiresIn: this.accessTokenTtl,
+      refreshTokenExpiresIn: this.refreshTokenTtl,
+    };
+  }
+
+  private async getActiveSession(sessionId: string): Promise<UserSession | null> {
+    const session = await this.userSessionReaderRepository.findOne({
+      where: { id_sesion: sessionId },
+    });
+
+    if (!session) {
+      return null;
+    }
+
+    if (session.revocada_en || session.expira_en <= new Date()) {
+      return null;
+    }
+
+    return session;
+  }
+
+  private async revokeSession(
+    sessionId: string,
+    reason: string,
+  ): Promise<void> {
+    const session = await this.userSessionEditorRepository.findOne({
+      where: { id_sesion: sessionId },
+    });
+
+    if (!session || session.revocada_en) {
+      return;
+    }
+
+    session.revocada_en = new Date();
+    session.motivo_revocacion = reason;
+    session.ultima_actividad = new Date();
+    await this.userSessionEditorRepository.save(session);
+  }
+
+  async isSessionActive(sessionId: string): Promise<boolean> {
+    const session = await this.getActiveSession(sessionId);
+    return !!session;
+  }
+
+  async logout(sessionId: string): Promise<{ message: string }> {
+    await this.revokeSession(sessionId, 'logout');
+    return { message: 'Sesión cerrada correctamente.' };
   }
 
   //! funcion para registrar el usuario (USA EDITOR - CREATE)
@@ -224,9 +396,9 @@ export class UsersService {
       // Token válido → activar cuenta
       user.email_verified = 1;
       user.activo = 1;
-      user.token_verificacion = '';
-      user.token_expiracion = null;
-      user.intentos_token = 0;
+      // user.token_verificacion = '';
+      // user.token_expiracion = null;
+      // user.intentos_token = 0;
 
       await this.userEditorRepository.save(user); // EDITOR para UPDATE
 
@@ -288,7 +460,7 @@ export class UsersService {
   }
 
   //! funcion para inicio de sesion de usuario (USA READER - SELECT)
-  async loginUser(email: string, passw: string) {
+  async loginUser(email: string, passw: string, context: SessionContext) {
     // Validación de correo
     if (!email || !email.trim()) {
       throw new BadRequestException({
@@ -315,7 +487,10 @@ export class UsersService {
     }
 
     // Buscar usuario (USA READER - SELECT)
-    const user = await this.userReaderRepository.findOne({ where: { email } });
+    const normalizedEmail = this.normalizeEmail(email);
+    const user = await this.userReaderRepository.findOne({
+      where: { email: normalizedEmail },
+    });
 
     if (!user) {
       throw new BadRequestException({
@@ -350,64 +525,42 @@ export class UsersService {
       });
     }
 
-    // Payload del token
-    const payload = {
-      id_usuario: user.id_usuario,
-      email: user.email,
-      nombre: user.nombre,
-      rol: user.rol,
-    };
-
-    const accessToken = jwt.sign(
-      payload,
-      this.configService.getOrThrow<string>('JWT_SECRET'),
-      { expiresIn: '7d' },
-    );
-
-    const refreshToken = jwt.sign(
-      payload,
-      this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
-      { expiresIn: '7d' },
-    );
-
-    return {
-      accessToken,
-      refreshToken,
-    };
+    return this.issueSessionTokens(user, context);
   }
 
   //! funcion para validaciones de token (NO USA DB)
-  async refreshToken(refreshToken: string) {
+  async refreshToken(refreshToken: string, context: SessionContext) {
     try {
       const decoded = jwt.verify(
         refreshToken,
         this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
-      ) as any;
+      ) as SessionTokenPayload;
 
-      const payload = {
-        id_usuario: decoded.id_usuario,
-        email: decoded.email,
-        nombre: decoded.nombre,
-        rol: decoded.rol,
-      };
+      const session = await this.getActiveSession(decoded.sessionId);
+      if (!session || session.id_usuario !== decoded.id_usuario) {
+        throw new UnauthorizedException('La sesión ya no está activa');
+      }
 
-      const newAccessToken = jwt.sign(
-        payload,
-        this.configService.getOrThrow<string>('JWT_SECRET'),
-        { expiresIn: '15m' },
+      const isRefreshTokenValid = await bcrypt.compare(
+        refreshToken,
+        session.refresh_token_hash,
       );
 
-      return {
-        accessToken: newAccessToken,
-      };
+      if (!isRefreshTokenValid) {
+        await this.revokeSession(decoded.sessionId, 'refresh_token_mismatch');
+        throw new UnauthorizedException('Refresh token inválido');
+      }
+
+      const user = await this.findUserById(decoded.id_usuario);
+      return this.issueSessionTokens(user, context, session);
     } catch (error) {
-      throw new BadRequestException('Refresh token inválido');
+      throw new UnauthorizedException('Refresh token inválido');
     }
   }
 
   //! funcion para perfil de usuario (USA READER - SELECT)
   async getProfile(id_usuario: number) {
-    this.logger.error('Buscando perfil para ID:', id_usuario);
+    this.logger.log('Buscando perfil para ID:', id_usuario);
 
     if (!id_usuario) {
       throw new BadRequestException('ID de usuario no proporcionado');
@@ -428,11 +581,11 @@ export class UsersService {
     });
 
     if (!user) {
-      this.logger.error(`Usuario con ID ${id_usuario} no encontrado`);
+      this.logger.log(`Usuario con ID ${id_usuario} no encontrado`);
       throw new BadRequestException('El usuario no existe.');
     }
 
-    this.logger.error('Usuario encontrado:', user);
+    this.logger.log('Usuario encontrado:', user);
     return user;
   }
 
@@ -649,14 +802,27 @@ export class UsersService {
   }
 
   //! funcion para resetear la contraseña de usuario (USA EDITOR - UPDATE)
-  async resetPsw(email: string, psw: string): Promise<{ message: string }> {
+  async resetPsw(
+    email: string,
+    psw: string,
+    token: string,
+  ): Promise<{ message: string }> {
     try {
       const emaill = email?.trim().toLowerCase();
       const newPassword = psw?.trim();
+      const thisToken = token?.trim();
 
-      if (!emaill) throw new BadRequestException('El correo es obligatorio');
-      if (!newPassword)
+      if (!emaill) {
+        throw new BadRequestException('El correo es obligatorio');
+      }
+
+      if (!thisToken) {
+        throw new BadRequestException('El token es obligatorio');
+      }
+
+      if (!newPassword) {
         throw new BadRequestException('La contraseña es obligatoria');
+      }
 
       // Validación de correo
       const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
@@ -664,7 +830,12 @@ export class UsersService {
         throw new BadRequestException('Formato de correo inválido.');
       }
 
-      //^ validaciones para contraseña
+      // Validación de token
+      if (!/^\d{6}$/.test(thisToken)) {
+        throw new BadRequestException('El token debe tener 6 dígitos.');
+      }
+
+      // Validación de contraseña
       const passwordRegex =
         /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!#$%&¿?@*_/-])[A-Za-z\d!#$%&¿?@*_/-]{12,}$/;
 
@@ -674,7 +845,7 @@ export class UsersService {
         );
       }
 
-      // Buscar usuario (READER para SELECT)
+      // Buscar usuario
       const user = await this.userReaderRepository.findOne({
         where: { email: emaill },
       });
@@ -682,6 +853,64 @@ export class UsersService {
       if (!user) {
         throw new BadRequestException(
           'Revisa que tu información sea correcta. Intenta de nuevo',
+        );
+      }
+
+      // Verificar que exista token asociado
+      if (!user.token_verificacion) {
+        throw new BadRequestException(
+          'No hay un token válido asociado a este usuario. Solicita uno nuevo.',
+        );
+      }
+
+      // Verificar expiración
+      if (!user.token_expiracion || new Date() > user.token_expiracion) {
+        user.token_verificacion = '';
+        user.token_expiracion = null;
+        user.intentos_token = 0;
+
+        await this.userEditorRepository.save(user);
+
+        throw new BadRequestException(
+          'El token ha expirado. Solicita uno nuevo.',
+        );
+      }
+
+      // Verificar intentos
+      if (
+        typeof user.intentos_token !== 'number' ||
+        user.intentos_token <= 0
+      ) {
+        user.token_verificacion = '';
+        user.token_expiracion = null;
+        user.intentos_token = 0;
+
+        await this.userEditorRepository.save(user);
+
+        throw new BadRequestException(
+          'Se han agotado los intentos. Solicita un nuevo token.',
+        );
+      }
+
+      // Verificar token incorrecto
+      if (user.token_verificacion !== thisToken) {
+        user.intentos_token -= 1;
+        await this.userEditorRepository.save(user);
+
+        if (user.intentos_token <= 0) {
+          user.token_verificacion = '';
+          user.token_expiracion = null;
+          user.intentos_token = 0;
+
+          await this.userEditorRepository.save(user);
+
+          throw new BadRequestException(
+            'Has agotado los intentos. Solicita un nuevo token.',
+          );
+        }
+
+        throw new BadRequestException(
+          `El token es incorrecto. Te quedan ${user.intentos_token} intentos.`,
         );
       }
 
@@ -696,18 +925,21 @@ export class UsersService {
       // Encriptar nueva contraseña
       const hashedPassword = await bcrypt.hash(newPassword, 10);
 
+      // Actualizar contraseña e invalidar token
       user.passw = hashedPassword;
-      await this.userEditorRepository.save(user); // EDITOR para UPDATE
+      user.token_verificacion = '';
+      user.token_expiracion = null;
+      user.intentos_token = 0;
+
+      await this.userEditorRepository.save(user);
 
       return { message: 'Contraseña actualizada correctamente.' };
     } catch (error) {
-      //this.logger.error('Reset psw error:', error);
       throw error;
     }
   }
-
   //! funcion para inicio de sesion con google (USA READER y EDITOR)
-  async loginWithGoogle(idToken: string) {
+  async loginWithGoogle(idToken: string, context: SessionContext) {
     try {
       // 1. Verificar token contra Google
       const googleUser = await this.verifyGoogleToken(idToken);
@@ -753,19 +985,7 @@ export class UsersService {
         await this.userEditorRepository.save(user); // EDITOR para UPDATE
       }
 
-      // 5. Crear JWT
-      const token = jwt.sign(
-        {
-          id_usuario: user.id_usuario,
-          email: user.email,
-          nombre: user.nombre,
-          rol: user.rol,
-        },
-        this.configService.getOrThrow<string>('JWT_SECRET'),
-        { expiresIn: '7d' },
-      );
-
-      return { token };
+      return this.issueSessionTokens(user, context);
     } catch (error) {
       throw new BadRequestException('Token de Google inválido');
     }

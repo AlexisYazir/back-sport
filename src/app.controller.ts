@@ -10,4 +10,13 @@ export class AppController {
       timestamp: new Date().toISOString(),
     };
   }
+
+  @Get('healthz')
+  getHealthcheck() {
+    return {
+      ok: true,
+      service: 'sport-center-backend',
+      timestamp: new Date().toISOString(),
+    };
+  }
 }

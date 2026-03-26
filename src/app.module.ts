@@ -1,9 +1,11 @@
 import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
 import { IastMiddleware } from '../iast-agent';
 
 import { UsersModule } from './modules/users/users.module';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ProductsModule } from './modules/products/products.module';
 import { AppController } from './app.controller';
 import { BackupModule } from './modules/backups/backup.module';
@@ -15,6 +17,13 @@ import { CompanyModule } from './modules/company/company.module';
       isGlobal: true,
       envFilePath: '.env',
     }),
+
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000, // 1 minuto
+        limit: 20,
+      },
+    ]),
 
     // Configuración por defecto (EDITOR - para la app web)
     TypeOrmModule.forRootAsync({
@@ -102,10 +111,15 @@ import { CompanyModule } from './modules/company/company.module';
     CompanyModule,
   ],
   controllers: [AppController],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    // Aplicar el middleware IAST a todas las rutas
     consumer.apply(IastMiddleware).forRoutes('*');
   }
 }

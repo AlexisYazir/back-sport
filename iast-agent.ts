@@ -18,6 +18,16 @@ try {
 export class IastMiddleware implements NestMiddleware {
   private readonly logger = new Logger('IAST');
   private readonly auditMiddleware: any;
+  private readonly sensitiveFields = new Set([
+    'passw',
+    'password',
+    'token',
+    'refreshToken',
+    'accessToken',
+    'authorization',
+    'idToken',
+  ]);
+  private readonly relaxedFields = new Set(['deviceName', 'userAgent']);
 
   constructor() {
     if (securityAuditMiddleware) {
@@ -33,11 +43,11 @@ export class IastMiddleware implements NestMiddleware {
           this.logger.warn(
             `[express-sec-audit] VULNERABILIDAD: ${vuln.type || 'Desconocida'}`,
           );
-          this.logger.warn(`   ${vuln.method || '?'} ${vuln.url || '?'}`);
-          this.logger.warn(`   Severidad: ${vuln.severity || 'MEDIUM'}`);
-          if (vuln.payload) this.logger.warn(`   Payload: ${vuln.payload}`);
+          this.logger.warn(`${vuln.method || '?'} ${vuln.url || '?'}`);
+          this.logger.warn(`Severidad: ${vuln.severity || 'MEDIUM'}`);
+          if (vuln.payload) this.logger.warn(`Payload: ${vuln.payload}`);
           if (vuln.parameter)
-            this.logger.warn(`   Campo: ${vuln.parameter}`);
+            this.logger.warn(`Campo: ${vuln.parameter}`);
         },
       });
     }
@@ -55,14 +65,14 @@ export class IastMiddleware implements NestMiddleware {
     const threats = this.detectThreats(req);
 
     if (threats.length > 0) {
-      this.logger.warn(' [IAST CUSTOM] ATAQUE DETECTADO EN TIEMPO REAL');
-      this.logger.warn(`    Endpoint: ${req.method} ${req.url}`);
-      this.logger.warn(`    Patrones: ${threats.join(', ')}`);
+      this.logger.warn('ATAQUE DETECTADO');
+      this.logger.warn(`Endpoint: ${req.method} ${req.originalUrl}`);
+      this.logger.warn(`Patrones: ${threats.join(', ')}`);
       if (Object.keys(req.body).length > 0) {
-        this.logger.warn(`    Body: ${JSON.stringify(req.body)}`);
+        this.logger.warn(`Body: ${JSON.stringify(this.sanitizeForLog(req.body))}`);
       }
       if (Object.keys(req.query).length > 0) {
-        this.logger.warn(`    Query: ${JSON.stringify(req.query)}`);
+        this.logger.warn(`Query: ${JSON.stringify(this.sanitizeForLog(req.query))}`);
       }
     }
 
@@ -72,9 +82,9 @@ export class IastMiddleware implements NestMiddleware {
       if (typeof body === 'string') {
         const reflectedXss = this.detectReflectedXss(body, req);
         if (reflectedXss) {
-          this.logger.error(' [IAST CUSTOM] XSS REFLEJADO DETECTADO');
-          this.logger.error(`    Endpoint: ${req.method} ${req.url}`);
-          this.logger.error(`    Payload reflejado en respuesta`);
+          this.logger.error('XSS REFLEJADO DETECTADO');
+          this.logger.error(`Endpoint: ${req.method} ${req.originalUrl}`);
+          this.logger.error(`Payload reflejado en respuesta`);
         }
       }
       return originalSend.call(res, body);
@@ -85,9 +95,9 @@ export class IastMiddleware implements NestMiddleware {
       const duration = Date.now() - startTime;
       if (duration > 3000) {
         this.logger.warn(
-          ` [IAST CUSTOM] Respuesta lenta (${duration}ms) - Posible Time-Based Attack`,
+          `Respuesta lenta (${duration}ms) - Posible Time-Based Attack`,
         );
-        this.logger.warn(`    Endpoint: ${req.method} ${req.url}`);
+        this.logger.warn(`Endpoint: ${req.method} ${req.originalUrl}`);
       }
     });
 
@@ -99,22 +109,26 @@ export class IastMiddleware implements NestMiddleware {
     const inputs = { ...req.body, ...req.query, ...req.params };
 
     const patterns = [
-      { regex: /(\-\-|\;|\|\||\&\&)/, name: 'SQL Injection' },
+      { regex: /(\-\-|\|\||\&\&)/, name: 'SQL Injection' },
       { regex: /<script|javascript:|onerror=|onload=/, name: 'XSS' },
       { regex: /\.\.\/|\.\.\\/, name: 'Path Traversal' },
       { regex: /\$\{/, name: 'Command Injection' },
       {
-        regex: /(SELECT|INSERT|UPDATE|DELETE|DROP|UNION).*FROM/i,
+        regex: /\b(SELECT\s+.+\s+FROM|INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|DROP\s+TABLE|UNION\s+SELECT)\b/i,
         name: 'SQL Keyword',
       },
-      { regex: /' OR '1'='1/, name: 'Auth Bypass' },
-      { regex: /admin' --/, name: 'SQL Comment Injection' },
+      { regex: /'\s*OR\s*'1'\s*=\s*'1/i, name: 'Auth Bypass' },
+      { regex: /\badmin'\s*--/i, name: 'SQL Comment Injection' },
       { regex: /sleep\([0-9]+\)/i, name: 'Time-Based SQLi' },
     ];
 
     for (const [key, value] of Object.entries(inputs)) {
       if (typeof value === 'string') {
-        for (const pattern of patterns) {
+        const activePatterns = this.relaxedFields.has(key)
+          ? patterns.filter((pattern) => pattern.name !== 'SQL Injection')
+          : patterns;
+
+        for (const pattern of activePatterns) {
           if (pattern.regex.test(value)) {
             threats.push(
               `${pattern.name} en campo '${key}': ${value.substring(0, 50)}`,
@@ -125,6 +139,20 @@ export class IastMiddleware implements NestMiddleware {
     }
 
     return threats;
+  }
+
+  private sanitizeForLog(input: Record<string, unknown>): Record<string, unknown> {
+    const sanitized: Record<string, unknown> = {};
+
+    for (const [key, value] of Object.entries(input)) {
+      if (this.sensitiveFields.has(key)) {
+        sanitized[key] = '[REDACTED]';
+      } else {
+        sanitized[key] = value;
+      }
+    }
+
+    return sanitized;
   }
 
   private detectReflectedXss(body: string, req: Request): boolean {

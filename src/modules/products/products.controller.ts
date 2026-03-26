@@ -8,10 +8,15 @@ import {
   HttpStatus,
   Put,
   UseGuards,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { ProductsService } from './products.service';
 
 import { CreateProductDto } from './dto/product/create-product.dto';
+import { CreateProductSportsDto } from './dto/product/create-product-sports.dto';
 import { CreateAttributeDto } from './dto/product/create-attribute.dto';
 import { CreateVarAttributeValuesDto } from './dto/product/create-var-att_vls.dto';
 import { CreateProductVariantDto } from './dto/product/create-product_variant.dto';
@@ -24,9 +29,9 @@ import { UpdateCategorieDto } from './dto/categories/update-categorie.dto';
 
 import { CreateMarcaDto } from './dto/marca/create-marca.tdo';
 import { UpdateMarcaDto } from './dto/marca/update-marca.dto';
-import { Roles } from '../auth/roles.decorator';
+import { Roles } from '../../services/auth/roles.decorator';
 import { AuthGuard } from '@nestjs/passport';
-import { RolesGuard } from '../auth/roles.guard';
+import { RolesGuard } from '../../services/auth/roles.guard';
 
 import { CreateInventoryMovementDto } from './dto/inventory/create-inventory_movement.dto';
 import { CreateInventoryMovementSkuDto } from './dto/inventory/create-inventory-movement-sku.dto';
@@ -41,6 +46,37 @@ export class ProductsController {
   @Post('create-product')
   async createProduct(@Body() createProductDto: CreateProductDto) {
     return this.productsService.createProduct(createProductDto);
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(3)
+  @Post('assign-product-sports')
+  async assignProductSports(@Body() dto: CreateProductSportsDto) {
+    return this.productsService.assignProductSports(dto);
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(3)
+  @Post('upload-image')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: {
+        fileSize: 8 * 1024 * 1024,
+      },
+      fileFilter: (_req, file, callback) => {
+        if (!file.mimetype.startsWith('image/')) {
+          return callback(new Error('Solo se permiten imagenes'), false);
+        }
+        callback(null, true);
+      },
+    }),
+  )
+  async uploadImage(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('folder') folder?: string,
+  ) {
+    return this.productsService.uploadImage(file, folder);
   }
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
@@ -88,6 +124,13 @@ export class ProductsController {
   @Get('inventory-movements')
   async getInventoryMovements() {
     return this.productsService.getInventoryMovements();
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(3)
+  @Get('inventory-movements/variants')
+  async getVariantsForInventoryMovement() {
+    return this.productsService.getVariantsForInventoryMovement();
   }
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)

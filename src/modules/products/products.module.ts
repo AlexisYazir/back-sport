@@ -13,6 +13,8 @@ import { Orders } from './entities/orders/orders.entity';
 import { Inventory } from './entities/inventory/inventory.entity';
 import { InventoryMovements } from './entities/inventory/inventory_movements.entity';
 import { Sports } from './entities/sports/sport.entity';
+import { ProductSport } from './entities/sports/product-sport.entity';
+import { CloudinaryService } from './services/cloudinary.service';
 
 @Module({
   imports: [
@@ -24,6 +26,7 @@ import { Sports } from './entities/sports/sport.entity';
         VariantAttributeValue,
         Attribute,
         Sports,
+        ProductSport,
         Marca,
         Category,
         Orders,
@@ -41,6 +44,7 @@ import { Sports } from './entities/sports/sport.entity';
         VariantAttributeValue,
         Attribute,
         Sports,
+        ProductSport,
         Marca,
         Category,
         Orders,
@@ -58,6 +62,7 @@ import { Sports } from './entities/sports/sport.entity';
         VariantAttributeValue,
         Attribute,
         Sports,
+        ProductSport,
         Marca,
         Category,
         Orders,
@@ -68,7 +73,7 @@ import { Sports } from './entities/sports/sport.entity';
     ), //  AGREGADO
   ],
   controllers: [ProductsController],
-  providers: [ProductsService],
+  providers: [ProductsService, CloudinaryService],
   exports: [ProductsService],
 })
 export class ProductsModule {}

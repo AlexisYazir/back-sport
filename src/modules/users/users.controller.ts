@@ -1,26 +1,42 @@
 /* eslint-disable */
 import { CreateUserDto } from './dto/create-user.dto';
+import { GoogleLoginDto } from './dto/google-login.dto';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
 import { AuthGuard } from '@nestjs/passport';
-import { RolesGuard } from '../auth/roles.guard';
-import { Roles } from '../auth/roles.decorator';
+import { RolesGuard } from '../../services/auth/roles.guard';
+import { Roles } from '../../services/auth/roles.decorator';
+import { Throttle } from '@nestjs/throttler';
 import * as bcrypt from 'bcrypt';
 import {
   Controller,
   Get,
   Post,
   Body,
-  Param,
+  Req,
   UseGuards,
   Patch,
-  Req,
   BadRequestException,
 } from '@nestjs/common';
+
+interface SessionContext {
+  ipAddress: string | null;
+  userAgent: string | null;
+  deviceName?: string;
+}
 
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
+
+  private getSessionContext(req: any, deviceName?: string): SessionContext {
+    return {
+      ipAddress: req.ip ?? req.headers['x-forwarded-for'] ?? null,
+      userAgent: req.headers['user-agent'] ?? null,
+      deviceName,
+    };
+  }
 
   @Post('create-user')
   async createUser(@Body() createUserDto: CreateUserDto) {
@@ -28,16 +44,28 @@ export class UsersController {
     return this.usersService.createUser(createUserDto);
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('login-user')
-  async loginUser(@Body('email') email: string, @Body('passw') passw: string) {
-    return this.usersService.loginUser(email, passw);
+  async loginUser(
+    @Body('email') email: string,
+    @Body('passw') passw: string,
+    @Body('deviceName') deviceName: string | undefined,
+    @Req() req: any,
+  ) {
+    return this.usersService.loginUser(
+      email,
+      passw,
+      this.getSessionContext(req, deviceName),
+    );
   }
   
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('verify-email')
   async verifyEmail(@Body('email') email: string, @Body('token') token: string) {
     return this.usersService.verifyEmail(email, token);
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('resend-code')
   async resendCode(@Body('email') email: string) {
     return this.usersService.resendVerificationEmail(email);
@@ -92,28 +120,43 @@ export class UsersController {
   }
 
   @Post('refresh-token')
-  async refreshToken(@Body('refreshToken') refreshToken: string) {
-    return this.usersService.refreshToken(refreshToken);
+  async refreshToken(@Body() body: RefreshTokenDto, @Req() req: any) {
+    return this.usersService.refreshToken(
+      body.refreshToken,
+      this.getSessionContext(req),
+    );
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('verify-user-email')
   async verifyUserEmail(@Body('email') email: string) {
     return this.usersService.verifyUserEmail(email);
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('verify-user-token')
   async verifyUserToken(@Body('email') email: string, @Body('token') token: string) {
     return this.usersService.verifyUserToken(email, token);
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('reset-psw')
-  async resetPsw(@Body('email') email: string, @Body('psw') psw: string) {
-    return this.usersService.resetPsw(email, psw);
+  async resetPsw(@Body('email') email: string, @Body('psw') psw: string, @Body('token') token: string) {
+    return this.usersService.resetPsw(email, psw, token);
   }
 
   @Post('auth/google-login')
-  async loginGoogle(@Body('idToken') idToken: string) {
-    return this.usersService.loginWithGoogle(idToken);
+  async loginGoogle(@Body() body: GoogleLoginDto, @Req() req: any) {
+    return this.usersService.loginWithGoogle(
+      body.idToken,
+      this.getSessionContext(req, body.deviceName),
+    );
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('logout')
+  async logout(@Req() req: any) {
+    return this.usersService.logout(req.user.sessionId);
   }
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
