@@ -18,7 +18,12 @@ import {
   UseGuards,
   Patch,
   BadRequestException,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
+
+const ACCESS_COOKIE_NAME = 'sc_access_token';
+const REFRESH_COOKIE_NAME = 'sc_refresh_token';
 
 interface SessionContext {
   ipAddress: string | null;
@@ -29,6 +34,69 @@ interface SessionContext {
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
+
+  private isSecureCookie(): boolean {
+    return process.env.NODE_ENV === 'production';
+  }
+
+  private getCookieOptions(maxAge: number) {
+    return {
+      httpOnly: true,
+      secure: this.isSecureCookie(),
+      sameSite: this.isSecureCookie() ? ('none' as const) : ('lax' as const),
+      path: '/',
+      maxAge,
+    };
+  }
+
+  private setAuthCookies(
+    res: Response,
+    tokens: { accessToken: string; refreshToken: string },
+  ): void {
+    res.cookie(
+      ACCESS_COOKIE_NAME,
+      tokens.accessToken,
+      this.getCookieOptions(15 * 60 * 1000),
+    );
+    res.cookie(
+      REFRESH_COOKIE_NAME,
+      tokens.refreshToken,
+      this.getCookieOptions(7 * 24 * 60 * 60 * 1000),
+    );
+  }
+
+  private clearAuthCookies(res: Response): void {
+    const baseOptions = {
+      httpOnly: true,
+      secure: this.isSecureCookie(),
+      sameSite: this.isSecureCookie() ? ('none' as const) : ('lax' as const),
+      path: '/',
+    };
+
+    res.clearCookie(ACCESS_COOKIE_NAME, baseOptions);
+    res.clearCookie(REFRESH_COOKIE_NAME, baseOptions);
+  }
+
+  private getRefreshTokenFromRequest(req: any, bodyRefreshToken?: string): string | undefined {
+    if (bodyRefreshToken?.trim()) {
+      return bodyRefreshToken.trim();
+    }
+
+    const cookieHeader = req?.headers?.cookie;
+    if (!cookieHeader) {
+      return undefined;
+    }
+
+    const cookies = cookieHeader.split(';');
+    for (const cookie of cookies) {
+      const [name, ...valueParts] = cookie.trim().split('=');
+      if (name === REFRESH_COOKIE_NAME) {
+        return decodeURIComponent(valueParts.join('='));
+      }
+    }
+
+    return undefined;
+  }
 
   private getSessionContext(req: any, deviceName?: string): SessionContext {
     return {
@@ -51,12 +119,16 @@ export class UsersController {
     @Body('passw') passw: string,
     @Body('deviceName') deviceName: string | undefined,
     @Req() req: any,
+    @Res({ passthrough: true }) res: Response,
   ) {
-    return this.usersService.loginUser(
+    const tokens = await this.usersService.loginUser(
       email,
       passw,
       this.getSessionContext(req, deviceName),
     );
+
+    this.setAuthCookies(res, tokens);
+    return tokens;
   }
   
   @Throttle({ default: { limit: 5, ttl: 60000 } })
@@ -120,11 +192,23 @@ export class UsersController {
   }
 
   @Post('refresh-token')
-  async refreshToken(@Body() body: RefreshTokenDto, @Req() req: any) {
-    return this.usersService.refreshToken(
-      body.refreshToken,
+  async refreshToken(
+    @Body() body: RefreshTokenDto,
+    @Req() req: any,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const refreshToken = this.getRefreshTokenFromRequest(req, body.refreshToken);
+    if (!refreshToken) {
+      throw new BadRequestException('Refresh token no proporcionado');
+    }
+
+    const tokens = await this.usersService.refreshToken(
+      refreshToken,
       this.getSessionContext(req),
     );
+
+    this.setAuthCookies(res, tokens);
+    return tokens;
   }
 
   @Throttle({ default: { limit: 5, ttl: 60000 } })
@@ -146,16 +230,24 @@ export class UsersController {
   }
 
   @Post('auth/google-login')
-  async loginGoogle(@Body() body: GoogleLoginDto, @Req() req: any) {
-    return this.usersService.loginWithGoogle(
+  async loginGoogle(
+    @Body() body: GoogleLoginDto,
+    @Req() req: any,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const tokens = await this.usersService.loginWithGoogle(
       body.idToken,
       this.getSessionContext(req, body.deviceName),
     );
+
+    this.setAuthCookies(res, tokens);
+    return tokens;
   }
 
   @UseGuards(AuthGuard('jwt'))
   @Post('logout')
-  async logout(@Req() req: any) {
+  async logout(@Req() req: any, @Res({ passthrough: true }) res: Response) {
+    this.clearAuthCookies(res);
     return this.usersService.logout(req.user.sessionId);
   }
 
