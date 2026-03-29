@@ -13,6 +13,7 @@ import { R2StorageService } from './r2-storage.service';
 import { CreateScheduleDto } from '../dto/create-schedule.dto';
 import { VacuumScheduleEntity } from '../entities/vacuum-schedule.entity';
 import {
+  APP_TIME_ZONE,
   buildScheduleConfig,
   describeSchedule,
   getNextExecutionFromJob,
@@ -138,9 +139,15 @@ export class DbMaintenanceService implements OnModuleInit {
       });
     }
 
-    return new CronJob(cronExpression as string, async () => {
-      await onTick();
-    });
+    return new CronJob(
+      cronExpression as string,
+      async () => {
+        await onTick();
+      },
+      null,
+      false,
+      APP_TIME_ZONE,
+    );
   }
 
   private async registerVacuumSchedule(schedule: VacuumScheduleEntity) {

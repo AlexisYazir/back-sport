@@ -2,6 +2,7 @@ import { CronJob } from 'cron';
 
 export type UiScheduleType = 'daily' | 'weekly' | 'datetime';
 export type DbScheduleMode = 'cron' | 'weekly' | 'datetime';
+export const APP_TIME_ZONE = 'America/Mexico_City';
 
 const WEEK_DAYS = [
   'Domingo',
@@ -71,7 +72,9 @@ export function describeSchedule(config: {
   fecha_ejecucion?: Date | string | null;
 }) {
   if (config.modo_programacion === 'datetime') {
-    return `Fecha exacta: ${new Date(config.fecha_ejecucion as Date | string).toLocaleString('es-MX')}`;
+    return `Fecha exacta: ${new Date(config.fecha_ejecucion as Date | string).toLocaleString('es-MX', {
+      timeZone: APP_TIME_ZONE,
+    })}`;
   }
 
   const time = normalizeTime(config.hora ?? '');

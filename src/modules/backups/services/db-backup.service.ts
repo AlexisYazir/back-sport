@@ -15,6 +15,7 @@ import { CreateRetentionPolicyDto } from '../dto/create-retention-policy.dto';
 import { BackupScheduleEntity } from '../entities/backup-schedule.entity';
 import { BackupRetentionPolicyEntity } from '../entities/backup-retention-policy.entity';
 import {
+  APP_TIME_ZONE,
   buildScheduleConfig,
   describeSchedule,
   getNextExecutionFromJob,
@@ -263,9 +264,15 @@ export class DbBackupService implements OnModuleInit {
       });
     }
 
-    return new CronJob(cronExpression as string, async () => {
-      await onTick();
-    });
+    return new CronJob(
+      cronExpression as string,
+      async () => {
+        await onTick();
+      },
+      null,
+      false,
+      APP_TIME_ZONE,
+    );
   }
 
   private async registerBackupSchedule(schedule: BackupScheduleEntity) {

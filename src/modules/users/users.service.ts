@@ -558,6 +558,28 @@ export class UsersService {
     }
   }
 
+  async restoreSessionFromAccessToken(
+    accessToken: string,
+    context: SessionContext,
+  ) {
+    try {
+      const decoded = jwt.verify(
+        accessToken,
+        this.configService.getOrThrow<string>('JWT_SECRET'),
+      ) as SessionTokenPayload;
+
+      const session = await this.getActiveSession(decoded.sessionId);
+      if (!session || session.id_usuario !== decoded.id_usuario) {
+        throw new UnauthorizedException('La sesión ya no está activa');
+      }
+
+      const user = await this.findUserById(decoded.id_usuario);
+      return this.issueSessionTokens(user, context, session);
+    } catch (error) {
+      throw new UnauthorizedException('No fue posible restaurar la sesión');
+    }
+  }
+
   //! funcion para perfil de usuario (USA READER - SELECT)
   async getProfile(id_usuario: number) {
     this.logger.log('Buscando perfil para ID:', id_usuario);

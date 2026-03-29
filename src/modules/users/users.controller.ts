@@ -35,41 +35,46 @@ interface SessionContext {
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  private isSecureCookie(): boolean {
-    return process.env.NODE_ENV === 'production';
+  private shouldUseCrossSiteCookies(req: any): boolean {
+    const origin = `${req?.headers?.origin ?? req?.headers?.referer ?? ''}`.toLowerCase();
+    return !!origin && !origin.includes('localhost');
   }
 
-  private getCookieOptions(maxAge: number) {
+  private getCookieOptions(req: any, maxAge: number) {
+    const crossSite = this.shouldUseCrossSiteCookies(req);
+
     return {
       httpOnly: true,
-      secure: this.isSecureCookie(),
-      sameSite: this.isSecureCookie() ? ('none' as const) : ('lax' as const),
+      secure: crossSite,
+      sameSite: crossSite ? ('none' as const) : ('lax' as const),
       path: '/',
       maxAge,
     };
   }
 
   private setAuthCookies(
+    req: any,
     res: Response,
     tokens: { accessToken: string; refreshToken: string },
   ): void {
     res.cookie(
       ACCESS_COOKIE_NAME,
       tokens.accessToken,
-      this.getCookieOptions(15 * 60 * 1000),
+      this.getCookieOptions(req, 15 * 60 * 1000),
     );
     res.cookie(
       REFRESH_COOKIE_NAME,
       tokens.refreshToken,
-      this.getCookieOptions(7 * 24 * 60 * 60 * 1000),
+      this.getCookieOptions(req, 7 * 24 * 60 * 60 * 1000),
     );
   }
 
-  private clearAuthCookies(res: Response): void {
+  private clearAuthCookies(req: any, res: Response): void {
+    const crossSite = this.shouldUseCrossSiteCookies(req);
     const baseOptions = {
       httpOnly: true,
-      secure: this.isSecureCookie(),
-      sameSite: this.isSecureCookie() ? ('none' as const) : ('lax' as const),
+      secure: crossSite,
+      sameSite: crossSite ? ('none' as const) : ('lax' as const),
       path: '/',
     };
 
@@ -82,6 +87,14 @@ export class UsersController {
       return bodyRefreshToken.trim();
     }
 
+    return this.getCookieFromRequest(req, REFRESH_COOKIE_NAME);
+  }
+
+  private getAccessTokenFromRequest(req: any): string | undefined {
+    return this.getCookieFromRequest(req, ACCESS_COOKIE_NAME);
+  }
+
+  private getCookieFromRequest(req: any, cookieName: string): string | undefined {
     const cookieHeader = req?.headers?.cookie;
     if (!cookieHeader) {
       return undefined;
@@ -90,7 +103,7 @@ export class UsersController {
     const cookies = cookieHeader.split(';');
     for (const cookie of cookies) {
       const [name, ...valueParts] = cookie.trim().split('=');
-      if (name === REFRESH_COOKIE_NAME) {
+      if (name === cookieName) {
         return decodeURIComponent(valueParts.join('='));
       }
     }
@@ -127,7 +140,7 @@ export class UsersController {
       this.getSessionContext(req, deviceName),
     );
 
-    this.setAuthCookies(res, tokens);
+    this.setAuthCookies(req, res, tokens);
     return tokens;
   }
   
@@ -207,7 +220,37 @@ export class UsersController {
       this.getSessionContext(req),
     );
 
-    this.setAuthCookies(res, tokens);
+    this.setAuthCookies(req, res, tokens);
+    return tokens;
+  }
+
+  @Get('session')
+  async restoreSession(
+    @Req() req: any,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const refreshToken = this.getRefreshTokenFromRequest(req);
+    if (refreshToken) {
+      const tokens = await this.usersService.refreshToken(
+        refreshToken,
+        this.getSessionContext(req),
+      );
+
+      this.setAuthCookies(req, res, tokens);
+      return tokens;
+    }
+
+    const accessToken = this.getAccessTokenFromRequest(req);
+    if (!accessToken) {
+      throw new BadRequestException('No existe una sesión activa');
+    }
+
+    const tokens = await this.usersService.restoreSessionFromAccessToken(
+      accessToken,
+      this.getSessionContext(req),
+    );
+
+    this.setAuthCookies(req, res, tokens);
     return tokens;
   }
 
@@ -240,14 +283,14 @@ export class UsersController {
       this.getSessionContext(req, body.deviceName),
     );
 
-    this.setAuthCookies(res, tokens);
+    this.setAuthCookies(req, res, tokens);
     return tokens;
   }
 
   @UseGuards(AuthGuard('jwt'))
   @Post('logout')
   async logout(@Req() req: any, @Res({ passthrough: true }) res: Response) {
-    this.clearAuthCookies(res);
+    this.clearAuthCookies(req, res);
     return this.usersService.logout(req.user.sessionId);
   }
 
