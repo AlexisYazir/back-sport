@@ -14,7 +14,7 @@ import { ConfigService } from '@nestjs/config';
 import { User } from './entities/user.entity';
 import { UserSession } from './entities/user-session.entity';
 import { Roles } from './entities/roles.entity';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, IsNull, MoreThan } from 'typeorm';
 import * as jwt from 'jsonwebtoken';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
@@ -144,6 +144,46 @@ export class UsersService {
           expira_en: this.getRefreshExpirationDate(),
           ultima_actividad: new Date(),
         });
+  }
+
+  private async findReusableSession(
+    user: User,
+    context: SessionContext,
+  ): Promise<UserSession | undefined> {
+    const activeSessions = await this.userSessionReaderRepository.find({
+      where: {
+        id_usuario: user.id_usuario,
+        revocada_en: IsNull(),
+        expira_en: MoreThan(new Date()),
+      },
+      order: {
+        ultima_actividad: 'DESC',
+      },
+      take: 5,
+    });
+
+    if (!activeSessions.length) {
+      return undefined;
+    }
+
+    const normalizedDeviceName = context.deviceName?.trim();
+    const normalizedUserAgent = context.userAgent?.trim();
+
+    return activeSessions.find((session) => {
+      if (normalizedDeviceName && session.device_name === normalizedDeviceName) {
+        return true;
+      }
+
+      if (
+        !normalizedDeviceName &&
+        normalizedUserAgent &&
+        session.user_agent === normalizedUserAgent
+      ) {
+        return true;
+      }
+
+      return false;
+    }) ?? activeSessions[0];
   }
 
   private async issueSessionTokens(
@@ -525,7 +565,8 @@ export class UsersService {
       });
     }
 
-    return this.issueSessionTokens(user, context);
+    const existingSession = await this.findReusableSession(user, context);
+    return this.issueSessionTokens(user, context, existingSession);
   }
 
   //! funcion para validaciones de token (NO USA DB)
@@ -1007,7 +1048,8 @@ export class UsersService {
         await this.userEditorRepository.save(user); // EDITOR para UPDATE
       }
 
-      return this.issueSessionTokens(user, context);
+      const existingSession = await this.findReusableSession(user, context);
+      return this.issueSessionTokens(user, context, existingSession);
     } catch (error) {
       throw new BadRequestException('Token de Google inválido');
     }
