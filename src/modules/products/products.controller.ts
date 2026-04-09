@@ -10,6 +10,8 @@ import {
   UseGuards,
   UploadedFile,
   UseInterceptors,
+  BadRequestException,
+  ParseFilePipe,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
@@ -62,20 +64,47 @@ export class ProductsController {
     FileInterceptor('file', {
       storage: memoryStorage(),
       limits: {
-        fileSize: 8 * 1024 * 1024,
+        files: 1,
+        fileSize: 2 * 1024 * 1024,
+        fields: 5,
       },
       fileFilter: (_req, file, callback) => {
-        if (!file.mimetype.startsWith('image/')) {
-          return callback(new Error('Solo se permiten imagenes'), false);
+        const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
+
+        if (!allowedMimeTypes.includes(file.mimetype)) {
+          return callback(
+            new BadRequestException(
+              'Solo se permiten imágenes JPG, PNG o WEBP',
+            ),
+            false,
+          );
         }
+
         callback(null, true);
       },
     }),
   )
   async uploadImage(
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [],
+        fileIsRequired: true,
+        exceptionFactory: () =>
+          new BadRequestException('Debe enviar una imagen válida'),
+      }),
+    )
+    file: Express.Multer.File,
     @Body('folder') folder?: string,
   ) {
+    if (!file) {
+      throw new BadRequestException('No se recibió ningún archivo');
+    }
+
+    const allowedFolders = ['products', 'categories', 'temp'];
+    if (folder && !allowedFolders.includes(folder)) {
+      throw new BadRequestException('Carpeta no permitida');
+    }
+
     return this.productsService.uploadImage(file, folder);
   }
 
