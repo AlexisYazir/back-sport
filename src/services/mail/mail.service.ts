@@ -9,15 +9,19 @@ export class MailService {
   private readonly logger = new Logger(MailService.name);
   constructor(private readonly configService: ConfigService) {}
 
-  //! funcion para enviar correo de activacion de cuenta
-  public async sendVerificationEmail(email: string, nombre: string, token: string, ): Promise<void> {
-    const transporter: Transporter = nodemailer.createTransport({
+  private createTransporter(): Transporter {
+    return nodemailer.createTransport({
       service: 'gmail',
       auth: {
         user: this.configService.getOrThrow<string>('EMAIL_USER'),
         pass: this.configService.getOrThrow<string>('EMAIL_PASS'),
       },
     });
+  }
+
+  //! funcion para enviar correo de activacion de cuenta
+  public async sendVerificationEmail(email: string, nombre: string, token: string, ): Promise<void> {
+    const transporter = this.createTransporter();
 
     const url = token;
 
@@ -56,13 +60,7 @@ export class MailService {
     nombre: string,
     token: string,
   ): Promise<void> {
-    const transporter: Transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: this.configService.getOrThrow<string>('EMAIL_USER'),
-        pass: this.configService.getOrThrow<string>('EMAIL_PASS'),
-      },
-    });
+    const transporter = this.createTransporter();
 
     const url = token;
 
@@ -100,13 +98,7 @@ export class MailService {
     nombre: string,
     token: string,
   ): Promise<void> {
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: this.configService.getOrThrow<string>('EMAIL_USER'),
-        pass: this.configService.getOrThrow<string>('EMAIL_PASS'),
-      },
-    });
+    const transporter = this.createTransporter();
 
     const mailOptions = {
       from: `"Sport Center" <${this.configService.get<string>('EMAIL_USER')}>`,
@@ -124,5 +116,20 @@ export class MailService {
     };
 
     await transporter.sendMail(mailOptions);
+  }
+
+  public async sendCriticalAlertEmail(
+    email: string,
+    subject: string,
+    html: string,
+  ): Promise<void> {
+    const transporter = this.createTransporter();
+
+    await transporter.sendMail({
+      from: `"Sport Center" <${this.configService.get<string>('EMAIL_USER')}>`,
+      to: email,
+      subject,
+      html,
+    });
   }
 }

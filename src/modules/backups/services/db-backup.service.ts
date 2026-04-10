@@ -62,6 +62,7 @@ export interface BackupRetentionPolicy {
 @Injectable()
 export class DbBackupService implements OnModuleInit {
   private readonly logger = new Logger(DbBackupService.name);
+  private readonly systemLogRetentionName = 'log_cleanup_90d_system';
 
   constructor(
     private readonly configService: ConfigService,
@@ -74,8 +75,35 @@ export class DbBackupService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
+    await this.ensureSystemRetentionPolicies();
     await this.registerPersistedSchedules();
     await this.registerPersistedRetentionPolicies();
+  }
+
+  private async ensureSystemRetentionPolicies() {
+    const existing = await this.retentionRepository.findOneBy({
+      nombre: this.systemLogRetentionName,
+    });
+
+    if (existing) {
+      return;
+    }
+
+    const entity = this.retentionRepository.create({
+      nombre: this.systemLogRetentionName,
+      tipo_backup: null,
+      carpeta_base: 'logs',
+      retencion_dias: 90,
+      ...buildScheduleConfig({
+        scheduleType: 'daily',
+        time: '03:30',
+      }),
+      activo: true,
+      creado_en: new Date(),
+      actualizado_en: new Date(),
+    });
+
+    await this.retentionRepository.save(entity);
   }
 
   private async registerPersistedSchedules() {
@@ -341,10 +369,14 @@ export class DbBackupService implements OnModuleInit {
       policy.cron_expression,
       policy.fecha_ejecucion,
       async () => {
-        await this.cleanupOldBackups(
-          policy.retencion_dias,
-          (policy.tipo_backup ?? undefined) as BackupType | undefined,
-        );
+        if (policy.carpeta_base === 'logs') {
+          await this.cleanupLogs(policy.retencion_dias);
+        } else {
+          await this.cleanupOldBackups(
+            policy.retencion_dias,
+            (policy.tipo_backup ?? undefined) as BackupType | undefined,
+          );
+        }
         const nextRunAt = getNextExecutionFromJob(job);
         await this.markRetentionPolicyExecuted(policy, nextRunAt);
         if (policy.modo_programacion === 'datetime') {
@@ -564,6 +596,24 @@ export class DbBackupService implements OnModuleInit {
     return { success: true, deletedOlderThanDays: days, deletedCount, type: type ?? 'all' };
   }
 
+  async cleanupLogs(days = 90) {
+    const objects = await this.storage.list('logs/');
+    const now = Date.now();
+    const maxAge = days * 24 * 60 * 60 * 1000;
+    let deletedCount = 0;
+
+    for (const object of objects) {
+      if (!object.Key || !object.LastModified) continue;
+      const age = now - object.LastModified.getTime();
+      if (age > maxAge) {
+        await this.storage.delete(object.Key);
+        deletedCount += 1;
+      }
+    }
+
+    return { success: true, deletedOlderThanDays: days, deletedCount, type: 'logs' };
+  }
+
   async createSchedule(dto: CreateScheduleDto) {
     const type = dto.type === 'critical' ? 'critical' : 'full';
     const config = buildScheduleConfig(dto);
@@ -632,6 +682,7 @@ export class DbBackupService implements OnModuleInit {
 
   async listRetentionPolicies() {
     const items = await this.retentionRepository.find({
+      where: { carpeta_base: 'backups' },
       order: { creado_en: 'DESC' },
     });
     return items.map((item) => this.toRetentionPolicyView(item));

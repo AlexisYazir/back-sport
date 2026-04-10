@@ -6,6 +6,8 @@
 # Logs
 logs
 *.log
+!src/modules/logs/
+!src/modules/logs/**
 npm-debug.log*
 pnpm-debug.log*
 yarn-debug.log*

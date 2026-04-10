@@ -10,6 +10,7 @@ import { ProductsModule } from './modules/products/products.module';
 import { AppController } from './app.controller';
 import { BackupModule } from './modules/backups/backup.module';
 import { CompanyModule } from './modules/company/company.module';
+import { LogsModule } from './modules/logs/logs.module';
 
 @Module({
   imports: [
@@ -109,6 +110,7 @@ import { CompanyModule } from './modules/company/company.module';
     ProductsModule,
     BackupModule,
     CompanyModule,
+    LogsModule,
   ],
   controllers: [AppController],
   providers: [
