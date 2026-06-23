@@ -8,6 +8,11 @@ import { UserSession } from './entities/user-session.entity';
 import { Roles } from './entities/roles.entity';
 import { JwtStrategy } from '../../services/auth/jwt.strategy';
 import { Module } from '@nestjs/common';
+import { UserAccountService } from './services/user-account.service';
+import { UserAdminService } from './services/user-admin.service';
+import { UserGoogleAuthService } from './services/user-google-auth.service';
+import { UserPasswordRecoveryService } from './services/user-password-recovery.service';
+import { UserSessionService } from './services/user-session.service';
 
 @Module({
   imports: [
@@ -19,7 +24,15 @@ import { Module } from '@nestjs/common';
     MailModule,
   ],
   controllers: [UsersController],
-  providers: [UsersService, JwtStrategy],
+  providers: [
+    UsersService,
+    UserAccountService,
+    UserSessionService,
+    UserPasswordRecoveryService,
+    UserGoogleAuthService,
+    UserAdminService,
+    JwtStrategy,
+  ],
   exports: [UsersService],
 })
 export class UsersModule {}

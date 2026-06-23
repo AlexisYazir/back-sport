@@ -156,6 +156,12 @@ export class UsersController {
     return this.usersService.resendVerificationEmail(email);
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Post('request-verification-code')
+  async requestVerificationCode(@Body('email') email: string) {
+    return this.usersService.requestVerificationCode(email);
+  }
+
  @UseGuards(AuthGuard('jwt'))
   @Patch('update-profile')
   async updateProfile(@Req() req: any, @Body() updateUserDto: UpdateUserDto) {

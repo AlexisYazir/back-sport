@@ -1,47 +1,62 @@
 /* eslint-disable */
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
-import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
-import { Repository, DataSource, Not } from 'typeorm';
-
-import { CreateProductDto } from './dto/product/create-product.dto';
-import { CreateProductSportsDto } from './dto/product/create-product-sports.dto';
-import { Product } from './entities/product/product.entity';
-import { UpdateProductInvDto } from './dto/product/update-product-inv.dto';
-import { UpdateProductFullDto } from './dto/product/update-product-full.dto';
-import { UpdateProductResult } from './dto/product/update-product-full.dto';
-import { UpdateProductVariantAttributeDto } from './dto/product/update.product-var-attr.dto';
-import { UpdateProductVarAttResult } from './dto/product/update.product-var-attr.dto';
-
-import { CreateProductVariantDto } from './dto/product/create-product_variant.dto';
-import { ProductVariant } from './entities/product/product_variant.entity';
-
-import { CreateVarAttributeValuesDto } from './dto/product/create-var-att_vls.dto';
-import { VariantAttributeValue } from './entities/product/variant_attr_vals.entity';
-
-import { CreateAttributeDto } from './dto/product/create-attribute.dto';
-import { Attribute } from './entities/product/atributtes.entity';
-
-import { Sports } from './entities/sports/sport.entity';
-import { ProductSport } from './entities/sports/product-sport.entity';
-
-import { CreateMarcaDto } from './dto/marca/create-marca.tdo';
-import { UpdateMarcaDto } from './dto/marca/update-marca.dto';
-import { Marca } from './entities/marca/marca.entity';
+import { Injectable } from '@nestjs/common';
 
 import { CreateCategorieDto } from './dto/categories/create-categorie.dto';
 import { UpdateCategorieDto } from './dto/categories/update-categorie.dto';
-import { Category } from './entities/categorie/categorie.entity';
-
-import { Orders } from './entities/orders/orders.entity';
-
 import { CreateInventoryMovementDto } from './dto/inventory/create-inventory_movement.dto';
 import { CreateInventoryMovementSkuDto } from './dto/inventory/create-inventory-movement-sku.dto';
-import { InventoryMovements } from './entities/inventory/inventory_movements.entity';
-import { Inventory } from './entities/inventory/inventory.entity';
+import { CreateMarcaDto } from './dto/marca/create-marca.tdo';
+import { UpdateMarcaDto } from './dto/marca/update-marca.dto';
+import { CreateAttributeDto } from './dto/product/create-attribute.dto';
+import { CreateProductDto } from './dto/product/create-product.dto';
+import { CreateProductSportsDto } from './dto/product/create-product-sports.dto';
+import { CreateProductVariantDto } from './dto/product/create-product_variant.dto';
+import { CreateVarAttributeValuesDto } from './dto/product/create-var-att_vls.dto';
 import {
-  CloudinaryService,
-  CloudinaryUploadResult,
-} from './services/cloudinary.service';
+  UpdateProductFullDto,
+  UpdateProductResult,
+} from './dto/product/update-product-full.dto';
+import { UpdateProductInvDto } from './dto/product/update-product-inv.dto';
+import {
+  UpdateProductVariantAttributeDto,
+  UpdateProductVarAttResult,
+} from './dto/product/update.product-var-attr.dto';
+import { Category } from './entities/categorie/categorie.entity';
+import { InventoryMovements } from './entities/inventory/inventory_movements.entity';
+import { Marca } from './entities/marca/marca.entity';
+import { Orders } from './entities/orders/orders.entity';
+import { Attribute } from './entities/product/atributtes.entity';
+import { Product } from './entities/product/product.entity';
+import { ProductVariant } from './entities/product/product_variant.entity';
+import { VariantAttributeValue } from './entities/product/variant_attr_vals.entity';
+import { Review } from './entities/reviews/review.entity';
+import { Sports } from './entities/sports/sport.entity';
+import { CreateReviewDto } from './dto/reviews/create-review.dto';
+import { CloudinaryUploadResult } from './services/cloudinary.service';
+import { ProductBrandCategoryService } from './services/product-brand-category.service';
+import { ProductCatalogService } from './services/product-catalog.service';
+import { ProductInventoryService } from './services/product-inventory.service';
+import { ProductOrdersService } from './services/product-orders.service';
+import { ProductReviewsService } from './services/product-reviews.service';
+import { ProductCartService } from './services/product-cart.service';
+import { ProductCheckoutService } from './services/product-checkout.service';
+import { ProductPromotionsService } from './services/product-promotions.service';
+import { AddCartItemDto } from './dto/cart/add-cart-item.dto';
+import { UpdateCartItemDto } from './dto/cart/update-cart-item.dto';
+import {
+  CheckoutCardDto,
+  CreateCheckoutOrderDto,
+} from './dto/checkout/create-checkout-order.dto';
+import { UpdateShipmentDto } from './dto/orders/update-shipment.dto';
+import {
+  CreateReturnDto,
+  UpdateReturnStatusDto,
+} from './dto/returns/create-return.dto';
+import {
+  CreatePromotionDto,
+  UpdatePromotionDto,
+  UpdateShippingMethodDto,
+} from './dto/promotions/promotion.dto';
 
 export interface ExcelImportResult {
   success: number;
@@ -56,985 +71,344 @@ export interface ExcelImportResult {
 
 @Injectable()
 export class ProductsService {
-  private readonly logger = new Logger(ProductsService.name);
   constructor(
-    // Inyectar DataSource específico para cada conexión
-    @InjectDataSource('editorConnection') // Importante: especificar la conexión
-    private readonly editorDataSource: DataSource,
-    
-    @InjectDataSource('readerConnection')
-    private readonly readerDataSource: DataSource,
-    
-    // EDITOR: Para operaciones CRUD normales (CREATE, UPDATE)
-    @InjectRepository(Product, 'editorConnection')
-    private readonly productEditorRepository: Repository<Product>,
-    @InjectRepository(ProductVariant, 'editorConnection')
-    private readonly productVariantEditorRepository: Repository<ProductVariant>,
-    @InjectRepository(ProductSport, 'editorConnection')
-    private readonly productSportEditorRepository: Repository<ProductSport>,
-    @InjectRepository(VariantAttributeValue, 'editorConnection')
-    private readonly variantAttributeValueEditorRepository: Repository<VariantAttributeValue>,
-    @InjectRepository(Attribute, 'editorConnection')
-    private readonly attributeEditorRepository: Repository<Attribute>,
-    
-    // READER: Para consultas de solo lectura (SELECT)
-    @InjectRepository(Product, 'readerConnection')
-    private readonly productReaderRepository: Repository<Product>,
-    @InjectRepository(ProductVariant, 'readerConnection')
-    private readonly productVariantReaderRepository: Repository<ProductVariant>,
-    @InjectRepository(VariantAttributeValue, 'readerConnection')
-    private readonly variantAttributeValueReaderRepository: Repository<VariantAttributeValue>,
-    @InjectRepository(Attribute, 'readerConnection')
-    private readonly attributeReaderRepository: Repository<Attribute>,
-    @InjectRepository(Sports, 'readerConnection')
-    private readonly sportReaderRepository: Repository<Sports>,
-    
-    // ADMIN: Para operaciones que requieren permisos especiales
-    @InjectRepository(Product, 'adminConnection')
-    private readonly productAdminRepository: Repository<Product>,
-    
-    //marcas
-    @InjectRepository(Marca, 'editorConnection')
-    private readonly marcaEditorRepository: Repository<Marca>,
-    @InjectRepository(Marca, 'readerConnection')
-    private readonly marcaReaderRepository: Repository<Marca>,
-    
-    //categorias
-    @InjectRepository(Category, 'editorConnection')
-    private readonly categoryEditorRepository: Repository<Category>,
-    @InjectRepository(Category, 'readerConnection')
-    private readonly categoryReaderRepository: Repository<Category>,
-    
-    //ordenes (solo lectura para empleados)
-    @InjectRepository(Orders, 'readerConnection')
-    private readonly ordersReaderRepository: Repository<Orders>,
-    
-    //Inventory
-    @InjectRepository(Inventory, 'editorConnection')
-    private readonly inventoryEditorRepository: Repository<Inventory>,
-    @InjectRepository(InventoryMovements, 'editorConnection')
-    private readonly inventoryMovementsEditorRepository: Repository<InventoryMovements>,
-    @InjectRepository(Inventory, 'readerConnection')
-    private readonly inventoryReaderRepository: Repository<Inventory>,
-    @InjectRepository(InventoryMovements, 'readerConnection')
-    private readonly inventoryMovementsReaderRepository: Repository<InventoryMovements>,
-    private readonly cloudinaryService: CloudinaryService,
+    private readonly catalogService: ProductCatalogService,
+    private readonly inventoryService: ProductInventoryService,
+    private readonly brandCategoryService: ProductBrandCategoryService,
+    private readonly ordersService: ProductOrdersService,
+    private readonly reviewsService: ProductReviewsService,
+    private readonly cartService: ProductCartService,
+    private readonly checkoutService: ProductCheckoutService,
+    private readonly promotionsService: ProductPromotionsService,
   ) {}
 
-  //* ---------- FUNCIONES PARA PRODUCTOS
-  //! funcion para registrar un producto (EDITOR - CREATE)
-  async createProduct(createProductDto: CreateProductDto): Promise<Product> {
-    try {
-      const product = this.productEditorRepository.create({
-        nombre: createProductDto.nombre,
-        descripcion: createProductDto.descripcion,
-        id_marca: createProductDto.id_marca,
-        id_categoria: createProductDto.id_categoria,
-        activo: false,
-      });
-
-      return await this.productEditorRepository.save(product);
-    } catch (error) {
-      this.logger.error('Error al crear producto: ', error);
-      throw new BadRequestException('Error al crear el producto', error);
-    }
+  createProduct(createProductDto: CreateProductDto): Promise<Product> {
+    return this.catalogService.createProduct(createProductDto);
   }
 
-  async assignProductSports(dto: CreateProductSportsDto): Promise<{
+  assignProductSports(dto: CreateProductSportsDto): Promise<{
     id_producto: number;
     deportes_asignados: number;
   }> {
-    try {
-      const product = await this.productReaderRepository.findOneBy({
-        id_producto: dto.id_producto,
-      });
-
-      if (!product) {
-        throw new BadRequestException('El producto no existe');
-      }
-
-      const sportIds = Array.from(
-        new Set((dto.ids_deportes ?? []).map(Number).filter((id) => Number.isInteger(id) && id > 0)),
-      );
-
-      if (sportIds.length > 0) {
-        const existingSports = await this.sportReaderRepository.query(
-          `SELECT id_deporte FROM core.deportes WHERE id_deporte = ANY($1::int[])`,
-          [sportIds],
-        );
-
-        if (existingSports.length !== sportIds.length) {
-          throw new BadRequestException('Uno o mas deportes seleccionados no existen');
-        }
-      }
-
-      await this.editorDataSource.transaction(async (manager) => {
-        await manager.query(
-          `DELETE FROM core.product_deportes WHERE id_producto = $1`,
-          [dto.id_producto],
-        );
-
-        if (sportIds.length === 0) {
-          return;
-        }
-
-        const values = sportIds
-          .map((_, index) => `($1, $${index + 2})`)
-          .join(', ');
-
-        await manager.query(
-          `INSERT INTO core.product_deportes (id_producto, id_deporte) VALUES ${values}`,
-          [dto.id_producto, ...sportIds],
-        );
-      });
-
-      return {
-        id_producto: dto.id_producto,
-        deportes_asignados: sportIds.length,
-      };
-    } catch (error) {
-      this.logger.error('Error al asignar deportes al producto: ', error);
-
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
-
-      throw new BadRequestException('Error al asignar deportes al producto');
-    }
+    return this.catalogService.assignProductSports(dto);
   }
 
-  async uploadImage(
+  uploadImage(
     file: Express.Multer.File,
     folder?: string,
   ): Promise<CloudinaryUploadResult> {
-    try {
-      return await this.cloudinaryService.uploadProductImage(file, folder);
-    } catch (error) {
-      this.logger.error('Error al subir imagen a Cloudinary: ', error);
-
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
-
-      throw new BadRequestException('No se pudo subir la imagen a Cloudinary');
-    }
+    return this.catalogService.uploadImage(file, folder);
   }
 
-  //! funcion para registrar una variante de producto (EDITOR - CREATE)
-  async createProductVariant(dto: CreateProductVariantDto): Promise<ProductVariant> {
-    // READER para verificar existencia
-    const product = await this.productReaderRepository.findOneBy({
-      id_producto: dto.id_producto,
-    });
-
-    // READER para verificar SKU duplicado
-    const variante = await this.productVariantReaderRepository.findOneBy({
-      sku: dto.sku,
-    });
-
-    if(variante) {
-      throw new BadRequestException("EL codigo ya existe");
-    }
-
-    if (!product) {
-      throw new BadRequestException('El producto no existe');
-    }
-
-    const variant = this.productVariantEditorRepository.create({
-      id_producto: dto.id_producto,
-      sku: dto.sku,
-      precio: dto.precio,
-      imagenes: dto.imagenes ?? [],
-      atributos: dto.atributos ?? {}
-    });
-
-    return await this.productVariantEditorRepository.save(variant);
+  createProductVariant(
+    dto: CreateProductVariantDto,
+  ): Promise<ProductVariant> {
+    return this.catalogService.createProductVariant(dto);
   }
 
-  //! funcion para registrar un atributo de producto (EDITOR - CREATE)
-  async createAttribute(dto: CreateAttributeDto): Promise<Attribute> {
-    // READER para verificar duplicado
-    const attribute = await this.attributeReaderRepository.findOneBy({
-      nombre: dto.nombre,
-    });
-
-    if (attribute) {
-      throw new BadRequestException('El atributo ya existe');
-    }
-
-    const variant = this.attributeEditorRepository.create({
-      nombre: dto.nombre,      
-    });
-
-    return await this.attributeEditorRepository.save(variant);
+  createAttribute(dto: CreateAttributeDto): Promise<Attribute> {
+    return this.catalogService.createAttribute(dto);
   }
 
-  //! funcion para registrar los valores de los atributos de una variante (EDITOR - CREATE)
-  async createVariantAttributeValue(dto: CreateVarAttributeValuesDto): Promise<VariantAttributeValue> {
-    try {
-      const attribute = this.variantAttributeValueEditorRepository.create({
-        id_variante: dto.id_variante,
-        id_atributo: dto.id_atributo,
-        valor: dto.valor,
-      });
-
-      return await this.variantAttributeValueEditorRepository.save(attribute);
-    } catch (error) {
-      this.logger.error("Error al crear atributo de variante: ", error);
-      throw new BadRequestException('Error al crear atributo de variante');
-    }
+  createVariantAttributeValue(
+    dto: CreateVarAttributeValuesDto,
+  ): Promise<VariantAttributeValue> {
+    return this.catalogService.createVariantAttributeValue(dto);
   }
 
-  //! funcion para consultar todos los productos (READER - SELECT)
-  async getAllProducts(): Promise<any[]> {
-    try {
-      const result = await this.productReaderRepository.query(
-        `
-        SELECT
-          p.id_producto,
-          p.nombre AS producto,
-          p.descripcion,
-          p.activo,
-          p.fecha_creacion,
-          m.nombre AS marca,
-          m.imagen AS imagen_marca,
-          c.nombre AS categoria,
-          cp.nombre AS categoria_padre,
-          COALESCE(d.deportes, '[]'::jsonb) AS deportes,
-          COALESCE(
-            jsonb_agg(
-              DISTINCT jsonb_build_object(
-                'id_variante', v.id_variante,
-                'sku', v.sku,
-                'precio', v.precio,
-                'stock', vi.stock_actual,
-                'imagenes', v.imagenes,
-                'atributos',
-                  (
-                    SELECT jsonb_object_agg(a.nombre, vav.valor)
-                    FROM core.variant_attribute_values vav
-                    JOIN core.attributes a
-                      ON a.id_atributo = vav.id_atributo
-                    WHERE vav.id_variante = v.id_variante
-                  )
-              )
-            ) FILTER (WHERE v.id_variante IS NOT NULL),
-            '[]'::jsonb
-          ) AS variantes
-        FROM core.products p
-        LEFT JOIN core.marcas m
-          ON m.id_marca = p.id_marca
-        LEFT JOIN core.categories c
-          ON c.id_categoria = p.id_categoria
-        LEFT JOIN core.categories cp
-          ON cp.id_categoria = c.id_padre
-        LEFT JOIN core.product_variants v
-          ON v.id_producto = p.id_producto
-        INNER JOIN core.inventory vi
-    	ON vi.id_variante = v.id_variante
-      AND vi.stock_actual > 0
-        LEFT JOIN (
-          SELECT
-            pd.id_producto,
-            jsonb_agg(DISTINCT d.nombre ORDER BY d.nombre) AS deportes
-          FROM core.product_deportes pd
-          JOIN core.deportes d
-            ON d.id_deporte = pd.id_deporte
-          GROUP BY pd.id_producto
-        ) d
-          ON d.id_producto = p.id_producto
-        WHERE p.activo = TRUE
-        GROUP BY
-          p.id_producto,
-          p.nombre,
-          p.descripcion,
-          p.activo,
-          p.fecha_creacion,
-          m.nombre,
-          m.imagen,
-          c.nombre,
-          cp.nombre,
-          d.deportes
-        ORDER BY p.fecha_creacion DESC;
-        `
-      );
-      return result;
-    } catch (error) {
-      this.logger.error('Error al cargar todos los productos: ', error);
-      throw error;
-    }
+  getAllProducts(): Promise<any[]> {
+    return this.catalogService.getAllProducts();
   }
 
-  //! funcion para consultar todos los productos recientemente creados (READER - SELECT)
-  async getRecientProducts(): Promise<any[]> {
-    try {
-      const result = await this.productReaderRepository.query(
-        `SELECT * FROM core.get_recients_products();`
-      );
-      return result;
-    } catch (error) {
-      this.logger.error('ERROR REAL:', error);
-      throw error;
-    }
+  getRecientProducts(): Promise<any[]> {
+    return this.catalogService.getRecientProducts();
   }
 
-  //! funcion para consultar productos variantes pero con atributos vacios (READER - SELECT)
-  async getProductsWithoutVariantsAttributes(): Promise<any[]> {
-    try {
-      const result = await this.productReaderRepository.query(
-        `SELECT * FROM core.get_products_with_variants_without_attributes();`
-      );
-      return result;
-    } catch (error) {
-      this.logger.error('Error al consultar productos variantes:', error);
-      throw error;
-    }
+  getProductsWithoutVariantsAttributes(): Promise<any[]> {
+    return this.catalogService.getProductsWithoutVariantsAttributes();
   }
 
-  //! funcion para consultar las variantes de un producto (READER - SELECT)
-  async getVariantsByProduct(id: number): Promise<any[]> {
-    try {
-      const variants = await this.productVariantReaderRepository.query(
-        `SELECT * FROM core.get_variants_product_by_id($1)`,
-        [id]
-      );
-
-      return variants;
-
-    } catch (error) {
-      this.logger.error("Error al consultar variantes de producto por id: ", error)
-      throw new Error('Error fetching product variants');
-    }
+  getVariantsByProduct(id: number): Promise<any[]> {
+    return this.catalogService.getVariantsByProduct(id);
   }
 
-  //! funcion para consultar todos los productos (READER - SELECT)
-  async getProductDetail(id: number): Promise<any[]> {
-    try {
-      const result = await this.productReaderRepository.query(
-        `
-        SELECT
-          p.id_producto,
-          p.nombre AS producto,
-          p.descripcion,
-          p.activo,
-          p.fecha_creacion,
-          m.nombre AS marca,
-          m.imagen AS imagen_marca,
-          c.nombre AS categoria,
-          cp.nombre AS categoria_padre,
-          COALESCE(d.deportes, '[]'::jsonb) AS deportes,
-          COALESCE(
-            jsonb_agg(
-              DISTINCT jsonb_build_object(
-                'id_variante', v.id_variante,
-                'sku', v.sku,
-                'precio', v.precio,
-                'stock', COALESCE(vi.stock_actual, 0),
-                'imagenes', v.imagenes,
-                'atributos',
-                  (
-                    SELECT jsonb_object_agg(a.nombre, vav.valor)
-                    FROM core.variant_attribute_values vav
-                    JOIN core.attributes a
-                      ON a.id_atributo = vav.id_atributo
-                    WHERE vav.id_variante = v.id_variante
-                  )
-              )
-            ) FILTER (WHERE v.id_variante IS NOT NULL),
-            '[]'::jsonb
-          ) AS variantes
-        FROM core.products p
-        LEFT JOIN core.marcas m
-          ON m.id_marca = p.id_marca
-        LEFT JOIN core.categories c
-          ON c.id_categoria = p.id_categoria
-        LEFT JOIN core.categories cp
-          ON cp.id_categoria = c.id_padre
-        LEFT JOIN core.product_variants v
-          ON v.id_producto = p.id_producto
-        LEFT JOIN core.inventory vi
-          ON vi.id_variante = v.id_variante
-        LEFT JOIN (
-          SELECT
-            pd.id_producto,
-            jsonb_agg(DISTINCT d.nombre ORDER BY d.nombre) AS deportes
-          FROM core.product_deportes pd
-          JOIN core.deportes d
-            ON d.id_deporte = pd.id_deporte
-          GROUP BY pd.id_producto
-        ) d
-          ON d.id_producto = p.id_producto
-        WHERE p.id_producto = $1
-        GROUP BY
-          p.id_producto,
-          p.nombre,
-          p.descripcion,
-          p.activo,
-          p.fecha_creacion,
-          m.nombre,
-          m.imagen,
-          c.nombre,
-          cp.nombre,
-          d.deportes
-        `,
-        [id]
-      );
-      return result;
-    } catch (error) {
-      this.logger.error("Error al cargar los detalles de un producto: ", error)
-      throw error;
-    }
+  getProductDetail(id: number): Promise<any[]> {
+    return this.catalogService.getProductDetail(id);
   }
 
-  async getOrderDetail(id: number): Promise<any[]> {
-    try {
-      const result = await this.readerDataSource.query(
-        `SELECT 
-              o.id_orden,
-              o.fecha_entrega as fecha_creacion,
-              oi.cantidad, 
-              oi.total
-        FROM core.orders o
-        JOIN core.order_items oi 
-              ON oi.id_orden = o.id_orden
-        JOIN core.product_variants v 
-              ON v.id_variante = oi.id_variante
-        WHERE v.id_producto = $1
-        ORDER BY o.fecha_creacion;`,
-        [id]
-      );
-      return result;
-    } catch (error) {
-      this.logger.error("Error al cargar los detalles de venta: ", error)
-      throw error;
-    }
+  updateProductFull(dto: UpdateProductFullDto): Promise<UpdateProductResult> {
+    return this.catalogService.updateProductFull(dto);
   }
 
-  async getAllOrders(): Promise<any[]> {
-    const result = await this.readerDataSource.query(
-      `
-        SELECT 
-            p.id_producto,
-            p.nombre,
-
-            c.nombre AS categoria,
-            cp.nombre AS categoria_padre,
-
-            COALESCE(d.deportes, '[]') AS deportes,
-            COALESCE(img.imagenes, '[]') AS imagenes,
-
-            v.total_vendido,
-            v.ingresos_totales
-
-        FROM core.products p
-
-        LEFT JOIN core.categories c 
-            ON c.id_categoria = p.id_categoria
-
-        LEFT JOIN core.categories cp 
-            ON cp.id_categoria = c.id_padre
-
-        -- SOLO productos con ventas
-        INNER JOIN (
-            SELECT 
-                v.id_producto,
-                SUM(oi.cantidad) AS total_vendido,
-                SUM(oi.total) AS ingresos_totales
-            FROM core.product_variants v
-            INNER JOIN core.order_items oi 
-                ON oi.id_variante = v.id_variante
-            GROUP BY v.id_producto
-        ) v ON v.id_producto = p.id_producto
-
-        -- deportes
-        LEFT JOIN (
-            SELECT 
-                pd.id_producto,
-                jsonb_agg(DISTINCT d.nombre) AS deportes
-            FROM core.product_deportes pd
-            JOIN core.deportes d 
-                ON d.id_deporte = pd.id_deporte
-            GROUP BY pd.id_producto
-        ) d ON d.id_producto = p.id_producto
-
-        -- imagenes
-        LEFT JOIN (
-            SELECT 
-                v.id_producto,
-                jsonb_agg(DISTINCT v.imagenes) AS imagenes
-            FROM core.product_variants v
-            GROUP BY v.id_producto
-        ) img ON img.id_producto = p.id_producto
-
-        WHERE p.activo = TRUE
-
-        ORDER BY v.total_vendido DESC;
-      `
-    )
-
-    return result
+  updateProductVariant(
+    dto: UpdateProductVariantAttributeDto,
+  ): Promise<UpdateProductVarAttResult> {
+    return this.catalogService.updateProductVariant(dto);
   }
 
-  //! funcion para consultar todos los productos (READER - SELECT)
-  async getInventoryProducts(): Promise<any[]> {
-    try {
-      const result = await this.productReaderRepository.query(`
-        SELECT
-          inv.*,
-          COALESCE(variant_image.imagenes->>0, '') AS imagen_producto,
-          COALESCE(inv.imagen, '') AS imagen_marca
-        FROM core.get_inventory_products() inv
-        LEFT JOIN LATERAL (
-          SELECT pv.imagenes
-          FROM core.product_variants pv
-          WHERE pv.id_producto = inv.id_producto
-            AND jsonb_typeof(pv.imagenes) = 'array'
-            AND jsonb_array_length(pv.imagenes) > 0
-          ORDER BY pv.id_variante ASC
-          LIMIT 1
-        ) variant_image ON TRUE;
-      `);
-      return result;
-    } catch (error) {
-      this.logger.error('ERROR REAL:', error);
-      throw error;
-    }
+  getAttributes(): Promise<Attribute[]> {
+    return this.catalogService.getAttributes();
   }
 
-  //! funcion para actualizar estado de un producto (EDITOR - UPDATE)
-  async updateProductInv(dto: { id_producto: number, estado: boolean }): Promise<number> {
-    try {
-      // READER para verificar existencia
-      const product = await this.productReaderRepository.findOne({
-        where: { id_producto: dto.id_producto }
-      });
-
-      if (!product) {
-        throw new BadRequestException('Producto no encontrado');
-      }
-
-      if (dto.estado) {
-        const inventorySummary = await this.productReaderRepository.query(
-          `
-          SELECT id_producto, precio, stock
-          FROM core.get_inventory_products()
-          WHERE id_producto = $1
-          LIMIT 1;
-          `,
-          [dto.id_producto],
-        );
-
-        const currentInventory = inventorySummary[0];
-        const stock = currentInventory?.stock ? Number(currentInventory.stock) : 0;
-        const precio = currentInventory?.precio ? Number(currentInventory.precio) : 0;
-
-        if (stock <= 0) {
-          throw new BadRequestException(
-            'No se puede activar el producto porque no tiene stock disponible',
-          );
-        }
-
-        if (precio <= 0) {
-          throw new BadRequestException(
-            'No se puede activar el producto porque no tiene precio configurado',
-          );
-        }
-      }
-
-      product.activo = dto.estado;
-      
-      await this.productEditorRepository.save(product); // EDITOR para UPDATE
-
-      return 1;
-    } catch (error) {
-      throw error;
-    }
+  getInventoryProducts(): Promise<any[]> {
+    return this.inventoryService.getInventoryProducts();
   }
 
-  //! funcion para actualizar datos generales de producto (EDITOR - UPDATE via función)
-  async updateProductFull(dto: UpdateProductFullDto): Promise<UpdateProductResult> {
-    // Usamos editorRepository para ejecutar la función que actualiza
-    const result: UpdateProductResult[] = await this.productEditorRepository.query(
-      `
-      SELECT * FROM core.update_full_product(
-        $1, $2, $3, $4, $5
-      )
-      `,
-      [
-        dto.id_producto,
-        dto.id_marca,
-        dto.id_categoria,
-        dto.nombre,
-        dto.descripcion,
-      ]
-    );
-
-    return result[0];
+  updateProductInv(dto: UpdateProductInvDto): Promise<number> {
+    return this.inventoryService.updateProductInv(dto);
   }
 
-  //! Funcion para actualizar datos de producto: variante y atributos (EDITOR - UPDATE)
-  async updateProductVariant(dto: UpdateProductVariantAttributeDto): Promise<UpdateProductVarAttResult> {
-    // READER para verificar SKU duplicado
-    const existingVariant = await this.productVariantReaderRepository.findOne({
-      where: {
-        sku: dto.sku,
-        id_variante: Not(dto.id_variante)
-      }
-    });
-
-    if (existingVariant) {
-      throw new BadRequestException(
-        'El SKU(Codigo) ya está en uso por otra variante'
-      );
-    }
-
-    // EDITOR para ejecutar la función de actualización
-    const result: UpdateProductVarAttResult[] = await this.productVariantEditorRepository.query(
-      `
-      SELECT * FROM core.update_product_variant(
-        $1,
-        $2, $3, $4, $5, $6
-      )
-      `,
-      [
-        dto.id_producto,
-
-        dto.id_variante,
-        dto.sku,
-        JSON.stringify(dto.imagenes),
-        dto.precio,
-        JSON.stringify(dto.atributos)
-      ]
-    );
-
-    return result[0];
-  }
-
-  //* ---------- FUNCIONES PARA INVENTARIO
-  //! funcion para registrar movimientos y actualizar inventario (EDITOR - CREATE/UPDATE)
-  async createInventoryMovementBySku(
+  createInventoryMovementBySku(
     dto: CreateInventoryMovementSkuDto,
   ): Promise<InventoryMovements> {
-    try {
-      // 1. Buscar la variante por SKU
-      const variant = await this.productVariantReaderRepository.findOne({
-        where: { sku: dto.sku },
-      });
-
-      if (!variant) {
-        throw new BadRequestException(`No se encontró ninguna variante con el SKU: ${dto.sku}`);
-      }
-
-      // 2. Verificar que existe inventario para esa variante
-      const inventory = await this.inventoryReaderRepository.findOne({
-        where: { id_variante: variant.id_variante },
-      });
-
-      if (!inventory) {
-        throw new BadRequestException(
-          `No hay inventario registrado para la variante con SKU: ${dto.sku}`
-        );
-      }
-
-      // 3. Validar stock negativo en salidas
-      if (dto.tipo.toLowerCase() === 'salida' && inventory.stock_actual < dto.cantidad) {
-        throw new BadRequestException(
-          `Stock insuficiente. Disponible: ${inventory.stock_actual}, Solicitado: ${dto.cantidad}`
-        );
-      }
-
-      // 4. Crear el movimiento
-    const movementData = {
-      id_variante: variant.id_variante,
-      tipo: dto.tipo,
-      cantidad: dto.tipo.toLowerCase() === 'salida' ? -Math.abs(dto.cantidad) : dto.cantidad,
-      costo_unitario: dto.costo_unitario || 0,
-      referencia_tipo: dto.referencia_tipo || 'manual',
-      referencia_id: dto.referencia_id || 0,
-    };
-
-    const movement = this.inventoryMovementsEditorRepository.create(movementData);
-    await this.inventoryMovementsEditorRepository.save(movement);
-
-      // 5. Actualizar stock
-      if (dto.tipo.toLowerCase() === 'salida') {
-        inventory.stock_actual -= dto.cantidad;
-      } else {
-        inventory.stock_actual += dto.cantidad;
-      }
-      
-      await this.inventoryEditorRepository.save(inventory);
-
-      // 6. Retornar movimiento con info adicional
-      return {
-        ...movement,
-        sku: variant.sku,
-        producto_id: variant.id_producto
-      } as any;
-
-    } catch (error) {
-      this.logger.error('Error al crear movimiento:', error);
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
-      throw new BadRequestException('Error al crear movimiento de inventario');
-    }
+    return this.inventoryService.createInventoryMovementBySku(dto);
   }
 
-  //! funcion para crear movimientos de inventario
-  async createInventoryMovement(
+  createInventoryMovement(
     dto: CreateInventoryMovementDto,
   ): Promise<InventoryMovements> {
-    try {
-      const inventory = await this.inventoryReaderRepository.findOne({
-        where: { id_variante: dto.id_variante },
-      });
-
-      if (!inventory) {
-        throw new BadRequestException('Inventario no encontrado');
-      }
-
-      const movement = this.inventoryMovementsEditorRepository.create(dto);
-      await this.inventoryMovementsEditorRepository.save(movement);
-
-      // Para la función original, asumimos que cantidad positiva es entrada, negativa es salida
-      inventory.stock_actual += dto.cantidad;
-      await this.inventoryEditorRepository.save(inventory);
-
-      return movement;
-
-    } catch (error) {
-      this.logger.error('Error al crear movimiento:', error);
-      throw new BadRequestException('Error al crear movimiento de inventario');
-    }
+    return this.inventoryService.createInventoryMovement(dto);
   }
 
-  //! Función para importación masiva desde CSV/Excel
-  async bulkCreateInventoryMovements(
+  bulkCreateInventoryMovements(
     movements: CreateInventoryMovementSkuDto[],
   ): Promise<{ success: number; errors: any[] }> {
-    const results = {
-      success: 0,
-      errors: [] as any[],
-    };
-
-    for (const [index, movement] of movements.entries()) {
-      try {
-        await this.createInventoryMovementBySku(movement);
-        results.success++;
-      } catch (error) {
-        results.errors.push({
-          row: index + 2,
-          sku: movement.sku,
-          error: error.message,
-          data: movement,
-        });
-      }
-    }
-
-    return results;
+    return this.inventoryService.bulkCreateInventoryMovements(movements);
   }
 
-  //! funcion para consultar movimientos de inventario (READER - SELECT)
-  async getInventoryMovements(): Promise<InventoryMovements[]> {
-    try {
-      const movements = await this.inventoryMovementsReaderRepository.query(`
-        SELECT
-          m.*,
-          COALESCE(pv.imagenes, '[]'::jsonb) AS imagenes_variante,
-          COALESCE(pv.imagenes->>0, '') AS imagen_variante
-        FROM core.get_inventory_movements() m
-        LEFT JOIN core.product_variants pv
-          ON pv.id_variante = m.id_variante
-      `);
-
-      return movements;
-    } catch (error) {
-      this.logger.error('Error al obtener movimientos de inventario:', error);
-      throw new BadRequestException(
-        'Error al obtener movimientos de inventario',
-        error,
-      );
-    }
+  getInventoryMovements(): Promise<InventoryMovements[]> {
+    return this.inventoryService.getInventoryMovements();
   }
 
-  async getVariantsForInventoryMovement(): Promise<any[]> {
-    try {
-      return await this.productVariantReaderRepository.query(`
-        SELECT
-          pv.id_variante,
-          pv.id_producto,
-          pv.sku,
-          pv.precio,
-          COALESCE(i.stock_actual, 0) AS stock_actual,
-          p.nombre AS producto,
-          m.nombre AS marca,
-          COALESCE(pv.imagenes, '[]'::jsonb) AS imagenes,
-          COALESCE(pv.imagenes->>0, '') AS imagen
-        FROM core.product_variants pv
-        INNER JOIN core.products p
-          ON p.id_producto = pv.id_producto
-        LEFT JOIN core.marcas m
-          ON m.id_marca = p.id_marca
-        LEFT JOIN core.inventory i
-          ON i.id_variante = pv.id_variante
-        ORDER BY
-          CASE WHEN COALESCE(i.stock_actual, 0) = 0 THEN 0 ELSE 1 END ASC,
-          COALESCE(i.stock_actual, 0) ASC,
-          p.nombre ASC,
-          pv.sku ASC;
-      `);
-    } catch (error) {
-      this.logger.error(
-        'Error al obtener variantes para movimientos de inventario:',
-        error,
-      );
-      throw new BadRequestException(
-        'Error al obtener variantes para movimientos de inventario',
-      );
-    }
-  }
-  
-  //* ---------- FUNCIONES PARA ATRIBUTOS
-  //! funcion para consultar todas los atributos (READER - SELECT)
-  getAttributes(): Promise<Attribute[]> {
-    return this.attributeReaderRepository.find();
+  getVariantsForInventoryMovement(): Promise<any[]> {
+    return this.inventoryService.getVariantsForInventoryMovement();
   }
 
-  //* ---------- FUNCIONES PARA MARCAS
-  //! funcion para registrar una variante de producto (EDITOR - CREATE)
-  async createMarca(dto: CreateMarcaDto): Promise<Marca> {
-    // READER para verificar duplicado
-    const marca = await this.marcaReaderRepository.findOneBy({
-      nombre: dto.nombre,
-    });
-
-    if (marca) {  throw new BadRequestException('La marca ya existe'); }
-
-    const variant = this.marcaEditorRepository.create({
-      nombre: dto.nombre,
-      imagen: dto.imagen,
-    });
-
-    return await this.marcaEditorRepository.save(variant);
+  createMarca(dto: CreateMarcaDto): Promise<Marca> {
+    return this.brandCategoryService.createMarca(dto);
   }
 
-  //! funcion para actualizar una marca (EDITOR - UPDATE)
-  async updateMarca( dto: UpdateMarcaDto ): Promise<Marca> {
-    // READER para verificar existencia
-    const marca = await this.marcaReaderRepository.findOne({
-      where: { id_marca: dto.id_marca },
-    });
-
-    if (!marca) {  throw new BadRequestException('La marca no existe'); }
-
-    // Si se está cambiando el nombre, validar duplicado (READER)
-    if (dto.nombre && dto.nombre !== marca.nombre) {
-      const existe = await this.marcaReaderRepository.findOneBy({
-        nombre: dto.nombre,
-      });
-
-      if (existe) { throw new BadRequestException('Ya existe una marca con ese nombre'); }
-    }
-
-    this.marcaEditorRepository.merge(marca, dto);
-
-    return await this.marcaEditorRepository.save(marca); // EDITOR para UPDATE
+  updateMarca(dto: UpdateMarcaDto): Promise<Marca> {
+    return this.brandCategoryService.updateMarca(dto);
   }
 
-  //! funcion para consultar todas las marcas (READER - SELECT)
-  async getMarcas(): Promise<Marca[]> {
-    return await this.marcaReaderRepository.find({
-      order: { nombre: 'ASC' }
-    });
-  }
-  //* ---------- FUNCIONES PARA CATEGORIAS
-  //! funcion para registrar una variante de producto (EDITOR - CREATE)
-  async createCategory(dto: CreateCategorieDto): Promise<Category> {
-    // READER para verificar duplicado
-    const category = await this.categoryReaderRepository.findOneBy({
-      nombre: dto.nombre,
-    });
-
-    if (category) {
-      throw new BadRequestException('La categoría ya existe');
-    }
-
-    const variant = this.categoryEditorRepository.create({
-      nombre: dto.nombre,     
-      id_padre: dto.id_padre, 
-    });
-
-    return await this.categoryEditorRepository.save(variant);
+  getMarcas(): Promise<Marca[]> {
+    return this.brandCategoryService.getMarcas();
   }
 
-//! funcion para actualizar una categoria (EDITOR - UPDATE)
-async updateCategory(dto: UpdateCategorieDto): Promise<Category> {
-  // READER para verificar existencia
-  const category = await this.categoryReaderRepository.findOne({
-    where: { id_categoria: dto.id_categoria },
-  });
-
-  if (!category) {
-    throw new BadRequestException('La categoría no existe');
-  }
-  
-  // READER para verificar nombre duplicado EXCLUYENDO la categoría actual
-  const categoryName = await this.categoryReaderRepository.findOne({
-    where: {
-      nombre: dto.nombre,
-      id_categoria: Not(dto.id_categoria)
-    }
-  });
-  
-  if (categoryName) {
-    throw new BadRequestException('Ya existe una categoría con ese nombre');
+  createCategory(dto: CreateCategorieDto): Promise<Category> {
+    return this.brandCategoryService.createCategory(dto);
   }
 
-  this.categoryEditorRepository.merge(category, dto);
-
-  return await this.categoryEditorRepository.save(category);
-}
-
-  //! funcion para consultar todas las categorias (READER - SELECT)
-  async getCategories(): Promise<Category[]> {
-    return await this.categoryReaderRepository.find();
+  updateCategory(dto: UpdateCategorieDto): Promise<Category> {
+    return this.brandCategoryService.updateCategory(dto);
   }
 
-  //! funcion para traer las ordenes de los usuarios, por parte del empleado (READER - SELECT)
-  async getOrderss(): Promise<Orders[]> {
-    return await this.ordersReaderRepository.find();
+  getCategories(): Promise<Category[]> {
+    return this.brandCategoryService.getCategories();
   }
 
-  //* PARA EL MENU
-  async getCategoriesByParent(parentId: number): Promise<Category[]> {
-    return await this.categoryReaderRepository.find({
-      where: { id_padre: parentId },
-      order: { nombre: 'ASC' }
-    });
+  getCategoriesByParent(parentId: number): Promise<Category[]> {
+    return this.brandCategoryService.getCategoriesByParent(parentId);
   }
 
-  // Obtener deportes (atributos con id_padre = 40)
-  async getSports(): Promise<Sports[]> {
-    return await this.sportReaderRepository.find({
-      order: { nombre: 'ASC' }
-    });
+  getSports(): Promise<Sports[]> {
+    return this.brandCategoryService.getSports();
   }
 
-  // Obtener menú completo
-  async getCompleteMenu(): Promise<any> {
-    const [sports, clothing, accessories, brands] = await Promise.all([
-      this.getSports(),
-      this.getCategoriesByParent(1),      // Ropa (id_padre = 1)
-      this.getCategoriesByParent(34),     // Accesorios (id_padre = 34)
-      this.getMarcas()
-    ]);
-
-    return {
-      sports,
-      clothing,
-      accessories,
-      brands
-    };
+  getCompleteMenu(): Promise<any> {
+    return this.brandCategoryService.getCompleteMenu();
   }
+
+  getOrderDetail(id: number): Promise<any[]> {
+    return this.ordersService.getOrderDetail(id);
+  }
+
+  getAllOrders(): Promise<any[]> {
+    return this.ordersService.getAllOrders();
+  }
+
+  getOrderss(): Promise<Orders[]> {
+    return this.ordersService.getOrderss();
+  }
+
+  getEmployeeOrders(): Promise<any[]> {
+    return this.ordersService.getEmployeeOrders();
+  }
+
+  getUserOrders(id_usuario: number): Promise<any[]> {
+    return this.ordersService.getUserOrders(id_usuario);
+  }
+
+  updateOrderStatus(
+    id_orden: number,
+    estado: string,
+    cambiado_por?: number,
+  ): Promise<{ message: string; order: Orders }> {
+    return this.ordersService.updateOrderStatus(id_orden, estado, cambiado_por);
+  }
+
+  getOrderTracking(id_usuario: number, id_orden: number): Promise<any> {
+    return this.ordersService.getOrderTracking(id_usuario, id_orden);
+  }
+
+  getOrderTrackingForStaff(id_orden: number): Promise<any> {
+    return this.ordersService.getOrderTrackingForStaff(id_orden);
+  }
+
+  updateShipment(
+    id_orden: number,
+    dto: UpdateShipmentDto,
+    cambiado_por: number,
+  ): Promise<any> {
+    return this.ordersService.updateShipment(id_orden, dto, cambiado_por);
+  }
+
+  createReturnRequest(
+    id_usuario: number,
+    dto: CreateReturnDto,
+  ): Promise<any> {
+    return this.ordersService.createReturnRequest(id_usuario, dto);
+  }
+
+  getUserReturns(id_usuario: number): Promise<any[]> {
+    return this.ordersService.getUserReturns(id_usuario);
+  }
+
+  getAllReturns(): Promise<any[]> {
+    return this.ordersService.getAllReturns();
+  }
+
+  updateReturnStatus(
+    id_devolucion: number,
+    dto: UpdateReturnStatusDto,
+    cambiado_por: number,
+  ): Promise<any> {
+    return this.ordersService.updateReturnStatus(
+      id_devolucion,
+      dto,
+      cambiado_por,
+    );
+  }
+
+  getProductReviews(id_producto: number): Promise<any> {
+    return this.reviewsService.getProductReviews(id_producto);
+  }
+
+  getReviewEligibility(id_usuario: number, id_producto: number): Promise<{
+    canReview: boolean;
+    hasDeliveredPurchase: boolean;
+    hasReview: boolean;
+    reason: string | null;
+  }> {
+    return this.reviewsService.getReviewEligibility(id_usuario, id_producto);
+  }
+
+  createReview(id_usuario: number, dto: CreateReviewDto): Promise<Review> {
+    return this.reviewsService.createReview(id_usuario, dto);
+  }
+
+  getAllReviewsAdmin(): Promise<any[]> {
+    return this.reviewsService.getAllReviewsAdmin();
+  }
+
+  getCart(id_usuario: number): Promise<any> {
+    return this.cartService.getCart(id_usuario);
+  }
+
+  addCartItem(id_usuario: number, dto: AddCartItemDto): Promise<any> {
+    return this.cartService.addItem(id_usuario, dto);
+  }
+
+  updateCartItem(
+    id_usuario: number,
+    id_variante: number,
+    dto: UpdateCartItemDto,
+  ): Promise<any> {
+    return this.cartService.updateItem(id_usuario, id_variante, dto);
+  }
+
+  removeCartItem(id_usuario: number, id_variante: number): Promise<any> {
+    return this.cartService.removeItem(id_usuario, id_variante);
+  }
+
+  clearCart(id_usuario: number): Promise<any> {
+    return this.cartService.clearCart(id_usuario);
+  }
+
+  getCheckoutSummary(
+    id_usuario: number,
+    codigo_promocion?: string,
+    id_metodo_envio?: number,
+  ): Promise<any> {
+    return this.checkoutService.getCheckoutSummary(
+      id_usuario,
+      codigo_promocion,
+      id_metodo_envio,
+    );
+  }
+
+  lookupPostalCode(codigoPostal: string): Promise<any> {
+    return this.checkoutService.lookupPostalCode(codigoPostal);
+  }
+
+  getUserPaymentMethods(id_usuario: number): Promise<any[]> {
+    return this.checkoutService.getUserPaymentMethods(id_usuario);
+  }
+
+  createUserPaymentMethod(
+    id_usuario: number,
+    dto: CheckoutCardDto,
+  ): Promise<any> {
+    return this.checkoutService.createUserPaymentMethod(id_usuario, dto);
+  }
+
+  deleteUserPaymentMethod(
+    id_usuario: number,
+    id_metodo_pago: number,
+  ): Promise<any> {
+    return this.checkoutService.deleteUserPaymentMethod(
+      id_usuario,
+      id_metodo_pago,
+    );
+  }
+
+  confirmCheckout(
+    id_usuario: number,
+    dto: CreateCheckoutOrderDto,
+  ): Promise<any> {
+    return this.checkoutService.confirmCheckout(id_usuario, dto);
+  }
+
+  getPromotions(admin = false): Promise<any[]> {
+    return this.promotionsService.getPromotions(admin);
+  }
+
+  getOfferProducts(): Promise<any[]> {
+    return this.promotionsService.getOfferProducts();
+  }
+
+  createPromotion(dto: CreatePromotionDto, userId: number): Promise<any> {
+    return this.promotionsService.createPromotion(dto, userId);
+  }
+
+  updatePromotion(
+    id: number,
+    dto: UpdatePromotionDto,
+    userId: number,
+  ): Promise<any> {
+    return this.promotionsService.updatePromotion(id, dto, userId);
+  }
+
+  getShippingMethods(admin = false): Promise<any[]> {
+    return this.promotionsService.getShippingMethods(admin);
+  }
+
+  updateShippingMethod(
+    id: number,
+    dto: UpdateShippingMethodDto,
+  ): Promise<any> {
+    return this.promotionsService.updateShippingMethod(id, dto);
+  }
+
 }

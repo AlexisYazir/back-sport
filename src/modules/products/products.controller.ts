@@ -7,11 +7,15 @@ import {
   HttpCode,
   HttpStatus,
   Put,
+  Delete,
   UseGuards,
   UploadedFile,
   UseInterceptors,
   BadRequestException,
   ParseFilePipe,
+  ParseIntPipe,
+  Req,
+  Query,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
@@ -37,6 +41,24 @@ import { RolesGuard } from '../../services/auth/roles.guard';
 
 import { CreateInventoryMovementDto } from './dto/inventory/create-inventory_movement.dto';
 import { CreateInventoryMovementSkuDto } from './dto/inventory/create-inventory-movement-sku.dto';
+import { UpdateOrderStatusDto } from './dto/orders/update-order-status.dto';
+import { UpdateShipmentDto } from './dto/orders/update-shipment.dto';
+import {
+  CreateReturnDto,
+  UpdateReturnStatusDto,
+} from './dto/returns/create-return.dto';
+import {
+  CreatePromotionDto,
+  UpdatePromotionDto,
+  UpdateShippingMethodDto,
+} from './dto/promotions/promotion.dto';
+import { CreateReviewDto } from './dto/reviews/create-review.dto';
+import { AddCartItemDto } from './dto/cart/add-cart-item.dto';
+import { UpdateCartItemDto } from './dto/cart/update-cart-item.dto';
+import {
+  CheckoutCardDto,
+  CreateCheckoutOrderDto,
+} from './dto/checkout/create-checkout-order.dto';
 
 @Controller('products')
 export class ProductsController {
@@ -225,9 +247,277 @@ export class ProductsController {
     return this.productsService.getOrderDetail(Number(id));
   }
 
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(2, 3)
+  @Get('orders/employee')
+  async getEmployeeOrders() {
+    return this.productsService.getEmployeeOrders();
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('orders/user')
+  async getUserOrders(@Req() req: any) {
+    return this.productsService.getUserOrders(req.user.id_usuario);
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(2, 3)
+  @Put('orders/:id/status')
+  async updateOrderStatus(
+    @Req() req: any,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateOrderStatusDto,
+  ) {
+    return this.productsService.updateOrderStatus(
+      id,
+      dto.estado,
+      req.user.id_usuario,
+    );
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('orders/:id/tracking')
+  async getOrderTracking(
+    @Req() req: any,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.productsService.getOrderTracking(req.user.id_usuario, id);
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(2, 3)
+  @Get('orders/:id/tracking/staff')
+  async getOrderTrackingForStaff(@Param('id', ParseIntPipe) id: number) {
+    return this.productsService.getOrderTrackingForStaff(id);
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(2, 3)
+  @Put('orders/:id/shipment')
+  async updateShipment(
+    @Req() req: any,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateShipmentDto,
+  ) {
+    return this.productsService.updateShipment(id, dto, req.user.id_usuario);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('returns')
+  async createReturnRequest(@Req() req: any, @Body() dto: CreateReturnDto) {
+    return this.productsService.createReturnRequest(req.user.id_usuario, dto);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('returns/user')
+  async getUserReturns(@Req() req: any) {
+    return this.productsService.getUserReturns(req.user.id_usuario);
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(2, 3)
+  @Get('returns/admin')
+  async getAllReturns() {
+    return this.productsService.getAllReturns();
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(2, 3)
+  @Put('returns/:id/status')
+  async updateReturnStatus(
+    @Req() req: any,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateReturnStatusDto,
+  ) {
+    return this.productsService.updateReturnStatus(
+      id,
+      dto,
+      req.user.id_usuario,
+    );
+  }
+
+  @Get('promotions/public')
+  async getPublicPromotions() {
+    return this.productsService.getPromotions(false);
+  }
+
+  @Get('promotions/offers')
+  async getOfferProducts() {
+    return this.productsService.getOfferProducts();
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(3)
+  @Get('promotions/admin')
+  async getAdminPromotions() {
+    return this.productsService.getPromotions(true);
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(3)
+  @Post('promotions')
+  async createPromotion(@Req() req: any, @Body() dto: CreatePromotionDto) {
+    return this.productsService.createPromotion(dto, req.user.id_usuario);
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(3)
+  @Put('promotions/:id')
+  async updatePromotion(
+    @Req() req: any,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdatePromotionDto,
+  ) {
+    return this.productsService.updatePromotion(id, dto, req.user.id_usuario);
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(3)
+  @Get('shipping-methods/admin')
+  async getAdminShippingMethods() {
+    return this.productsService.getShippingMethods(true);
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(3)
+  @Put('shipping-methods/:id')
+  async updateShippingMethod(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateShippingMethodDto,
+  ) {
+    return this.productsService.updateShippingMethod(id, dto);
+  }
+
   @Get('get-product-details/:id')
   async getProductDetail(@Param('id') id: number) {
     return this.productsService.getProductDetail(+id);
+  }
+
+  @Get('reviews/product/:id')
+  async getProductReviews(@Param('id', ParseIntPipe) id: number) {
+    return this.productsService.getProductReviews(id);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('reviews/product/:id/eligibility')
+  async getReviewEligibility(
+    @Req() req: any,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.productsService.getReviewEligibility(req.user.id_usuario, id);
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(3)
+  @Get('reviews/admin/all')
+  async getAllReviewsAdmin() {
+    return this.productsService.getAllReviewsAdmin();
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('reviews')
+  async createReview(@Req() req: any, @Body() dto: CreateReviewDto) {
+    return this.productsService.createReview(req.user.id_usuario, dto);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('cart')
+  async getCart(@Req() req: any) {
+    return this.productsService.getCart(req.user.id_usuario);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('cart/items')
+  async addCartItem(@Req() req: any, @Body() dto: AddCartItemDto) {
+    return this.productsService.addCartItem(req.user.id_usuario, dto);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Put('cart/items/:idVariante')
+  async updateCartItem(
+    @Req() req: any,
+    @Param('idVariante', ParseIntPipe) idVariante: number,
+    @Body() dto: UpdateCartItemDto,
+  ) {
+    return this.productsService.updateCartItem(
+      req.user.id_usuario,
+      idVariante,
+      dto,
+    );
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Delete('cart/items/:idVariante')
+  async removeCartItem(
+    @Req() req: any,
+    @Param('idVariante', ParseIntPipe) idVariante: number,
+  ) {
+    return this.productsService.removeCartItem(req.user.id_usuario, idVariante);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Delete('cart')
+  async clearCart(@Req() req: any) {
+    return this.productsService.clearCart(req.user.id_usuario);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('checkout/summary')
+  async getCheckoutSummary(
+    @Req() req: any,
+    @Query('codigo_promocion') codigoPromocion?: string,
+    @Query('id_metodo_envio') idMetodoEnvio?: string,
+  ) {
+    return this.productsService.getCheckoutSummary(
+      req.user.id_usuario,
+      codigoPromocion,
+      idMetodoEnvio ? Number(idMetodoEnvio) : undefined,
+    );
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('checkout/postal-code/:codigoPostal')
+  async lookupPostalCode(@Param('codigoPostal') codigoPostal: string) {
+    return this.productsService.lookupPostalCode(codigoPostal);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('checkout/confirm')
+  async confirmCheckout(
+    @Req() req: any,
+    @Body() dto: CreateCheckoutOrderDto,
+  ) {
+    return this.productsService.confirmCheckout(req.user.id_usuario, dto);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('payment-methods')
+  async getUserPaymentMethods(@Req() req: any) {
+    return this.productsService.getUserPaymentMethods(req.user.id_usuario);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('payment-methods')
+  async createUserPaymentMethod(
+    @Req() req: any,
+    @Body() dto: CheckoutCardDto,
+  ) {
+    return this.productsService.createUserPaymentMethod(
+      req.user.id_usuario,
+      dto,
+    );
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Delete('payment-methods/:idMetodoPago')
+  async deleteUserPaymentMethod(
+    @Req() req: any,
+    @Param('idMetodoPago', ParseIntPipe) idMetodoPago: number,
+  ) {
+    return this.productsService.deleteUserPaymentMethod(
+      req.user.id_usuario,
+      idMetodoPago,
+    );
   }
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)

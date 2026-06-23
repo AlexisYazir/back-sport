@@ -122,6 +122,7 @@ export class MailService {
     email: string,
     nombre: string,
     token: string,
+    expirationText = '24 horas',
   ): Promise<void> {
     const url = token;
 
@@ -130,7 +131,7 @@ export class MailService {
       <h2>¡Hola de nuevo, ${nombre}!</h2>
       <p>Este es tu nuevo codigo de verificación para activar tu cuenta:</p> </br>
       <h1>${url}</h1>
-      <p>Este código expirará en 24 horas.</p>
+      <p>Este código expirará en ${expirationText}.</p>
       <p>Si no fuiste tú quien solitito este codigo, puedes ignorar este mensaje sin problema.</p>
   
   <p>Saludos cordiales,<br>

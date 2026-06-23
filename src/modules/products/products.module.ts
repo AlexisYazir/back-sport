@@ -14,7 +14,16 @@ import { Inventory } from './entities/inventory/inventory.entity';
 import { InventoryMovements } from './entities/inventory/inventory_movements.entity';
 import { Sports } from './entities/sports/sport.entity';
 import { ProductSport } from './entities/sports/product-sport.entity';
+import { Review } from './entities/reviews/review.entity';
 import { CloudinaryService } from './services/cloudinary.service';
+import { ProductBrandCategoryService } from './services/product-brand-category.service';
+import { ProductCatalogService } from './services/product-catalog.service';
+import { ProductInventoryService } from './services/product-inventory.service';
+import { ProductOrdersService } from './services/product-orders.service';
+import { ProductReviewsService } from './services/product-reviews.service';
+import { ProductCartService } from './services/product-cart.service';
+import { ProductCheckoutService } from './services/product-checkout.service';
+import { ProductPromotionsService } from './services/product-promotions.service';
 
 @Module({
   imports: [
@@ -32,6 +41,7 @@ import { CloudinaryService } from './services/cloudinary.service';
         Orders,
         Inventory,
         InventoryMovements,
+        Review,
       ],
       'editorConnection',
     ), // AGREGADO
@@ -50,6 +60,7 @@ import { CloudinaryService } from './services/cloudinary.service';
         Orders,
         Inventory,
         InventoryMovements,
+        Review,
       ],
       'readerConnection',
     ), // AGREGADO
@@ -68,12 +79,24 @@ import { CloudinaryService } from './services/cloudinary.service';
         Orders,
         Inventory,
         InventoryMovements,
+        Review,
       ],
       'adminConnection',
     ), //  AGREGADO
   ],
   controllers: [ProductsController],
-  providers: [ProductsService, CloudinaryService],
+  providers: [
+    ProductsService,
+    ProductCatalogService,
+    ProductInventoryService,
+    ProductBrandCategoryService,
+    ProductOrdersService,
+    ProductReviewsService,
+    ProductCartService,
+    ProductCheckoutService,
+    ProductPromotionsService,
+    CloudinaryService,
+  ],
   exports: [ProductsService],
 })
 export class ProductsModule {}
