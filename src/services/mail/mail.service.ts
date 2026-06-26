@@ -221,6 +221,40 @@ export class MailService {
     await this.sendEmail(email, subject, html);
   }
 
+   //! funcion para enviar correo de activacion de cuenta
+  public async requestVerificationCodeLogin (
+    email: string,
+    nombre: string,
+    token: string,
+    expirationText = '15 minutos',
+  ): Promise<void> {
+    const url = token;
+
+    const subject = 'Codigo de verificación para iniciar sesión en alexa';
+    const html = `
+      <h2>¡Hola de nuevo, ${nombre}!</h2>
+      <p>Este es tu codigo de verificación para iniciar sesión en Asistente Sport Center:</p> </br>
+      <h1>${url}</h1>
+      <p>Este código expirará en ${expirationText}.</p>
+      <p>Si no fuiste tú quien solitito este codigo, puedes ignorar este mensaje sin problema.</p>
+  
+  <p>Saludos cordiales,<br>
+  <b>Sport Center</b></p>
+    `;
+
+    try {
+      await this.sendEmail(email, subject, html);
+      this.logger.log(`Correo enviado: ${email}`);
+    } catch (error) {
+      if (error instanceof Error) {
+        this.logger.error(`Error al reenviar correo a ${email}: ${error.message}`);
+      } else {
+        this.logger.error(`Error desconocido al reenviar correo a ${email}`);
+      }
+      throw error;
+    }
+  }
+
   public async sendCriticalAlertEmail(
     email: string,
     subject: string,
@@ -228,4 +262,5 @@ export class MailService {
   ): Promise<void> {
     await this.sendEmail(email, subject, html);
   }
+
 }

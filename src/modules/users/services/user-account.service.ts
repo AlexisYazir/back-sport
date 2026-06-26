@@ -262,7 +262,7 @@ export class UserAccountService {
       }
 
       const code = crypto.randomInt(100000, 1000000).toString();
-      const expiration = new Date(Date.now() + 5 * 60 * 60 * 1000);
+      const expiration = new Date(Date.now() + 15 * 60 * 1000);
 
       existingUser.token_verificacion = code;
       existingUser.token_expiracion = expiration;
@@ -270,16 +270,16 @@ export class UserAccountService {
 
       await this.userEditorRepository.save(existingUser);
 
-      await this.mailService.resendVerificationEmail(
+      await this.mailService.requestVerificationCodeLogin(
         existingUser.email,
         existingUser.nombre,
         code,
-        '5 horas',
+        '15 minutos',
       );
 
       return {
         message:
-          'Código de verificación enviado correctamente. Expira en 5 horas.',
+          'Código de verificación enviado correctamente. Expira en 15 minutos.',
       };
     } catch (error) {
       throw error;
