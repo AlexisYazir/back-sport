@@ -257,43 +257,6 @@ export class ProductCheckoutService {
             this.roundMoney(item.precio_unitario * item.cantidad),
           ],
         );
-
-        const inventoryRows = await source.query(
-          `
-          UPDATE core.inventory
-          SET stock_actual = stock_actual - $2
-          WHERE id_variante = $1
-            AND stock_actual >= $2
-          RETURNING stock_actual;
-          `,
-          [item.id_variante, item.cantidad],
-        );
-
-        if (inventoryRows.length === 0) {
-          throw new BadRequestException(
-            `No hay stock suficiente de "${item.nombre}"`,
-          );
-        }
-
-        await source.query(
-          `
-          INSERT INTO core.inventory_movements (
-            id_variante,
-            tipo,
-            cantidad,
-            costo_unitario,
-            referencia_tipo,
-            referencia_id
-          )
-          VALUES ($1, 'salida', $2, $3, 'orden', $4);
-          `,
-          [
-            item.id_variante,
-            item.cantidad,
-            Number(item.costo_promedio || 0),
-            idOrden,
-          ],
-        );
       }
 
       const externalReference = this.buildMercadoPagoExternalReference(idOrden);
@@ -327,25 +290,6 @@ export class ProductCheckoutService {
         promotion,
         dto.codigo_promocion,
         source,
-      );
-
-      const cartColumn = await this.getCartItemCartColumn(source);
-      await source.query(
-        `
-        UPDATE core.carts
-        SET estado = 'convertido',
-            fecha_actualizacion = CURRENT_TIMESTAMP
-        WHERE id_carrito = $1;
-        `,
-        [cart.id_carrito],
-      );
-
-      await source.query(
-        `
-        DELETE FROM core.cart_items
-        WHERE ${cartColumn} = $1;
-        `,
-        [cart.id_carrito],
       );
 
       await queryRunner.commitTransaction();
@@ -676,10 +620,7 @@ export class ProductCheckoutService {
       ...method,
       id_metodo_envio: Number(method.id_metodo_envio),
       costo_base: Number(method.costo_base || 0),
-      envio_gratis_desde:
-        method.envio_gratis_desde === null
-          ? null
-          : Number(method.envio_gratis_desde),
+      envio_gratis_desde: 200,
       dias_min: Number(method.dias_min || 1),
       dias_max: Number(method.dias_max || 5),
     }));
@@ -695,7 +636,7 @@ export class ProductCheckoutService {
         nombre: 'Envío estándar',
         descripcion: 'Entrega nacional estándar',
         costo_base: 130,
-        envio_gratis_desde: 300,
+        envio_gratis_desde: 200,
         dias_min: 2,
         dias_max: 5,
       };
@@ -1508,6 +1449,35 @@ export class ProductCheckoutService {
       );
 
       if (mappedStatus === 'aprobado' && row.estado_orden !== 'pendiente') {
+        const stockResult = await this.deductInventoryForPaidOrder(
+          Number(row.id_orden),
+          source,
+        );
+
+        if (!stockResult.ok) {
+          await source.query(
+            `
+            UPDATE core.orders
+            SET estado = 'incidencia_stock',
+                fecha_pago = COALESCE(fecha_pago, CURRENT_TIMESTAMP)
+            WHERE id_orden = $1;
+            `,
+            [row.id_orden],
+          );
+
+          await this.saveOrderHistory(
+            Number(row.id_orden),
+            row.estado_orden,
+            'incidencia_stock',
+            stockResult.message || 'Pago aprobado, pero no hay stock suficiente',
+            Number(row.id_usuario),
+            source,
+          );
+
+          await queryRunner.commitTransaction();
+          return;
+        }
+
         await source.query(
           `
           UPDATE core.orders
@@ -1521,6 +1491,11 @@ export class ProductCheckoutService {
         await this.applyPromotionRedemptionOnApproval(
           Number(row.id_orden),
           Number(row.id_usuario),
+          source,
+        );
+        await this.clearCartItemsAfterPayment(
+          Number(row.id_usuario),
+          Number(row.id_orden),
           source,
         );
 
@@ -1611,10 +1586,191 @@ export class ProductCheckoutService {
     }
   }
 
+  private async deductInventoryForPaidOrder(
+    idOrden: number,
+    source: Queryable,
+  ): Promise<{ ok: boolean; message?: string }> {
+    const existingMovement = await source.query(
+      `
+      SELECT 1
+      FROM core.inventory_movements
+      WHERE referencia_tipo = 'orden'
+        AND referencia_id = $1
+        AND tipo = 'salida'
+      LIMIT 1;
+      `,
+      [idOrden],
+    );
+
+    if (existingMovement[0]) {
+      return { ok: true };
+    }
+
+    const items = await source.query(
+      `
+      SELECT
+        oi.id_variante,
+        oi.cantidad,
+        oi.nombre_producto,
+        COALESCE(i.costo_promedio, oi.precio_unitario, 0) AS costo_unitario
+      FROM core.order_items oi
+      LEFT JOIN core.inventory i
+        ON i.id_variante = oi.id_variante
+      WHERE oi.id_orden = $1;
+      `,
+      [idOrden],
+    );
+
+    for (const item of items) {
+      const inventoryRows = await source.query(
+        `
+        UPDATE core.inventory
+        SET stock_actual = stock_actual - $2
+        WHERE id_variante = $1
+          AND stock_actual >= $2
+        RETURNING stock_actual;
+        `,
+        [item.id_variante, item.cantidad],
+      );
+
+      if (inventoryRows.length === 0) {
+        return {
+          ok: false,
+          message: `No hay stock suficiente de "${item.nombre_producto}"`,
+        };
+      }
+
+      await source.query(
+        `
+        INSERT INTO core.inventory_movements (
+          id_variante,
+          tipo,
+          cantidad,
+          costo_unitario,
+          referencia_tipo,
+          referencia_id
+        )
+        VALUES ($1, 'salida', $2, $3, 'orden', $4);
+        `,
+        [
+          item.id_variante,
+          item.cantidad,
+          Number(item.costo_unitario || 0),
+          idOrden,
+        ],
+      );
+    }
+
+    return { ok: true };
+  }
+
+  private async clearCartItemsAfterPayment(
+    idUsuario: number,
+    idOrden: number,
+    source: Queryable,
+  ): Promise<void> {
+    const cartRows = await source.query(
+      `
+      SELECT id_carrito
+      FROM core.carts
+      WHERE id_usuario = $1
+        AND LOWER(TRIM(estado)) = 'activo'
+      ORDER BY fecha_actualizacion DESC NULLS LAST, fecha_creacion DESC
+      LIMIT 1
+      FOR UPDATE;
+      `,
+      [idUsuario],
+    );
+
+    const cart = cartRows[0];
+    if (!cart) {
+      return;
+    }
+
+    const cartColumn = await this.getCartItemCartColumn(source);
+    const items = await source.query(
+      `
+      SELECT id_variante, cantidad
+      FROM core.order_items
+      WHERE id_orden = $1;
+      `,
+      [idOrden],
+    );
+
+    for (const item of items) {
+      await source.query(
+        `
+        DELETE FROM core.cart_items
+        WHERE ${cartColumn} = $1
+          AND id_variante = $2
+          AND cantidad <= $3;
+        `,
+        [cart.id_carrito, item.id_variante, item.cantidad],
+      );
+
+      await source.query(
+        `
+        UPDATE core.cart_items
+        SET cantidad = cantidad - $3
+        WHERE ${cartColumn} = $1
+          AND id_variante = $2
+          AND cantidad > $3;
+        `,
+        [cart.id_carrito, item.id_variante, item.cantidad],
+      );
+    }
+
+    const remainingRows = await source.query(
+      `
+      SELECT COUNT(*)::int AS total
+      FROM core.cart_items
+      WHERE ${cartColumn} = $1;
+      `,
+      [cart.id_carrito],
+    );
+
+    if (Number(remainingRows[0]?.total || 0) === 0) {
+      await source.query(
+        `
+        UPDATE core.carts
+        SET estado = 'convertido',
+            fecha_actualizacion = CURRENT_TIMESTAMP
+        WHERE id_carrito = $1;
+        `,
+        [cart.id_carrito],
+      );
+    } else {
+      await source.query(
+        `
+        UPDATE core.carts
+        SET fecha_actualizacion = CURRENT_TIMESTAMP
+        WHERE id_carrito = $1;
+        `,
+        [cart.id_carrito],
+      );
+    }
+  }
+
   private async releaseReservedInventory(
     idOrden: number,
     source: Queryable,
   ): Promise<void> {
+    const existingMovement = await source.query(
+      `
+      SELECT 1
+      FROM core.inventory_movements
+      WHERE referencia_tipo = 'orden'
+        AND referencia_id = $1
+        AND tipo = 'salida'
+      LIMIT 1;
+      `,
+      [idOrden],
+    );
+
+    if (!existingMovement[0]) {
+      return;
+    }
+
     const items = await source.query(
       `
       SELECT id_variante, cantidad, precio_unitario

@@ -207,6 +207,7 @@ export class ProductOrdersService {
       ) ev ON true
       LEFT JOIN core.direcciones d
         ON d.id_direccion = o.id_direccion_envio
+      WHERE LOWER(TRIM(o.estado)) <> 'pendiente_pago'
       GROUP BY
         o.id_orden,
         s.id_envio,
@@ -308,6 +309,7 @@ export class ProductOrdersService {
       LEFT JOIN core.direcciones d
         ON d.id_direccion = o.id_direccion_envio
       WHERE o.id_usuario = $1
+        AND LOWER(TRIM(o.estado)) <> 'pendiente_pago'
       GROUP BY o.id_orden, s.id_envio, ev.eventos, d.id_direccion
       ORDER BY o.fecha_creacion DESC;
       `,
