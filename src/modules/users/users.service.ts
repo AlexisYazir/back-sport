@@ -60,13 +60,15 @@ export class UsersService {
   }
 
   async exchangeAlexaVerificationCode(
-    email: string,
     token: string,
+    alexaUserId: string,
+    alexaDeviceId: string | undefined,
     context: SessionContext,
   ) {
     const user = await this.accountService.verifyAlexaVerificationCode(
-      email,
       token,
+      alexaUserId,
+      alexaDeviceId,
     );
 
     return this.sessionService.issueSessionTokensForUser(user, {

@@ -1,7 +1,7 @@
 /* eslint-disable */
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 
@@ -15,6 +15,10 @@ export class UserAccountService {
   private readonly logger = new Logger(UserAccountService.name);
 
   constructor(
+    @InjectDataSource('readerConnection')
+    private readonly readerDataSource: DataSource,
+    @InjectDataSource('editorConnection')
+    private readonly editorDataSource: DataSource,
     @InjectRepository(User, 'editorConnection')
     private readonly userEditorRepository: Repository<User>,
     @InjectRepository(User, 'readerConnection')
@@ -292,7 +296,7 @@ export class UserAccountService {
     message: string;
     email: string;
     token: string | null;
-    expiresAt: Date | null;
+    expiresAt: string | null;
     remainingSeconds: number;
     hasActiveCode: boolean;
   }> {
@@ -308,7 +312,7 @@ export class UserAccountService {
       throw new BadRequestException('Usuario no encontrado');
     }
 
-    const activeCode = await this.getActiveAlexaCodeFromUser(user);
+    const activeCode = await this.getActiveAlexaCodeForUser(user);
     if (activeCode.hasActiveCode) {
       return {
         ...activeCode,
@@ -317,13 +321,39 @@ export class UserAccountService {
     }
 
     const code = crypto.randomInt(100000, 1000000).toString();
-    const expiration = new Date(Date.now() + 5 * 60 * 60 * 1000);
+    const tokenHash = this.hashAlexaToken(code);
 
-    user.token_verificacion = `ALEXA:${code}`;
-    user.token_expiracion = expiration;
-    user.intentos_token = 3;
+    await this.editorDataSource.query(
+      `
+      UPDATE core.alexa_codes
+      SET used_at = CURRENT_TIMESTAMP,
+          attempts = 0
+      WHERE id_usuario = $1
+        AND purpose = 'ALEXA'
+        AND used_at IS NULL
+        AND expires_at > CURRENT_TIMESTAMP;
+      `,
+      [user.id_usuario],
+    );
 
-    await this.userEditorRepository.save(user);
+    const insertedRows = await this.editorDataSource.query(
+      `
+      INSERT INTO core.alexa_codes (
+        id_usuario,
+        token_hash,
+        purpose,
+        expires_at,
+        attempts,
+        created_at
+      )
+      VALUES ($1, $2, 'ALEXA', CURRENT_TIMESTAMP + INTERVAL '5 hours', 5, CURRENT_TIMESTAMP)
+      RETURNING
+        to_char(expires_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS') || 'Z' AS expires_at,
+        GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (expires_at - CURRENT_TIMESTAMP))))::int AS remaining_seconds;
+      `,
+      [user.id_usuario, tokenHash],
+    );
+    const inserted = insertedRows[0];
 
     await this.mailService.requestVerificationCodeLogin(
       user.email,
@@ -336,8 +366,8 @@ export class UserAccountService {
       message: 'Código de Alexa generado correctamente. Expira en 5 horas.',
       email: user.email,
       token: code,
-      expiresAt: expiration,
-      remainingSeconds: this.getRemainingSeconds(expiration),
+      expiresAt: inserted?.expires_at || null,
+      remainingSeconds: Number(inserted?.remaining_seconds || 0),
       hasActiveCode: true,
     };
   }
@@ -348,7 +378,7 @@ export class UserAccountService {
     message: string;
     email: string;
     token: string | null;
-    expiresAt: Date | null;
+    expiresAt: string | null;
     remainingSeconds: number;
     hasActiveCode: boolean;
   }> {
@@ -364,127 +394,184 @@ export class UserAccountService {
       throw new BadRequestException('Usuario no encontrado');
     }
 
-    return this.getActiveAlexaCodeFromUser(user);
+    return this.getActiveAlexaCodeForUser(user);
   }
 
   async verifyAlexaVerificationCode(
-    email: string,
     token: string,
+    alexaUserId: string,
+    alexaDeviceId?: string,
   ): Promise<User> {
-    const emaill = String(email || '').trim().toLowerCase();
-    const tokenn = String(token || '').trim();
-
-    if (!emaill) {
-      throw new BadRequestException('El correo es obligatorio');
-    }
-
-    if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(emaill)) {
-      throw new BadRequestException('El correo no tiene un formato válido');
-    }
+    const tokenn = String(token || '').replace(/\D/g, '');
+    const cleanAlexaUserId = this.sanitizeAlexaIdentifier(alexaUserId, 255);
+    const cleanAlexaDeviceId = this.sanitizeAlexaIdentifier(alexaDeviceId, 255);
 
     if (!/^\d{6}$/.test(tokenn)) {
       throw new BadRequestException('El código debe tener 6 dígitos');
     }
 
-    const user = await this.userReaderRepository.findOne({
-      where: { email: emaill },
-    });
+    if (!cleanAlexaUserId) {
+      throw new BadRequestException('El usuario de Alexa es obligatorio');
+    }
 
-    if (!user) {
+    const linkedRows = await this.readerDataSource.query(
+      `
+      SELECT id_usuario
+      FROM core.alexa_account_links
+      WHERE alexa_user_id = $1
+        AND active = true
+      LIMIT 1;
+      `,
+      [cleanAlexaUserId],
+    );
+
+    if (linkedRows[0]) {
       throw new BadRequestException(
-        'Revisa que tu información sea correcta. Intenta de nuevo',
+        'Esta cuenta de Alexa ya está vinculada. Cierra sesión para vincular otra cuenta.',
       );
     }
 
-    if (user.activo !== 1) {
-      throw new BadRequestException('La cuenta no está activa');
-    }
+    const tokenHash = this.hashAlexaToken(tokenn);
+    const queryRunner = this.editorDataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    const expectedToken = `ALEXA:${tokenn}`;
-
-    if (!user.token_verificacion?.startsWith('ALEXA:')) {
-      throw new BadRequestException(
-        'No hay un código de Alexa activo para este usuario',
+    try {
+      const rows = await queryRunner.manager.query(
+        `
+        SELECT
+          ac.id_alexa_code,
+          ac.id_usuario,
+          ac.expires_at,
+          ac.used_at,
+          ac.attempts,
+          u.email,
+          u.activo
+        FROM core.alexa_codes ac
+        INNER JOIN core.users u
+          ON u.id_usuario = ac.id_usuario
+        WHERE ac.token_hash = $1
+          AND ac.purpose = 'ALEXA'
+        ORDER BY ac.created_at DESC
+        LIMIT 1
+        FOR UPDATE;
+        `,
+        [tokenHash],
       );
-    }
 
-    if (!user.token_expiracion || new Date() > user.token_expiracion) {
-      user.token_verificacion = '';
-      user.token_expiracion = null;
-      user.intentos_token = 0;
-      await this.userEditorRepository.save(user);
-      throw new BadRequestException('El código ha expirado');
-    }
+      const codeRow = rows[0];
 
-    if (typeof user.intentos_token !== 'number' || user.intentos_token <= 0) {
-      user.token_verificacion = '';
-      user.token_expiracion = null;
-      user.intentos_token = 0;
-      await this.userEditorRepository.save(user);
-      throw new BadRequestException(
-        'Se han agotado los intentos. Solicita un nuevo código.',
-      );
-    }
+      if (!codeRow) {
+        throw new BadRequestException('Código inválido o expirado');
+      }
 
-    if (user.token_verificacion !== expectedToken) {
-      user.intentos_token -= 1;
-      await this.userEditorRepository.save(user);
+      if (codeRow.activo !== 1) {
+        throw new BadRequestException('La cuenta no está activa');
+      }
 
-      if (user.intentos_token <= 0) {
-        user.token_verificacion = '';
-        user.token_expiracion = null;
-        user.intentos_token = 0;
-        await this.userEditorRepository.save(user);
+      if (codeRow.used_at) {
+        throw new BadRequestException('El código ya fue usado');
+      }
+
+      if (!codeRow.expires_at || new Date() > new Date(codeRow.expires_at)) {
+        await queryRunner.manager.query(
+          `
+          UPDATE core.alexa_codes
+          SET used_at = CURRENT_TIMESTAMP,
+              attempts = 0
+          WHERE id_alexa_code = $1;
+          `,
+          [codeRow.id_alexa_code],
+        );
+        throw new BadRequestException('El código ha expirado');
+      }
+
+      if (Number(codeRow.attempts || 0) <= 0) {
         throw new BadRequestException(
-          'Has agotado los intentos. Solicita un nuevo código.',
+          'Se han agotado los intentos. Solicita un nuevo código.',
         );
       }
 
-      throw new BadRequestException(
-        `El código es incorrecto. Te quedan ${user.intentos_token} intentos.`,
+      await queryRunner.manager.query(
+        `
+        UPDATE core.alexa_codes
+        SET used_at = CURRENT_TIMESTAMP
+        WHERE id_alexa_code = $1;
+        `,
+        [codeRow.id_alexa_code],
       );
+
+      await queryRunner.manager.query(
+        `
+        INSERT INTO core.alexa_account_links (
+          id_usuario,
+          alexa_user_id,
+          alexa_device_id,
+          linked_at,
+          last_used_at,
+          active
+        )
+        VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, true)
+        ON CONFLICT (alexa_user_id)
+        DO UPDATE SET
+          id_usuario = EXCLUDED.id_usuario,
+          alexa_device_id = EXCLUDED.alexa_device_id,
+          linked_at = CURRENT_TIMESTAMP,
+          last_used_at = CURRENT_TIMESTAMP,
+          active = true;
+        `,
+        [codeRow.id_usuario, cleanAlexaUserId, cleanAlexaDeviceId || null],
+      );
+
+      await queryRunner.commitTransaction();
+
+      const user = await this.userReaderRepository.findOne({
+        where: { id_usuario: Number(codeRow.id_usuario) },
+      });
+
+      if (!user) {
+        throw new BadRequestException('Usuario no encontrado');
+      }
+
+      return user;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
     }
-
-    user.token_verificacion = '';
-    user.token_expiracion = null;
-    user.intentos_token = 0;
-    await this.userEditorRepository.save(user);
-
-    return user;
   }
 
-  private async getActiveAlexaCodeFromUser(user: User): Promise<{
+  private async getActiveAlexaCodeForUser(user: User): Promise<{
     message: string;
     email: string;
     token: string | null;
-    expiresAt: Date | null;
+    expiresAt: string | null;
     remainingSeconds: number;
     hasActiveCode: boolean;
   }> {
-    const token = user.token_verificacion || '';
-    const isAlexaToken = token.startsWith('ALEXA:');
-    const expiration = user.token_expiracion;
-    const isExpired = !expiration || new Date() > expiration;
-    const hasAttempts =
-      typeof user.intentos_token === 'number' && user.intentos_token > 0;
+    const rows = await this.readerDataSource.query(
+      `
+      SELECT
+        id_alexa_code,
+        to_char(expires_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS') || 'Z' AS expires_at,
+        GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (expires_at - CURRENT_TIMESTAMP))))::int AS remaining_seconds,
+        attempts
+      FROM core.alexa_codes
+      WHERE id_usuario = $1
+        AND purpose = 'ALEXA'
+        AND used_at IS NULL
+        AND expires_at > CURRENT_TIMESTAMP
+        AND attempts > 0
+      ORDER BY created_at DESC
+      LIMIT 1;
+      `,
+      [user.id_usuario],
+    );
 
-    if (!isAlexaToken) {
-      return {
-        message: 'No hay código de Alexa activo.',
-        email: user.email,
-        token: null,
-        expiresAt: null,
-        remainingSeconds: 0,
-        hasActiveCode: false,
-      };
-    }
+    const active = rows[0];
 
-    if (isExpired || !hasAttempts) {
-      user.token_verificacion = '';
-      user.token_expiracion = null;
-      user.intentos_token = 0;
-      await this.userEditorRepository.save(user);
-
+    if (!active) {
       return {
         message: 'No hay código de Alexa activo.',
         email: user.email,
@@ -498,15 +585,30 @@ export class UserAccountService {
     return {
       message: 'Código de Alexa activo.',
       email: user.email,
-      token: token.replace('ALEXA:', ''),
-      expiresAt: expiration,
-      remainingSeconds: this.getRemainingSeconds(expiration),
+      token: null,
+      expiresAt: active.expires_at,
+      remainingSeconds: Number(active.remaining_seconds || 0),
       hasActiveCode: true,
     };
   }
 
   private getRemainingSeconds(expiration: Date): number {
     return Math.max(0, Math.floor((expiration.getTime() - Date.now()) / 1000));
+  }
+
+  private hashAlexaToken(token: string): string {
+    const normalized = String(token || '').replace(/\D/g, '');
+    return crypto
+      .createHash('sha256')
+      .update(`ALEXA:${normalized}`)
+      .digest('hex');
+  }
+
+  private sanitizeAlexaIdentifier(value: string | undefined, maxLength: number): string {
+    return String(value || '')
+      .trim()
+      .replace(/[<>"'`;{}[\]\\|]/g, '')
+      .slice(0, maxLength);
   }
 
   async getProfile(id_usuario: number) {

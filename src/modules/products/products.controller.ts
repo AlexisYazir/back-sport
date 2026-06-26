@@ -420,19 +420,22 @@ export class ProductsController {
     return this.productsService.createReview(req.user.id_usuario, dto);
   }
 
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(1)
   @Get('cart')
   async getCart(@Req() req: any) {
     return this.productsService.getCart(req.user.id_usuario);
   }
 
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(1)
   @Post('cart/items')
   async addCartItem(@Req() req: any, @Body() dto: AddCartItemDto) {
     return this.productsService.addCartItem(req.user.id_usuario, dto);
   }
 
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(1)
   @Put('cart/items/:idVariante')
   async updateCartItem(
     @Req() req: any,
@@ -446,7 +449,8 @@ export class ProductsController {
     );
   }
 
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(1)
   @Delete('cart/items/:idVariante')
   async removeCartItem(
     @Req() req: any,
@@ -455,13 +459,15 @@ export class ProductsController {
     return this.productsService.removeCartItem(req.user.id_usuario, idVariante);
   }
 
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(1)
   @Delete('cart')
   async clearCart(@Req() req: any) {
     return this.productsService.clearCart(req.user.id_usuario);
   }
 
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(1)
   @Get('checkout/summary')
   async getCheckoutSummary(
     @Req() req: any,
@@ -475,13 +481,15 @@ export class ProductsController {
     );
   }
 
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(1)
   @Get('checkout/postal-code/:codigoPostal')
   async lookupPostalCode(@Param('codigoPostal') codigoPostal: string) {
     return this.productsService.lookupPostalCode(codigoPostal);
   }
 
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(1)
   @Post('checkout/confirm')
   async confirmCheckout(
     @Req() req: any,
@@ -495,13 +503,15 @@ export class ProductsController {
     return this.productsService.processMercadoPagoWebhook(body, query);
   }
 
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(1)
   @Get('payment-methods')
   async getUserPaymentMethods(@Req() req: any) {
     return this.productsService.getUserPaymentMethods(req.user.id_usuario);
   }
 
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(1)
   @Post('payment-methods')
   async createUserPaymentMethod(
     @Req() req: any,
@@ -513,7 +523,8 @@ export class ProductsController {
     );
   }
 
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(1)
   @Delete('payment-methods/:idMetodoPago')
   async deleteUserPaymentMethod(
     @Req() req: any,

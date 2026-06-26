@@ -178,14 +178,16 @@ export class UsersController {
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('alexa/exchange-code')
   async exchangeAlexaVerificationCode(
-    @Body('email') email: string,
     @Body('token') token: string,
+    @Body('alexaUserId') alexaUserId: string,
+    @Body('alexaDeviceId') alexaDeviceId: string | undefined,
     @Body('deviceName') deviceName: string | undefined,
     @Req() req: any,
   ) {
     return this.usersService.exchangeAlexaVerificationCode(
-      email,
       token,
+      alexaUserId,
+      alexaDeviceId,
       this.getSessionContext(req, deviceName || 'Alexa Skill'),
     );
   }
