@@ -116,8 +116,8 @@ export class CreateCheckoutOrderDto {
   id_metodo_envio?: number;
 
   @IsString()
-  @IsIn(['tarjeta'])
-  metodo_pago: 'tarjeta';
+  @IsIn(['mercado_pago'])
+  metodo_pago: 'mercado_pago';
 
   @IsOptional()
   @Type(() => Number)

@@ -440,6 +440,12 @@ export class ProductOrdersService {
         );
       }
 
+      if (String(order.estado || '').trim().toLowerCase() === 'pendiente_pago') {
+        throw new BadRequestException(
+          'El pedido aún no tiene el pago confirmado',
+        );
+      }
+
       let shipmentRows = await source.query(
         `
         SELECT id_envio

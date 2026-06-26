@@ -48,6 +48,12 @@ interface ResolvedPaymentMethod {
   referencia: string;
 }
 
+interface MercadoPagoPreference {
+  id: string;
+  init_point?: string;
+  sandbox_init_point?: string;
+}
+
 @Injectable()
 export class ProductCheckoutService {
   private readonly logger = new Logger(ProductCheckoutService.name);
@@ -183,11 +189,9 @@ export class ProductCheckoutService {
         dto,
         source,
       );
-      const paymentMethod = await this.resolvePaymentMethod(
-        id_usuario,
-        dto,
-        source,
-      );
+      if (dto.metodo_pago !== 'mercado_pago') {
+        throw new BadRequestException('El método de pago no es válido');
+      }
 
       const orderRows = await source.query(
         `
@@ -205,7 +209,7 @@ export class ProductCheckoutService {
         VALUES (
           $1,
           $2,
-          'pendiente',
+          'pendiente_pago',
           $3,
           $4,
           $5,
@@ -221,8 +225,8 @@ export class ProductCheckoutService {
           totals.subtotal,
           totals.discount,
           totals.total,
-          dto.metodo_pago,
-          new Date(),
+          'mercado_pago',
+          null,
         ],
       );
 
@@ -292,7 +296,23 @@ export class ProductCheckoutService {
         );
       }
 
-      await this.savePayment(idOrden, totals.total, dto, paymentMethod, source);
+      const externalReference = this.buildMercadoPagoExternalReference(idOrden);
+      await this.saveMercadoPagoPayment(
+        idOrden,
+        totals.total,
+        externalReference,
+        source,
+      );
+
+      const preference = await this.createMercadoPagoPreference({
+        idOrden,
+        externalReference,
+        items: cart.items,
+        totals,
+        shippingMethod,
+        idUsuario: id_usuario,
+      });
+
       await this.saveShipment(
         idOrden,
         id_usuario,
@@ -331,7 +351,7 @@ export class ProductCheckoutService {
       await queryRunner.commitTransaction();
 
       return {
-        message: 'Pedido creado correctamente',
+        message: 'Pedido creado correctamente. Continúa con Mercado Pago.',
         order: {
           ...order,
           subtotal: totals.subtotal,
@@ -339,6 +359,13 @@ export class ProductCheckoutService {
           total: totals.total,
         },
         totals,
+        checkout: {
+          provider: 'mercado_pago',
+          preference_id: preference.id,
+          external_reference: externalReference,
+          init_point: preference.init_point,
+          sandbox_init_point: preference.sandbox_init_point,
+        },
       };
     } catch (error) {
       await queryRunner.rollbackTransaction();
@@ -421,6 +448,35 @@ export class ProductCheckoutService {
     }
 
     return { message: 'Tarjeta eliminada correctamente' };
+  }
+
+  async processMercadoPagoWebhook(body: any, query: any): Promise<any> {
+    const topic = String(
+      body?.type || body?.topic || query?.type || query?.topic || '',
+    ).toLowerCase();
+    const paymentId =
+      body?.data?.id ||
+      body?.id ||
+      query?.['data.id'] ||
+      query?.id;
+
+    if (!paymentId || (topic && !['payment', 'merchant_order'].includes(topic))) {
+      return { received: true, ignored: true };
+    }
+
+    if (topic === 'merchant_order') {
+      return { received: true, ignored: true };
+    }
+
+    const payment = await this.getMercadoPagoPayment(String(paymentId));
+    await this.syncMercadoPagoPayment(payment);
+
+    return {
+      received: true,
+      provider: 'mercado_pago',
+      paymentId: String(paymentId),
+      status: payment?.status || null,
+    };
   }
 
   private validateUser(id_usuario: number): void {
@@ -952,7 +1008,7 @@ export class ProductCheckoutService {
     dto: CreateCheckoutOrderDto,
     source: Queryable,
   ): Promise<ResolvedPaymentMethod> {
-    if (dto.metodo_pago !== 'tarjeta') {
+    if (String(dto.metodo_pago) !== 'tarjeta') {
       throw new BadRequestException('Por ahora solo se aceptan pagos con tarjeta');
     }
 
@@ -1283,17 +1339,329 @@ export class ProductCheckoutService {
     return `CARD-${cleanBrand}-${last4}-${Date.now().toString(36).toUpperCase()}`;
   }
 
-  private async savePayment(
+  private buildMercadoPagoExternalReference(idOrden: number): string {
+    return `SC-ORDER-${idOrden}-${randomUUID()}`;
+  }
+
+  private async createMercadoPagoPreference(input: {
+    idOrden: number;
+    externalReference: string;
+    items: any[];
+    totals: CheckoutTotals;
+    shippingMethod: any;
+    idUsuario: number;
+  }): Promise<MercadoPagoPreference> {
+    const accessToken = this.configService.get<string>('MERCADO_PAGO_ACCESS_TOKEN');
+
+    if (!accessToken) {
+      throw new BadRequestException(
+        'Mercado Pago no está configurado en el servidor',
+      );
+    }
+
+    const frontendUrl = this.normalizeBaseUrl(
+      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:4200',
+    );
+    const backendUrl = this.normalizeBaseUrl(
+      this.configService.get<string>('BACKEND_PUBLIC_URL') || 'http://localhost:3000',
+    );
+    const notificationUrl =
+      this.configService.get<string>('MERCADO_PAGO_WEBHOOK_URL') ||
+      `${backendUrl}/products/checkout/mercado-pago/webhook`;
+    const successUrl = `${frontendUrl}/dashboard/usuario/compras?payment=success&order=${input.idOrden}`;
+    const failureUrl = `${frontendUrl}/dashboard/usuario/compras?payment=failure&order=${input.idOrden}`;
+    const pendingUrl = `${frontendUrl}/dashboard/usuario/compras?payment=pending&order=${input.idOrden}`;
+    const preferencePayload: Record<string, any> = {
+      items: [
+        {
+          id: String(input.idOrden),
+          title: `Pedido Sport Center #${input.idOrden}`,
+          description: `${input.totals.itemCount} producto(s) con ${input.shippingMethod?.nombre || 'envío estándar'}`,
+          quantity: 1,
+          unit_price: input.totals.total,
+          currency_id: 'MXN',
+        },
+      ],
+      external_reference: input.externalReference,
+      back_urls: {
+        success: successUrl,
+        failure: failureUrl,
+        pending: pendingUrl,
+      },
+      metadata: {
+        id_orden: input.idOrden,
+        id_usuario: input.idUsuario,
+        external_reference: input.externalReference,
+      },
+    };
+
+    if (this.isPublicUrl(frontendUrl)) {
+      preferencePayload.auto_return = 'approved';
+    }
+
+    if (this.isPublicUrl(notificationUrl)) {
+      preferencePayload.notification_url = notificationUrl;
+    }
+
+    try {
+      const response = await axios.post(
+        'https://api.mercadopago.com/checkout/preferences',
+        preferencePayload,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: 10000,
+        },
+      );
+
+      return {
+        id: response.data?.id,
+        init_point: response.data?.init_point,
+        sandbox_init_point: response.data?.sandbox_init_point,
+      };
+    } catch (error: any) {
+      this.logger.error(
+        'Error al crear preferencia de Mercado Pago:',
+        error?.response?.data || error,
+      );
+      throw new BadRequestException(
+        'No fue posible iniciar el pago con Mercado Pago',
+      );
+    }
+  }
+
+  private async getMercadoPagoPayment(paymentId: string): Promise<any> {
+    const accessToken = this.configService.get<string>('MERCADO_PAGO_ACCESS_TOKEN');
+
+    if (!accessToken) {
+      throw new BadRequestException(
+        'Mercado Pago no está configurado en el servidor',
+      );
+    }
+
+    const response = await axios.get(
+      `https://api.mercadopago.com/v1/payments/${encodeURIComponent(paymentId)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        timeout: 10000,
+      },
+    );
+
+    return response.data;
+  }
+
+  private async syncMercadoPagoPayment(payment: any): Promise<void> {
+    const externalReference =
+      payment?.external_reference || payment?.metadata?.external_reference;
+
+    if (!externalReference) {
+      this.logger.warn('Pago de Mercado Pago sin referencia externa');
+      return;
+    }
+
+    const mappedStatus = this.mapMercadoPagoStatus(payment?.status);
+    const queryRunner = this.editorDataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const source = queryRunner.manager;
+      const rows = await source.query(
+        `
+        SELECT
+          p.id_pago,
+          p.id_orden,
+          p.estado AS estado_pago,
+          o.estado AS estado_orden,
+          o.id_usuario
+        FROM core.pagos p
+        INNER JOIN core.orders o
+          ON o.id_orden = p.id_orden
+        WHERE p.proveedor_pago = 'mercado_pago'
+          AND p.referencia_externa = $1
+        LIMIT 1
+        FOR UPDATE;
+        `,
+        [externalReference],
+      );
+
+      const row = rows[0];
+      if (!row) {
+        this.logger.warn(
+          `No se encontró pago local para Mercado Pago ${externalReference}`,
+        );
+        await queryRunner.commitTransaction();
+        return;
+      }
+
+      await source.query(
+        `
+        UPDATE core.pagos
+        SET estado = $2
+        WHERE id_pago = $1;
+        `,
+        [row.id_pago, mappedStatus],
+      );
+
+      if (mappedStatus === 'aprobado' && row.estado_orden !== 'pendiente') {
+        await source.query(
+          `
+          UPDATE core.orders
+          SET estado = 'pendiente',
+              fecha_pago = COALESCE(fecha_pago, CURRENT_TIMESTAMP)
+          WHERE id_orden = $1;
+          `,
+          [row.id_orden],
+        );
+
+        await this.applyPromotionRedemptionOnApproval(
+          Number(row.id_orden),
+          Number(row.id_usuario),
+          source,
+        );
+
+        await this.saveOrderHistory(
+          Number(row.id_orden),
+          row.estado_orden,
+          'pendiente',
+          'Pago aprobado por Mercado Pago',
+          Number(row.id_usuario),
+          source,
+        );
+      }
+
+      if (
+        ['rechazado', 'cancelado', 'reembolsado'].includes(mappedStatus) &&
+        !['pago_rechazado', 'pago_cancelado', 'reembolsado'].includes(
+          String(row.estado_orden || ''),
+        )
+      ) {
+        const newOrderStatus =
+          mappedStatus === 'reembolsado' ? 'reembolsado' : 'pago_rechazado';
+
+        await source.query(
+          `
+          UPDATE core.orders
+          SET estado = $2
+          WHERE id_orden = $1;
+          `,
+          [row.id_orden, newOrderStatus],
+        );
+
+        await this.releaseReservedInventory(Number(row.id_orden), source);
+        await this.saveOrderHistory(
+          Number(row.id_orden),
+          row.estado_orden,
+          newOrderStatus,
+          `Pago ${mappedStatus} por Mercado Pago`,
+          Number(row.id_usuario),
+          source,
+        );
+      }
+
+      await queryRunner.commitTransaction();
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      this.logger.error('Error al sincronizar pago de Mercado Pago:', error);
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  private mapMercadoPagoStatus(status: string): string {
+    const normalized = String(status || '').toLowerCase();
+
+    if (normalized === 'approved') {
+      return 'aprobado';
+    }
+
+    if (['pending', 'in_process', 'authorized'].includes(normalized)) {
+      return 'pendiente';
+    }
+
+    if (['cancelled', 'canceled'].includes(normalized)) {
+      return 'cancelado';
+    }
+
+    if (['refunded', 'charged_back'].includes(normalized)) {
+      return 'reembolsado';
+    }
+
+    return 'rechazado';
+  }
+
+  private normalizeBaseUrl(value: string): string {
+    return String(value || '').trim().replace(/\/+$/, '');
+  }
+
+  private isPublicUrl(value: string): boolean {
+    try {
+      const url = new URL(value);
+      return (
+        ['http:', 'https:'].includes(url.protocol) &&
+        !['localhost', '127.0.0.1', '::1'].includes(url.hostname)
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  private async releaseReservedInventory(
     idOrden: number,
-    total: number,
-    dto: CreateCheckoutOrderDto,
-    paymentMethod: ResolvedPaymentMethod,
     source: Queryable,
   ): Promise<void> {
-    const reference =
-      dto.referencia_pago ||
-      `${paymentMethod.referencia}-ORD-${idOrden}`;
+    const items = await source.query(
+      `
+      SELECT id_variante, cantidad, precio_unitario
+      FROM core.order_items
+      WHERE id_orden = $1;
+      `,
+      [idOrden],
+    );
 
+    for (const item of items) {
+      await source.query(
+        `
+        UPDATE core.inventory
+        SET stock_actual = stock_actual + $2
+        WHERE id_variante = $1;
+        `,
+        [item.id_variante, item.cantidad],
+      );
+
+      await source.query(
+        `
+        INSERT INTO core.inventory_movements (
+          id_variante,
+          tipo,
+          cantidad,
+          costo_unitario,
+          referencia_tipo,
+          referencia_id
+        )
+        VALUES ($1, 'entrada', $2, $3, 'pago_rechazado', $4);
+        `,
+        [
+          item.id_variante,
+          item.cantidad,
+          Number(item.precio_unitario || 0),
+          idOrden,
+        ],
+      );
+    }
+  }
+
+  private async saveMercadoPagoPayment(
+    idOrden: number,
+    total: number,
+    externalReference: string,
+    source: Queryable,
+  ): Promise<void> {
     await source.query(
       `
       INSERT INTO core.pagos (
@@ -1306,7 +1674,7 @@ export class ProductCheckoutService {
       )
       VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP);
       `,
-      [idOrden, 'tarjeta', reference, total, 'aprobado'],
+      [idOrden, 'mercado_pago', externalReference, total, 'pendiente'],
     );
   }
 
@@ -1381,9 +1749,32 @@ export class ProductCheckoutService {
         comentario,
         cambiado_por
       )
-      VALUES ($1, NULL, 'pendiente', 'Pedido creado desde checkout', $2);
+      VALUES ($1, NULL, 'pendiente_pago', 'Pedido creado desde checkout, esperando confirmación de Mercado Pago', $2);
       `,
       [idOrden, idUsuario],
+    );
+  }
+
+  private async saveOrderHistory(
+    idOrden: number,
+    previousStatus: string | null,
+    nextStatus: string,
+    comment: string,
+    idUsuario: number,
+    source: Queryable,
+  ): Promise<void> {
+    await source.query(
+      `
+      INSERT INTO core.order_status_history (
+        id_orden,
+        estado_anterior,
+        estado_nuevo,
+        comentario,
+        cambiado_por
+      )
+      VALUES ($1, $2, $3, $4, $5);
+      `,
+      [idOrden, previousStatus || null, nextStatus, comment, idUsuario],
     );
   }
 
@@ -1422,25 +1813,52 @@ export class ProductCheckoutService {
       );
     }
 
-    await source.query(
+    return;
+  }
+
+  private async applyPromotionRedemptionOnApproval(
+    idOrden: number,
+    idUsuario: number,
+    source: Queryable,
+  ): Promise<void> {
+    const discounts = await source.query(
       `
-      INSERT INTO core.promotion_redemptions (
-        id_promocion,
-        id_usuario,
-        id_orden,
-        codigo_usado,
-        descuento_aplicado
-      )
-      VALUES ($1, $2, $3, $4, $5);
+      SELECT id_promocion, codigo, monto
+      FROM core.order_discounts
+      WHERE id_orden = $1
+        AND id_promocion IS NOT NULL;
       `,
-      [
-        promotion.id_promocion,
-        idUsuario,
-        idOrden,
-        promotion.codigo || code || null,
-        promotion.descuento,
-      ],
+      [idOrden],
     );
+
+    for (const discount of discounts) {
+      await source.query(
+        `
+        INSERT INTO core.promotion_redemptions (
+          id_promocion,
+          id_usuario,
+          id_orden,
+          codigo_usado,
+          descuento_aplicado
+        )
+        SELECT $1, $2, $3, $4, $5
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM core.promotion_redemptions
+          WHERE id_promocion = $1
+            AND id_usuario = $2
+            AND id_orden = $3
+        );
+        `,
+        [
+          discount.id_promocion,
+          idUsuario,
+          idOrden,
+          discount.codigo || null,
+          Number(discount.monto || 0),
+        ],
+      );
+    }
   }
 
   private roundMoney(value: number): number {

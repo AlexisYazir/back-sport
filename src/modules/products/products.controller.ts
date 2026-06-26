@@ -490,6 +490,11 @@ export class ProductsController {
     return this.productsService.confirmCheckout(req.user.id_usuario, dto);
   }
 
+  @Post('checkout/mercado-pago/webhook')
+  async mercadoPagoWebhook(@Body() body: any, @Query() query: any) {
+    return this.productsService.processMercadoPagoWebhook(body, query);
+  }
+
   @UseGuards(AuthGuard('jwt'))
   @Get('payment-methods')
   async getUserPaymentMethods(@Req() req: any) {

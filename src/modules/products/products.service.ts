@@ -380,6 +380,10 @@ export class ProductsService {
     return this.checkoutService.confirmCheckout(id_usuario, dto);
   }
 
+  processMercadoPagoWebhook(body: any, query: any): Promise<any> {
+    return this.checkoutService.processMercadoPagoWebhook(body, query);
+  }
+
   getPromotions(admin = false): Promise<any[]> {
     return this.promotionsService.getPromotions(admin);
   }
