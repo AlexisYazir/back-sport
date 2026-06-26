@@ -286,6 +286,229 @@ export class UserAccountService {
     }
   }
 
+  async requestAlexaVerificationCode(
+    id_usuario: number,
+  ): Promise<{
+    message: string;
+    email: string;
+    token: string | null;
+    expiresAt: Date | null;
+    remainingSeconds: number;
+    hasActiveCode: boolean;
+  }> {
+    if (!Number.isInteger(Number(id_usuario)) || Number(id_usuario) <= 0) {
+      throw new BadRequestException('Usuario no válido');
+    }
+
+    const user = await this.userReaderRepository.findOne({
+      where: { id_usuario: Number(id_usuario) },
+    });
+
+    if (!user || !user.email) {
+      throw new BadRequestException('Usuario no encontrado');
+    }
+
+    const activeCode = await this.getActiveAlexaCodeFromUser(user);
+    if (activeCode.hasActiveCode) {
+      return {
+        ...activeCode,
+        message: 'Ya tienes un código de Alexa activo.',
+      };
+    }
+
+    const code = crypto.randomInt(100000, 1000000).toString();
+    const expiration = new Date(Date.now() + 5 * 60 * 60 * 1000);
+
+    user.token_verificacion = `ALEXA:${code}`;
+    user.token_expiracion = expiration;
+    user.intentos_token = 3;
+
+    await this.userEditorRepository.save(user);
+
+    await this.mailService.requestVerificationCodeLogin(
+      user.email,
+      user.nombre,
+      code,
+      '5 horas',
+    );
+
+    return {
+      message: 'Código de Alexa generado correctamente. Expira en 5 horas.',
+      email: user.email,
+      token: code,
+      expiresAt: expiration,
+      remainingSeconds: this.getRemainingSeconds(expiration),
+      hasActiveCode: true,
+    };
+  }
+
+  async getAlexaVerificationCode(
+    id_usuario: number,
+  ): Promise<{
+    message: string;
+    email: string;
+    token: string | null;
+    expiresAt: Date | null;
+    remainingSeconds: number;
+    hasActiveCode: boolean;
+  }> {
+    if (!Number.isInteger(Number(id_usuario)) || Number(id_usuario) <= 0) {
+      throw new BadRequestException('Usuario no válido');
+    }
+
+    const user = await this.userReaderRepository.findOne({
+      where: { id_usuario: Number(id_usuario) },
+    });
+
+    if (!user || !user.email) {
+      throw new BadRequestException('Usuario no encontrado');
+    }
+
+    return this.getActiveAlexaCodeFromUser(user);
+  }
+
+  async verifyAlexaVerificationCode(
+    email: string,
+    token: string,
+  ): Promise<User> {
+    const emaill = String(email || '').trim().toLowerCase();
+    const tokenn = String(token || '').trim();
+
+    if (!emaill) {
+      throw new BadRequestException('El correo es obligatorio');
+    }
+
+    if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(emaill)) {
+      throw new BadRequestException('El correo no tiene un formato válido');
+    }
+
+    if (!/^\d{6}$/.test(tokenn)) {
+      throw new BadRequestException('El código debe tener 6 dígitos');
+    }
+
+    const user = await this.userReaderRepository.findOne({
+      where: { email: emaill },
+    });
+
+    if (!user) {
+      throw new BadRequestException(
+        'Revisa que tu información sea correcta. Intenta de nuevo',
+      );
+    }
+
+    if (user.activo !== 1) {
+      throw new BadRequestException('La cuenta no está activa');
+    }
+
+    const expectedToken = `ALEXA:${tokenn}`;
+
+    if (!user.token_verificacion?.startsWith('ALEXA:')) {
+      throw new BadRequestException(
+        'No hay un código de Alexa activo para este usuario',
+      );
+    }
+
+    if (!user.token_expiracion || new Date() > user.token_expiracion) {
+      user.token_verificacion = '';
+      user.token_expiracion = null;
+      user.intentos_token = 0;
+      await this.userEditorRepository.save(user);
+      throw new BadRequestException('El código ha expirado');
+    }
+
+    if (typeof user.intentos_token !== 'number' || user.intentos_token <= 0) {
+      user.token_verificacion = '';
+      user.token_expiracion = null;
+      user.intentos_token = 0;
+      await this.userEditorRepository.save(user);
+      throw new BadRequestException(
+        'Se han agotado los intentos. Solicita un nuevo código.',
+      );
+    }
+
+    if (user.token_verificacion !== expectedToken) {
+      user.intentos_token -= 1;
+      await this.userEditorRepository.save(user);
+
+      if (user.intentos_token <= 0) {
+        user.token_verificacion = '';
+        user.token_expiracion = null;
+        user.intentos_token = 0;
+        await this.userEditorRepository.save(user);
+        throw new BadRequestException(
+          'Has agotado los intentos. Solicita un nuevo código.',
+        );
+      }
+
+      throw new BadRequestException(
+        `El código es incorrecto. Te quedan ${user.intentos_token} intentos.`,
+      );
+    }
+
+    user.token_verificacion = '';
+    user.token_expiracion = null;
+    user.intentos_token = 0;
+    await this.userEditorRepository.save(user);
+
+    return user;
+  }
+
+  private async getActiveAlexaCodeFromUser(user: User): Promise<{
+    message: string;
+    email: string;
+    token: string | null;
+    expiresAt: Date | null;
+    remainingSeconds: number;
+    hasActiveCode: boolean;
+  }> {
+    const token = user.token_verificacion || '';
+    const isAlexaToken = token.startsWith('ALEXA:');
+    const expiration = user.token_expiracion;
+    const isExpired = !expiration || new Date() > expiration;
+    const hasAttempts =
+      typeof user.intentos_token === 'number' && user.intentos_token > 0;
+
+    if (!isAlexaToken) {
+      return {
+        message: 'No hay código de Alexa activo.',
+        email: user.email,
+        token: null,
+        expiresAt: null,
+        remainingSeconds: 0,
+        hasActiveCode: false,
+      };
+    }
+
+    if (isExpired || !hasAttempts) {
+      user.token_verificacion = '';
+      user.token_expiracion = null;
+      user.intentos_token = 0;
+      await this.userEditorRepository.save(user);
+
+      return {
+        message: 'No hay código de Alexa activo.',
+        email: user.email,
+        token: null,
+        expiresAt: null,
+        remainingSeconds: 0,
+        hasActiveCode: false,
+      };
+    }
+
+    return {
+      message: 'Código de Alexa activo.',
+      email: user.email,
+      token: token.replace('ALEXA:', ''),
+      expiresAt: expiration,
+      remainingSeconds: this.getRemainingSeconds(expiration),
+      hasActiveCode: true,
+    };
+  }
+
+  private getRemainingSeconds(expiration: Date): number {
+    return Math.max(0, Math.floor((expiration.getTime() - Date.now()) / 1000));
+  }
+
   async getProfile(id_usuario: number) {
     this.logger.log('Buscando perfil para ID:', id_usuario);
 

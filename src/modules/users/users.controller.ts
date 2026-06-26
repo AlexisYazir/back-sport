@@ -162,6 +162,34 @@ export class UsersController {
     return this.usersService.requestVerificationCode(email);
   }
 
+  @UseGuards(AuthGuard('jwt'))
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Post('alexa/request-code')
+  async requestAlexaVerificationCode(@Req() req: any) {
+    return this.usersService.requestAlexaVerificationCode(req.user.id_usuario);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('alexa/code')
+  async getAlexaVerificationCode(@Req() req: any) {
+    return this.usersService.getAlexaVerificationCode(req.user.id_usuario);
+  }
+
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Post('alexa/exchange-code')
+  async exchangeAlexaVerificationCode(
+    @Body('email') email: string,
+    @Body('token') token: string,
+    @Body('deviceName') deviceName: string | undefined,
+    @Req() req: any,
+  ) {
+    return this.usersService.exchangeAlexaVerificationCode(
+      email,
+      token,
+      this.getSessionContext(req, deviceName || 'Alexa Skill'),
+    );
+  }
+
  @UseGuards(AuthGuard('jwt'))
   @Patch('update-profile')
   async updateProfile(@Req() req: any, @Body() updateUserDto: UpdateUserDto) {

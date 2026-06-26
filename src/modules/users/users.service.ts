@@ -51,6 +51,30 @@ export class UsersService {
     return this.accountService.requestVerificationCode(email);
   }
 
+  requestAlexaVerificationCode(id_usuario: number) {
+    return this.accountService.requestAlexaVerificationCode(id_usuario);
+  }
+
+  getAlexaVerificationCode(id_usuario: number) {
+    return this.accountService.getAlexaVerificationCode(id_usuario);
+  }
+
+  async exchangeAlexaVerificationCode(
+    email: string,
+    token: string,
+    context: SessionContext,
+  ) {
+    const user = await this.accountService.verifyAlexaVerificationCode(
+      email,
+      token,
+    );
+
+    return this.sessionService.issueSessionTokensForUser(user, {
+      ...context,
+      deviceName: context.deviceName || 'Alexa Skill',
+    });
+  }
+
   loginUser(email: string, passw: string, context: SessionContext) {
     return this.sessionService.loginUser(email, passw, context);
   }
