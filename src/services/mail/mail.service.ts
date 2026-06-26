@@ -9,12 +9,25 @@ export class MailService {
   private readonly logger = new Logger(MailService.name);
   constructor(private readonly configService: ConfigService) {}
 
+  private get brevoApiKey(): string | undefined {
+    return this.configService.get<string>('BREVO_API_KEY')?.trim();
+  }
+
   private get resendApiKey(): string | undefined {
     return this.configService.get<string>('RESEND_API_KEY')?.trim();
   }
 
+  private get senderName(): string {
+    return (
+      this.configService.get<string>('BREVO_FROM_NAME')?.trim() ||
+      this.configService.get<string>('EMAIL_FROM_NAME')?.trim() ||
+      'Sport Center'
+    );
+  }
+
   private get senderEmail(): string {
     return (
+      this.configService.get<string>('BREVO_FROM_EMAIL')?.trim() ||
       this.configService.get<string>('RESEND_FROM_EMAIL')?.trim() ||
       this.configService.get<string>('EMAIL_USER')?.trim() ||
       'onboarding@resend.dev'
@@ -36,6 +49,11 @@ export class MailService {
     subject: string,
     html: string,
   ): Promise<void> {
+    if (this.brevoApiKey) {
+      await this.sendWithBrevo(email, subject, html);
+      return;
+    }
+
     if (this.resendApiKey) {
       await this.sendWithResend(email, subject, html);
       return;
@@ -52,11 +70,43 @@ export class MailService {
     const transporter = this.createTransporter();
 
     await transporter.sendMail({
-      from: `"Sport Center" <${this.senderEmail}>`,
+      from: `"${this.senderName}" <${this.senderEmail}>`,
       to: email,
       subject,
       html,
     });
+  }
+
+  private async sendWithBrevo(
+    email: string,
+    subject: string,
+    html: string,
+  ): Promise<void> {
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'api-key': this.brevoApiKey || '',
+      },
+      body: JSON.stringify({
+        sender: {
+          name: this.senderName,
+          email: this.senderEmail,
+        },
+        to: [{ email }],
+        subject,
+        htmlContent: html,
+      }),
+    });
+
+    if (!response.ok) {
+      const responseText = await response.text();
+      this.logger.error(
+        `Brevo respondio ${response.status}: ${responseText}`,
+      );
+      throw new Error(`Brevo error ${response.status}: ${responseText}`);
+    }
   }
 
   private async sendWithResend(
@@ -71,7 +121,7 @@ export class MailService {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: `Sport Center <${this.senderEmail}>`,
+        from: `${this.senderName} <${this.senderEmail}>`,
         to: [email],
         subject,
         html,
