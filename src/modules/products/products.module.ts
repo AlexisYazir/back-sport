@@ -24,9 +24,11 @@ import { ProductReviewsService } from './services/product-reviews.service';
 import { ProductCartService } from './services/product-cart.service';
 import { ProductCheckoutService } from './services/product-checkout.service';
 import { ProductPromotionsService } from './services/product-promotions.service';
+import { MailModule } from '../../services/mail/mail.module';
 
 @Module({
   imports: [
+    MailModule,
     //  EDITOR CONNECTION
     TypeOrmModule.forFeature(
       [

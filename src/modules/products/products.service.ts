@@ -264,6 +264,28 @@ export class ProductsService {
     return this.ordersService.updateShipment(id_orden, dto, cambiado_por);
   }
 
+  generateDeliveryConfirmationCode(
+    id_orden: number,
+    generado_por: number,
+  ): Promise<any> {
+    return this.ordersService.generateDeliveryConfirmationCode(
+      id_orden,
+      generado_por,
+    );
+  }
+
+  confirmDeliveryByCustomer(
+    id_usuario: number,
+    id_orden: number,
+    codigo: string,
+  ): Promise<any> {
+    return this.ordersService.confirmDeliveryByCustomer(
+      id_usuario,
+      id_orden,
+      codigo,
+    );
+  }
+
   createReturnRequest(
     id_usuario: number,
     dto: CreateReturnDto,

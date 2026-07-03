@@ -46,6 +46,12 @@ export class UpdateShipmentDto {
   fecha_entrega_estimada?: string;
 }
 
+export class ConfirmDeliveryCodeDto {
+  @IsString()
+  @MaxLength(20)
+  codigo: string;
+}
+
 export class CreateReturnItemDto {
   @Type(() => Number)
   @IsInt()

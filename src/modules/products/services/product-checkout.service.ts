@@ -15,6 +15,7 @@ import {
   CheckoutCardDto,
   CreateCheckoutOrderDto,
 } from '../dto/checkout/create-checkout-order.dto';
+import { MailService } from '../../../services/mail/mail.service';
 
 type Queryable = {
   query: (query: string, parameters?: any[]) => Promise<any[]>;
@@ -65,6 +66,7 @@ export class ProductCheckoutService {
     @InjectDataSource('editorConnection')
     private readonly editorDataSource: DataSource,
     private readonly configService: ConfigService,
+    private readonly mailService: MailService,
   ) {}
 
   async lookupPostalCode(codigoPostal: string): Promise<any> {
@@ -1408,6 +1410,7 @@ export class ProductCheckoutService {
 
     const mappedStatus = this.mapMercadoPagoStatus(payment?.status);
     const queryRunner = this.editorDataSource.createQueryRunner();
+    let approvedOrderId: number | null = null;
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
@@ -1509,6 +1512,8 @@ export class ProductCheckoutService {
           Number(row.id_usuario),
           source,
         );
+
+        approvedOrderId = Number(row.id_orden);
       }
 
       if (
@@ -1541,6 +1546,11 @@ export class ProductCheckoutService {
       }
 
       await queryRunner.commitTransaction();
+      if (approvedOrderId) {
+        this.notifyPaymentConfirmed(approvedOrderId).catch((error) =>
+          this.logger.error('Error al enviar correo de pago confirmado:', error),
+        );
+      }
     } catch (error) {
       await queryRunner.rollbackTransaction();
       this.logger.error('Error al sincronizar pago de Mercado Pago:', error);
@@ -1548,6 +1558,64 @@ export class ProductCheckoutService {
     } finally {
       await queryRunner.release();
     }
+  }
+
+  private async notifyPaymentConfirmed(idOrden: number): Promise<void> {
+    const summary = await this.getOrderEmailSummary(idOrden);
+    if (!summary?.email) return;
+
+    await this.mailService.sendOrderPaymentConfirmedEmail(
+      summary.email,
+      summary.cliente,
+      summary,
+    );
+  }
+
+  private async getOrderEmailSummary(idOrden: number): Promise<any> {
+    const rows = await this.readerDataSource.query(
+      `
+      SELECT
+        o.id_orden,
+        o.total,
+        o.estado,
+        o.fecha_creacion,
+        s.estado AS estado_envio,
+        s.numero_guia AS tracking_number,
+        s.paqueteria,
+        COALESCE(
+          NULLIF(TRIM(CONCAT_WS(' ', u.nombre, u."aPaterno", u."aMaterno")), ''),
+          'Cliente'
+        ) AS cliente,
+        u.email,
+        COALESCE(items.items, '[]'::jsonb) AS items
+      FROM core.orders o
+      INNER JOIN core.users u
+        ON u.id_usuario = o.id_usuario
+      LEFT JOIN core.shipments s
+        ON s.id_orden = o.id_orden
+      LEFT JOIN LATERAL (
+        SELECT jsonb_agg(
+          jsonb_build_object(
+            'producto', COALESCE(oi.nombre_producto, p.nombre),
+            'cantidad', oi.cantidad,
+            'total', oi.total
+          )
+          ORDER BY oi.id_variante
+        ) AS items
+        FROM core.order_items oi
+        LEFT JOIN core.product_variants pv
+          ON pv.id_variante = oi.id_variante
+        LEFT JOIN core.products p
+          ON p.id_producto = pv.id_producto
+        WHERE oi.id_orden = o.id_orden
+      ) items ON true
+      WHERE o.id_orden = $1
+      LIMIT 1;
+      `,
+      [idOrden],
+    );
+
+    return rows[0] || null;
   }
 
   private mapMercadoPagoStatus(status: string): string {

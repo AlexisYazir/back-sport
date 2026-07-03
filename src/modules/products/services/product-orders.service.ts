@@ -1,6 +1,7 @@
 /* eslint-disable */
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { randomBytes } from 'crypto';
 import { DataSource, Repository } from 'typeorm';
 
 import { UpdateShipmentDto } from '../dto/orders/update-shipment.dto';
@@ -9,6 +10,7 @@ import {
   UpdateReturnStatusDto,
 } from '../dto/returns/create-return.dto';
 import { Orders } from '../entities/orders/orders.entity';
+import { MailService } from '../../../services/mail/mail.service';
 
 @Injectable()
 export class ProductOrdersService {
@@ -23,6 +25,7 @@ export class ProductOrdersService {
     private readonly ordersEditorRepository: Repository<Orders>,
     @InjectRepository(Orders, 'readerConnection')
     private readonly ordersReaderRepository: Repository<Orders>,
+    private readonly mailService: MailService,
   ) {}
 
   async getOrderDetail(id: number): Promise<any[]> {
@@ -140,6 +143,12 @@ export class ProductOrdersService {
         s.costo_envio,
         s.fecha_entrega_estimada,
         s.fecha_entrega AS fecha_entrega_real,
+        s.codigo_confirmacion_entrega,
+        s.codigo_confirmacion_generado_en,
+        s.entrega_confirmada_por_usuario,
+        s.entrega_confirmada_en,
+        s.entrega_validada_por_empleado,
+        s.entrega_validada_en,
         COALESCE(ev.eventos, '[]'::jsonb) AS eventos_envio,
         jsonb_build_object(
           'calle', d.calle,
@@ -248,6 +257,11 @@ export class ProductOrdersService {
         s.costo_envio,
         s.fecha_entrega_estimada,
         s.fecha_entrega AS fecha_entrega_real,
+        s.codigo_confirmacion_generado_en,
+        s.entrega_confirmada_por_usuario,
+        s.entrega_confirmada_en,
+        s.entrega_validada_por_empleado,
+        s.entrega_validada_en,
         COALESCE(ev.eventos, '[]'::jsonb) AS eventos_envio,
         jsonb_build_object(
           'calle', d.calle,
@@ -336,7 +350,9 @@ export class ProductOrdersService {
       throw new BadRequestException('El pedido no existe');
     }
 
-    return this.getOrderTrackingForStaff(id_orden);
+    const tracking = await this.getOrderTrackingForStaff(id_orden);
+    delete tracking.codigo_confirmacion_entrega;
+    return tracking;
   }
 
   async getOrderTrackingForStaff(id_orden: number): Promise<any> {
@@ -358,6 +374,12 @@ export class ProductOrdersService {
         s.costo_envio,
         s.fecha_entrega_estimada,
         s.fecha_entrega AS fecha_entrega_real,
+        s.codigo_confirmacion_entrega,
+        s.codigo_confirmacion_generado_en,
+        s.entrega_confirmada_por_usuario,
+        s.entrega_confirmada_en,
+        s.entrega_validada_por_empleado,
+        s.entrega_validada_en,
         sm.nombre AS metodo_envio,
         sm.descripcion AS descripcion_envio,
         jsonb_build_object(
@@ -423,7 +445,7 @@ export class ProductOrdersService {
       const source = queryRunner.manager;
       const orderRows = await source.query(
         `
-        SELECT id_orden, estado, fecha_envio, fecha_entrega
+        SELECT id_orden, id_usuario, estado, fecha_envio, fecha_entrega
         FROM core.orders
         WHERE id_orden = $1
         FOR UPDATE;
@@ -450,7 +472,14 @@ export class ProductOrdersService {
 
       let shipmentRows = await source.query(
         `
-        SELECT id_envio
+        SELECT
+          id_envio,
+          estado,
+          numero_guia,
+          paqueteria,
+          codigo_confirmacion_entrega,
+          entrega_confirmada_por_usuario,
+          entrega_validada_por_empleado
         FROM core.shipments
         WHERE id_orden = $1
         FOR UPDATE;
@@ -475,13 +504,40 @@ export class ProductOrdersService {
           `,
           [id_orden, cambiado_por],
         );
+        shipmentRows[0] = {
+          ...shipmentRows[0],
+          estado: 'pendiente',
+          numero_guia: null,
+          paqueteria: null,
+          codigo_confirmacion_entrega: null,
+          entrega_confirmada_por_usuario: false,
+          entrega_validada_por_empleado: false,
+        };
       }
 
       const idEnvio = Number(shipmentRows[0].id_envio);
+      const currentShipmentStatus = this.normalizeShipmentStatus(
+        shipmentRows[0].estado || 'pendiente',
+      );
       const trackingNumber = this.cleanOptionalText(dto.tracking_number, 80);
       const carrier = this.cleanOptionalText(dto.paqueteria, 80);
       const location = this.cleanOptionalText(dto.ubicacion, 120);
       const comment = this.cleanOptionalText(dto.comentario, 255);
+      const effectiveTracking = trackingNumber || shipmentRows[0].numero_guia;
+      const effectiveCarrier = carrier || shipmentRows[0].paqueteria;
+
+      this.validateShipmentTransition(
+        currentShipmentStatus,
+        shipmentStatus,
+        Boolean(shipmentRows[0].entrega_confirmada_por_usuario),
+        Boolean(shipmentRows[0].codigo_confirmacion_entrega),
+      );
+
+      if (shipmentStatus === 'enviado' && (!effectiveTracking || !effectiveCarrier)) {
+        throw new BadRequestException(
+          'Para enviar el pedido debes registrar número de guía y paquetería',
+        );
+      }
 
       await source.query(
         `
@@ -498,6 +554,18 @@ export class ProductOrdersService {
             fecha_entrega = CASE
               WHEN $2::varchar = 'entregado' THEN CURRENT_TIMESTAMP
               ELSE fecha_entrega
+            END,
+            entrega_validada_por_empleado = CASE
+              WHEN $2::varchar = 'entregado' THEN true
+              ELSE entrega_validada_por_empleado
+            END,
+            entrega_validada_en = CASE
+              WHEN $2::varchar = 'entregado' THEN CURRENT_TIMESTAMP
+              ELSE entrega_validada_en
+            END,
+            entrega_validada_por = CASE
+              WHEN $2::varchar = 'entregado' THEN $6
+              ELSE entrega_validada_por
             END,
             actualizado_por = $6,
             fecha_actualizacion = CURRENT_TIMESTAMP
@@ -580,6 +648,9 @@ export class ProductOrdersService {
 
       await queryRunner.commitTransaction();
       const tracking = await this.getOrderTrackingForStaff(id_orden);
+      this.notifyShipmentStatus(id_orden, shipmentStatus).catch((error) =>
+        this.logger.error('Error al enviar correo de estado de pedido:', error),
+      );
 
       return {
         message: 'Envío actualizado correctamente',
@@ -594,6 +665,262 @@ export class ProductOrdersService {
 
       this.logger.error('Error al actualizar envío:', error);
       throw new BadRequestException('No fue posible actualizar el envío');
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async generateDeliveryConfirmationCode(
+    id_orden: number,
+    generado_por: number,
+  ): Promise<any> {
+    this.validatePositiveInteger(id_orden, 'El pedido debe ser válido');
+    this.validatePositiveInteger(generado_por, 'El usuario debe ser válido');
+
+    const queryRunner = this.editorDataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const source = queryRunner.manager;
+      const rows = await source.query(
+        `
+        SELECT
+          o.id_orden,
+          o.estado AS estado_pedido,
+          s.id_envio,
+          s.estado AS estado_envio,
+          s.codigo_confirmacion_entrega,
+          s.entrega_confirmada_por_usuario,
+          s.entrega_validada_por_empleado
+        FROM core.orders o
+        LEFT JOIN core.shipments s
+          ON s.id_orden = o.id_orden
+        WHERE o.id_orden = $1
+        FOR UPDATE OF o;
+        `,
+        [id_orden],
+      );
+
+      const order = rows[0];
+      if (!order) {
+        throw new BadRequestException('El pedido no existe');
+      }
+
+      const orderStatus = String(order.estado_pedido || '').trim().toLowerCase();
+      if (orderStatus === 'pendiente_pago') {
+        throw new BadRequestException('El pedido aún no tiene el pago confirmado');
+      }
+
+      if (orderStatus === 'entregado' || order.entrega_validada_por_empleado) {
+        throw new BadRequestException('El pedido ya fue finalizado');
+      }
+
+      const shipmentStatus = this.normalizeShipmentStatus(order.estado_envio || 'pendiente');
+      if (shipmentStatus === 'pendiente') {
+        throw new BadRequestException('Primero debes marcar el pedido como preparado');
+      }
+
+      if (order.entrega_confirmada_por_usuario) {
+        throw new BadRequestException(
+          'El cliente ya confirmó este código; no se puede generar otro',
+        );
+      }
+
+      if (order.codigo_confirmacion_entrega) {
+        await queryRunner.commitTransaction();
+        const tracking = await this.getOrderTrackingForStaff(id_orden);
+
+        return {
+          message: 'Código de confirmación listo para imprimir',
+          code: String(order.codigo_confirmacion_entrega).toUpperCase(),
+          tracking,
+        };
+      }
+
+      let idEnvio = Number(order.id_envio || 0);
+      if (!idEnvio) {
+        const shipmentRows = await source.query(
+          `
+          INSERT INTO core.shipments (
+            id_orden,
+            estado,
+            costo_envio,
+            creado_por,
+            actualizado_por,
+            fecha_creacion,
+            fecha_actualizacion
+          )
+          VALUES ($1, 'pendiente', 0, $2, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          RETURNING id_envio;
+          `,
+          [id_orden, generado_por],
+        );
+        idEnvio = Number(shipmentRows[0].id_envio);
+      }
+
+      const code = this.generateDeliveryCode();
+      await source.query(
+        `
+        UPDATE core.shipments
+        SET codigo_confirmacion_entrega = $2,
+            codigo_confirmacion_generado_en = CURRENT_TIMESTAMP,
+            codigo_confirmacion_generado_por = $3,
+            entrega_confirmada_por_usuario = false,
+            entrega_confirmada_en = NULL,
+            entrega_validada_por_empleado = false,
+            entrega_validada_en = NULL,
+            entrega_validada_por = NULL,
+            actualizado_por = $3,
+            fecha_actualizacion = CURRENT_TIMESTAMP
+        WHERE id_envio = $1;
+        `,
+        [idEnvio, code, generado_por],
+      );
+
+      await source.query(
+        `
+        INSERT INTO core.shipment_events (
+          id_envio,
+          estado,
+          titulo,
+          descripcion,
+          registrado_por
+        )
+        VALUES ($1, 'preparando', 'Código de entrega generado', 'Se generó el código físico de confirmación de entrega.', $2);
+        `,
+        [idEnvio, generado_por],
+      );
+
+      await queryRunner.commitTransaction();
+      const tracking = await this.getOrderTrackingForStaff(id_orden);
+
+      return {
+        message: 'Código de confirmación generado correctamente',
+        code,
+        tracking,
+      };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      this.logger.error('Error al generar código de entrega:', error);
+      throw new BadRequestException('No fue posible generar el código');
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async confirmDeliveryByCustomer(
+    id_usuario: number,
+    id_orden: number,
+    codigo: string,
+  ): Promise<any> {
+    this.validatePositiveInteger(id_usuario, 'El usuario debe ser válido');
+    this.validatePositiveInteger(id_orden, 'El pedido debe ser válido');
+
+    const cleanCode = String(codigo || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (!/^[A-Z0-9]{10}$/.test(cleanCode)) {
+      throw new BadRequestException('El código debe tener 10 caracteres');
+    }
+
+    const queryRunner = this.editorDataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const source = queryRunner.manager;
+      const rows = await source.query(
+        `
+        SELECT
+          o.id_orden,
+          s.id_envio,
+          s.estado AS estado_envio,
+          s.codigo_confirmacion_entrega,
+          s.entrega_confirmada_por_usuario,
+          s.entrega_validada_por_empleado
+        FROM core.orders o
+        INNER JOIN core.shipments s
+          ON s.id_orden = o.id_orden
+        WHERE o.id_orden = $1
+          AND o.id_usuario = $2
+        FOR UPDATE OF o, s;
+        `,
+        [id_orden, id_usuario],
+      );
+
+      const order = rows[0];
+      if (!order) {
+        throw new BadRequestException('El pedido no existe');
+      }
+
+      if (order.entrega_validada_por_empleado) {
+        throw new BadRequestException('Este pedido ya fue finalizado');
+      }
+
+      if (order.entrega_confirmada_por_usuario) {
+        throw new BadRequestException('Ya confirmaste la recepción de este pedido');
+      }
+
+      if (!order.codigo_confirmacion_entrega) {
+        throw new BadRequestException('Este pedido aún no tiene código de entrega');
+      }
+
+      if (this.normalizeShipmentStatus(order.estado_envio) !== 'en_transito') {
+        throw new BadRequestException(
+          'Solo puedes confirmar la recepción cuando el pedido esté en tránsito',
+        );
+      }
+
+      if (String(order.codigo_confirmacion_entrega).toUpperCase() !== cleanCode) {
+        throw new BadRequestException('El código de confirmación no coincide');
+      }
+
+      await source.query(
+        `
+        UPDATE core.shipments
+        SET entrega_confirmada_por_usuario = true,
+            entrega_confirmada_en = CURRENT_TIMESTAMP,
+            actualizado_por = $2,
+            fecha_actualizacion = CURRENT_TIMESTAMP
+        WHERE id_envio = $1;
+        `,
+        [order.id_envio, id_usuario],
+      );
+
+      await source.query(
+        `
+        INSERT INTO core.shipment_events (
+          id_envio,
+          estado,
+          titulo,
+          descripcion,
+          registrado_por
+        )
+        VALUES ($1, 'en_transito', 'Recepción confirmada por cliente', 'El cliente ingresó correctamente el código incluido en el paquete.', $2);
+        `,
+        [order.id_envio, id_usuario],
+      );
+
+      await queryRunner.commitTransaction();
+      const tracking = await this.getOrderTracking(id_usuario, id_orden);
+
+      return {
+        message: 'Recepción confirmada. El empleado validará el cierre del pedido.',
+        tracking,
+      };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      this.logger.error('Error al confirmar código de entrega:', error);
+      throw new BadRequestException('No fue posible confirmar la entrega');
     } finally {
       await queryRunner.release();
     }
@@ -949,6 +1276,137 @@ export class ProductOrdersService {
     if (!Number.isInteger(Number(value)) || Number(value) <= 0) {
       throw new BadRequestException(message);
     }
+  }
+
+  private generateDeliveryCode(): string {
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const bytes = randomBytes(10);
+    return Array.from(bytes)
+      .map((byte) => alphabet[byte % alphabet.length])
+      .join('');
+  }
+
+  private validateShipmentTransition(
+    currentStatus: string,
+    nextStatus: string,
+    deliveryConfirmedByCustomer: boolean,
+    deliveryCodeGenerated: boolean,
+  ): void {
+    if (currentStatus === 'entregado') {
+      throw new BadRequestException('El pedido ya fue entregado y no se puede modificar');
+    }
+
+    if (currentStatus === nextStatus) {
+      throw new BadRequestException('Este estado ya fue registrado');
+    }
+
+    const nextByCurrent: Record<string, string> = {
+      pendiente: 'preparando',
+      preparando: 'enviado',
+      enviado: 'en_transito',
+      en_transito: 'entregado',
+    };
+
+    const expectedNext = nextByCurrent[currentStatus];
+    if (nextStatus !== expectedNext) {
+      throw new BadRequestException(
+        `El flujo correcto es pendiente -> preparando -> enviado -> en_transito -> entregado. El siguiente estado válido es ${expectedNext || 'ninguno'}.`,
+      );
+    }
+
+    if (nextStatus === 'enviado' && !deliveryCodeGenerated) {
+      throw new BadRequestException(
+        'Antes de enviar el pedido debes generar e imprimir el código de confirmación de entrega',
+      );
+    }
+
+    if (nextStatus === 'entregado' && !deliveryConfirmedByCustomer) {
+      throw new BadRequestException(
+        'El cliente debe confirmar la recepción con el código antes de finalizar el pedido',
+      );
+    }
+  }
+
+  private async notifyShipmentStatus(id_orden: number, status: string): Promise<void> {
+    const summary = await this.getOrderEmailSummary(id_orden);
+    if (!summary?.email) return;
+
+    if (status === 'entregado') {
+      await this.mailService.sendOrderDeliveredEmail(
+        summary.email,
+        summary.cliente,
+        summary,
+      );
+      return;
+    }
+
+    await this.mailService.sendOrderStatusEmail(
+      summary.email,
+      summary.cliente,
+      summary,
+      this.getShipmentStatusLabelForEmail(status),
+      this.getShipmentEventDescription(status),
+    );
+  }
+
+  private async getOrderEmailSummary(id_orden: number): Promise<any> {
+    const rows = await this.readerDataSource.query(
+      `
+      SELECT
+        o.id_orden,
+        o.total,
+        o.estado,
+        o.fecha_creacion,
+        s.estado AS estado_envio,
+        s.numero_guia AS tracking_number,
+        s.paqueteria,
+        COALESCE(
+          NULLIF(TRIM(CONCAT_WS(' ', u.nombre, u."aPaterno", u."aMaterno")), ''),
+          'Cliente'
+        ) AS cliente,
+        u.email,
+        COALESCE(items.items, '[]'::jsonb) AS items
+      FROM core.orders o
+      INNER JOIN core.users u
+        ON u.id_usuario = o.id_usuario
+      LEFT JOIN core.shipments s
+        ON s.id_orden = o.id_orden
+      LEFT JOIN LATERAL (
+        SELECT jsonb_agg(
+          jsonb_build_object(
+            'producto', COALESCE(oi.nombre_producto, p.nombre),
+            'cantidad', oi.cantidad,
+            'total', oi.total
+          )
+          ORDER BY oi.id_variante
+        ) AS items
+        FROM core.order_items oi
+        LEFT JOIN core.product_variants pv
+          ON pv.id_variante = oi.id_variante
+        LEFT JOIN core.products p
+          ON p.id_producto = pv.id_producto
+        WHERE oi.id_orden = o.id_orden
+      ) items ON true
+      WHERE o.id_orden = $1
+      LIMIT 1;
+      `,
+      [id_orden],
+    );
+
+    return rows[0] || null;
+  }
+
+  private getShipmentStatusLabelForEmail(status: string): string {
+    const labels: Record<string, string> = {
+      pendiente: 'Pedido pendiente',
+      preparando: 'Pedido en preparación',
+      enviado: 'Pedido enviado',
+      en_transito: 'Pedido en tránsito',
+      entregado: 'Pedido entregado',
+      incidencia: 'Incidencia en envío',
+    };
+
+    return labels[String(status || '').replace(/\s+/g, '_')] || 'Actualización de pedido';
   }
 
   private normalizeShipmentStatus(status: string): string {

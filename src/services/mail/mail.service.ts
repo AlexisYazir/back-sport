@@ -263,4 +263,123 @@ export class MailService {
     await this.sendEmail(email, subject, html);
   }
 
+  public async sendOrderPaymentConfirmedEmail(
+    email: string,
+    nombre: string,
+    order: any,
+  ): Promise<void> {
+    const subject = `Pago confirmado - Pedido #${order.id_orden}`;
+    const html = this.buildOrderEmailTemplate({
+      title: 'Pago confirmado',
+      greeting: `Hola ${nombre || 'Cliente'},`,
+      message:
+        'Recibimos correctamente tu pago. Tu pedido ya fue registrado y pronto comenzará su preparación.',
+      order,
+    });
+
+    await this.sendEmail(email, subject, html);
+  }
+
+  public async sendOrderStatusEmail(
+    email: string,
+    nombre: string,
+    order: any,
+    statusLabel: string,
+    description: string,
+  ): Promise<void> {
+    const subject = `${statusLabel} - Pedido #${order.id_orden}`;
+    const html = this.buildOrderEmailTemplate({
+      title: statusLabel,
+      greeting: `Hola ${nombre || 'Cliente'},`,
+      message: description || 'Tu pedido tuvo una actualización.',
+      order,
+    });
+
+    await this.sendEmail(email, subject, html);
+  }
+
+  public async sendOrderDeliveredEmail(
+    email: string,
+    nombre: string,
+    order: any,
+  ): Promise<void> {
+    const subject = `Pedido recibido - #${order.id_orden}`;
+    const html = this.buildOrderEmailTemplate({
+      title: 'Pedido recibido',
+      greeting: `Hola ${nombre || 'Cliente'},`,
+      message:
+        'Tu pedido fue validado como recibido. Gracias por comprar en Sport Center.',
+      order,
+    });
+
+    await this.sendEmail(email, subject, html);
+  }
+
+  private buildOrderEmailTemplate(input: {
+    title: string;
+    greeting: string;
+    message: string;
+    order: any;
+  }): string {
+    const items = Array.isArray(input.order?.items) ? input.order.items : [];
+    const itemsHtml = items
+      .slice(0, 6)
+      .map(
+        (item: any) => `
+          <tr>
+            <td style="padding:10px;border-bottom:1px solid #e5e7eb;">${this.escapeHtml(item.producto || 'Producto')}</td>
+            <td style="padding:10px;border-bottom:1px solid #e5e7eb;text-align:center;">${Number(item.cantidad || 0)}</td>
+            <td style="padding:10px;border-bottom:1px solid #e5e7eb;text-align:right;">${this.formatMoney(item.total)}</td>
+          </tr>
+        `,
+      )
+      .join('');
+
+    return `
+      <div style="font-family:Arial,sans-serif;color:#202020;line-height:1.5;">
+        <h2 style="color:#0367A6;margin-bottom:8px;">${this.escapeHtml(input.title)}</h2>
+        <p>${this.escapeHtml(input.greeting)}</p>
+        <p>${this.escapeHtml(input.message)}</p>
+        <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin:18px 0;">
+          <p style="margin:0 0 6px;"><b>Pedido:</b> #${input.order?.id_orden || ''}</p>
+          <p style="margin:0 0 6px;"><b>Total:</b> ${this.formatMoney(input.order?.total)}</p>
+          <p style="margin:0 0 6px;"><b>Estado:</b> ${this.escapeHtml(input.order?.estado_envio || input.order?.estado || 'Actualizado')}</p>
+          ${input.order?.paqueteria ? `<p style="margin:0 0 6px;"><b>Paquetería:</b> ${this.escapeHtml(input.order.paqueteria)}</p>` : ''}
+          ${input.order?.tracking_number ? `<p style="margin:0;"><b>Guía:</b> ${this.escapeHtml(input.order.tracking_number)}</p>` : ''}
+        </div>
+        ${
+          itemsHtml
+            ? `<table style="width:100%;border-collapse:collapse;margin-top:12px;">
+                <thead>
+                  <tr style="background:#eef6fc;">
+                    <th style="padding:10px;text-align:left;">Producto</th>
+                    <th style="padding:10px;text-align:center;">Cantidad</th>
+                    <th style="padding:10px;text-align:right;">Total</th>
+                  </tr>
+                </thead>
+                <tbody>${itemsHtml}</tbody>
+              </table>`
+            : ''
+        }
+        <p style="margin-top:20px;">Saludos cordiales,<br><b>Sport Center</b></p>
+      </div>
+    `;
+  }
+
+  private formatMoney(value: any): string {
+    return Number(value || 0).toLocaleString('es-MX', {
+      style: 'currency',
+      currency: 'MXN',
+    });
+  }
+
+  private escapeHtml(value: any): string {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
 }

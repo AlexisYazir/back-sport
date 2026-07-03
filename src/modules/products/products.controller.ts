@@ -42,7 +42,10 @@ import { RolesGuard } from '../../services/auth/roles.guard';
 import { CreateInventoryMovementDto } from './dto/inventory/create-inventory_movement.dto';
 import { CreateInventoryMovementSkuDto } from './dto/inventory/create-inventory-movement-sku.dto';
 import { UpdateOrderStatusDto } from './dto/orders/update-order-status.dto';
-import { UpdateShipmentDto } from './dto/orders/update-shipment.dto';
+import {
+  ConfirmDeliveryCodeDto,
+  UpdateShipmentDto,
+} from './dto/orders/update-shipment.dto';
 import {
   CreateReturnDto,
   UpdateReturnStatusDto,
@@ -300,6 +303,34 @@ export class ProductsController {
     @Body() dto: UpdateShipmentDto,
   ) {
     return this.productsService.updateShipment(id, dto, req.user.id_usuario);
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(2, 3)
+  @Post('orders/:id/delivery-code')
+  async generateDeliveryCode(
+    @Req() req: any,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.productsService.generateDeliveryConfirmationCode(
+      id,
+      req.user.id_usuario,
+    );
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(1)
+  @Post('orders/:id/confirm-delivery')
+  async confirmDeliveryCode(
+    @Req() req: any,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ConfirmDeliveryCodeDto,
+  ) {
+    return this.productsService.confirmDeliveryByCustomer(
+      req.user.id_usuario,
+      id,
+      dto.codigo,
+    );
   }
 
   @UseGuards(AuthGuard('jwt'))
