@@ -612,15 +612,17 @@ export class ProductCheckoutService {
         dias_max,
         activo
       FROM core.shipping_methods
-      WHERE activo = true
-      ORDER BY costo_base ASC, id_metodo_envio ASC;
+      ORDER BY activo DESC, costo_base ASC, id_metodo_envio ASC;
     `);
 
     return methods.map((method) => ({
       ...method,
       id_metodo_envio: Number(method.id_metodo_envio),
       costo_base: Number(method.costo_base || 0),
-      envio_gratis_desde: 200,
+      envio_gratis_desde:
+        method.envio_gratis_desde === null || method.envio_gratis_desde === undefined
+          ? null
+          : Number(method.envio_gratis_desde),
       dias_min: Number(method.dias_min || 1),
       dias_max: Number(method.dias_max || 5),
     }));

@@ -251,7 +251,7 @@ export class ProductPromotionsService {
           envio_gratis_desde = COALESCE($5, envio_gratis_desde),
           dias_min = COALESCE($6, dias_min),
           dias_max = COALESCE($7, dias_max),
-          activo = COALESCE($8, activo),
+          activo = true,
           fecha_actualizacion = CURRENT_TIMESTAMP
       WHERE id_metodo_envio = $1
       RETURNING *;
@@ -264,7 +264,6 @@ export class ProductPromotionsService {
         dto.envio_gratis_desde ?? null,
         dto.dias_min ?? null,
         dto.dias_max ?? null,
-        dto.activo ?? null,
       ],
     );
 
