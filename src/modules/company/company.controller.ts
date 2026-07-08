@@ -7,6 +7,7 @@ import {
   Body,
   Param,
   Query,
+  Req,
   UseGuards,
   ParseIntPipe,
 } from '@nestjs/common';
@@ -39,6 +40,40 @@ export class CompanyController {
   @UseGuards(AuthGuard('jwt'))
   async updateCompanyInfo(@Body() updateCompanyDto: UpdateCompanyDto) {
     return this.companyService.updateCompanyInfo(updateCompanyDto);
+  }
+
+  // ========== HOME BANNER ==========
+  @Get('banner')
+  async getActiveBannerImages() {
+    return this.companyService.getActiveBannerImages();
+  }
+
+  @Get('banner/admin')
+  @UseGuards(AuthGuard('jwt'))
+  async getAdminBannerImages() {
+    return this.companyService.getAdminBannerImages();
+  }
+
+  @Post('banner')
+  @UseGuards(AuthGuard('jwt'))
+  async createBannerImage(@Req() req: any, @Body() dto: any) {
+    return this.companyService.createBannerImage(dto, req.user?.id_usuario);
+  }
+
+  @Patch('banner/:id')
+  @UseGuards(AuthGuard('jwt'))
+  async updateBannerImage(
+    @Req() req: any,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: any,
+  ) {
+    return this.companyService.updateBannerImage(id, dto, req.user?.id_usuario);
+  }
+
+  @Delete('banner/:id')
+  @UseGuards(AuthGuard('jwt'))
+  async deleteBannerImage(@Param('id', ParseIntPipe) id: number) {
+    return this.companyService.deleteBannerImage(id);
   }
 
   // ========== FAQS ==========

@@ -20,6 +20,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { ProductsService } from './products.service';
+import { ConfigService } from '@nestjs/config';
 
 import { CreateProductDto } from './dto/product/create-product.dto';
 import { CreateProductSportsDto } from './dto/product/create-product-sports.dto';
@@ -65,7 +66,10 @@ import {
 
 @Controller('products')
 export class ProductsController {
-  constructor(private readonly productsService: ProductsService) {}
+  constructor(
+    private readonly productsService: ProductsService,
+    private readonly configService: ConfigService,
+  ) {}
 
   //* Funciones para productos
   @UseGuards(AuthGuard('jwt'), RolesGuard)
@@ -125,12 +129,30 @@ export class ProductsController {
       throw new BadRequestException('No se recibió ningún archivo');
     }
 
-    const allowedFolders = ['products', 'categories', 'temp'];
-    if (folder && !allowedFolders.includes(folder)) {
+    const configuredFolders = {
+      products:
+        this.configService.get<string>('CLOUDINARY_UPLOAD_FOLDER') ||
+        'sport-center/products',
+      banner:
+        this.configService.get<string>('CLOUDINARY_BANNER_FOLDER') ||
+        'sport-center/banner',
+      company:
+        this.configService.get<string>('CLOUDINARY_COMPANY_FOLDER') ||
+        'sport-center/company',
+      categories: 'sport-center/categories',
+      temp: 'sport-center/temp',
+    };
+    const requestedFolder = folder?.trim();
+    const resolvedFolder = requestedFolder
+      ? configuredFolders[requestedFolder] ||
+        Object.values(configuredFolders).find((value) => value === requestedFolder)
+      : undefined;
+
+    if (requestedFolder && !resolvedFolder) {
       throw new BadRequestException('Carpeta no permitida');
     }
 
-    return this.productsService.uploadImage(file, folder);
+    return this.productsService.uploadImage(file, resolvedFolder);
   }
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
@@ -407,6 +429,11 @@ export class ProductsController {
   @Get('shipping-methods/admin')
   async getAdminShippingMethods() {
     return this.productsService.getShippingMethods(true);
+  }
+
+  @Get('shipping-methods')
+  async getActiveShippingMethods() {
+    return this.productsService.getShippingMethods(false);
   }
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)

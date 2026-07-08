@@ -380,10 +380,11 @@ export class ProductCatalogService {
           ON c.id_categoria = p.id_categoria
         LEFT JOIN core.categories cp
           ON cp.id_categoria = c.id_padre
-        LEFT JOIN core.product_variants v
+        INNER JOIN core.product_variants v
           ON v.id_producto = p.id_producto
-        LEFT JOIN core.inventory vi
+        INNER JOIN core.inventory vi
           ON vi.id_variante = v.id_variante
+          AND vi.stock_actual > 0
         LEFT JOIN (
           SELECT
             pd.id_producto,
@@ -395,6 +396,7 @@ export class ProductCatalogService {
         ) d
           ON d.id_producto = p.id_producto
         WHERE p.id_producto = $1
+          AND p.activo = TRUE
         GROUP BY
           p.id_producto,
           p.nombre,
