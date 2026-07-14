@@ -369,7 +369,7 @@ export class UserAccountService {
     return {
       message: 'Código de Alexa generado correctamente. Expira en 5 minutos.',
       email: user.email,
-      token: null,
+      token: code,
       expiresAt: inserted?.expires_at || null,
       remainingSeconds: Number(inserted?.remaining_seconds || 0),
       hasActiveCode: true,
