@@ -59,6 +59,10 @@ export class UsersService {
     return this.accountService.getAlexaVerificationCode(id_usuario);
   }
 
+  unlinkAlexaAccount(id_usuario: number) {
+    return this.accountService.unlinkAlexaAccount(id_usuario);
+  }
+
   async exchangeAlexaVerificationCode(
     token: string,
     alexaUserId: string,

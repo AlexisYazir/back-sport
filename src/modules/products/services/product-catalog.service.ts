@@ -245,12 +245,16 @@ export class ProductCatalogService {
                 'stock', vi.stock_actual,
                 'imagenes', v.imagenes,
                 'atributos',
-                  (
+                  COALESCE(
+                    (
                     SELECT jsonb_object_agg(a.nombre, vav.valor)
                     FROM core.variant_attribute_values vav
                     JOIN core.attributes a
                       ON a.id_atributo = vav.id_atributo
                     WHERE vav.id_variante = v.id_variante
+                    ),
+                    v.atributos,
+                    '{}'::jsonb
                   )
               )
             ) FILTER (WHERE v.id_variante IS NOT NULL),
@@ -362,12 +366,16 @@ export class ProductCatalogService {
                 'stock', COALESCE(vi.stock_actual, 0),
                 'imagenes', v.imagenes,
                 'atributos',
-                  (
+                  COALESCE(
+                    (
                     SELECT jsonb_object_agg(a.nombre, vav.valor)
                     FROM core.variant_attribute_values vav
                     JOIN core.attributes a
                       ON a.id_atributo = vav.id_atributo
                     WHERE vav.id_variante = v.id_variante
+                    ),
+                    v.atributos,
+                    '{}'::jsonb
                   )
               )
             ) FILTER (WHERE v.id_variante IS NOT NULL),

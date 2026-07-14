@@ -175,6 +175,12 @@ export class UsersController {
     return this.usersService.getAlexaVerificationCode(req.user.id_usuario);
   }
 
+  @UseGuards(AuthGuard('jwt'))
+  @Post('alexa/unlink')
+  async unlinkAlexaAccount(@Req() req: any) {
+    return this.usersService.unlinkAlexaAccount(req.user.id_usuario);
+  }
+
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('alexa/exchange-code')
   async exchangeAlexaVerificationCode(

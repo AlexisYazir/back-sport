@@ -299,6 +299,8 @@ export class UserAccountService {
     expiresAt: string | null;
     remainingSeconds: number;
     hasActiveCode: boolean;
+    isLinked: boolean;
+    linkedAt: string | null;
   }> {
     if (!Number.isInteger(Number(id_usuario)) || Number(id_usuario) <= 0) {
       throw new BadRequestException('Usuario no válido');
@@ -346,7 +348,7 @@ export class UserAccountService {
         attempts,
         created_at
       )
-      VALUES ($1, $2, 'ALEXA', CURRENT_TIMESTAMP + INTERVAL '5 hours', 5, CURRENT_TIMESTAMP)
+      VALUES ($1, $2, 'ALEXA', CURRENT_TIMESTAMP + INTERVAL '5 minutes', 5, CURRENT_TIMESTAMP)
       RETURNING
         to_char(expires_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS') || 'Z' AS expires_at,
         GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (expires_at - CURRENT_TIMESTAMP))))::int AS remaining_seconds;
@@ -359,16 +361,19 @@ export class UserAccountService {
       user.email,
       user.nombre,
       code,
-      '5 horas',
+      '5 minutos',
     );
 
+    const linkStatus = await this.getAlexaLinkStatusForUser(user.id_usuario);
+
     return {
-      message: 'Código de Alexa generado correctamente. Expira en 5 horas.',
+      message: 'Código de Alexa generado correctamente. Expira en 5 minutos.',
       email: user.email,
-      token: code,
+      token: null,
       expiresAt: inserted?.expires_at || null,
       remainingSeconds: Number(inserted?.remaining_seconds || 0),
       hasActiveCode: true,
+      ...linkStatus,
     };
   }
 
@@ -381,6 +386,8 @@ export class UserAccountService {
     expiresAt: string | null;
     remainingSeconds: number;
     hasActiveCode: boolean;
+    isLinked: boolean;
+    linkedAt: string | null;
   }> {
     if (!Number.isInteger(Number(id_usuario)) || Number(id_usuario) <= 0) {
       throw new BadRequestException('Usuario no válido');
@@ -395,6 +402,31 @@ export class UserAccountService {
     }
 
     return this.getActiveAlexaCodeForUser(user);
+  }
+
+  async unlinkAlexaAccount(
+    id_usuario: number,
+  ): Promise<{ message: string; isLinked: boolean; linkedAt: string | null }> {
+    if (!Number.isInteger(Number(id_usuario)) || Number(id_usuario) <= 0) {
+      throw new BadRequestException('Usuario no válido');
+    }
+
+    await this.editorDataSource.query(
+      `
+      UPDATE core.alexa_account_links
+      SET active = false,
+          last_used_at = CURRENT_TIMESTAMP
+      WHERE id_usuario = $1
+        AND active = true;
+      `,
+      [Number(id_usuario)],
+    );
+
+    return {
+      message: 'Alexa se desvinculó correctamente.',
+      isLinked: false,
+      linkedAt: null,
+    };
   }
 
   async verifyAlexaVerificationCode(
@@ -549,7 +581,10 @@ export class UserAccountService {
     expiresAt: string | null;
     remainingSeconds: number;
     hasActiveCode: boolean;
+    isLinked: boolean;
+    linkedAt: string | null;
   }> {
+    const linkStatus = await this.getAlexaLinkStatusForUser(user.id_usuario);
     const rows = await this.readerDataSource.query(
       `
       SELECT
@@ -579,6 +614,7 @@ export class UserAccountService {
         expiresAt: null,
         remainingSeconds: 0,
         hasActiveCode: false,
+        ...linkStatus,
       };
     }
 
@@ -589,6 +625,28 @@ export class UserAccountService {
       expiresAt: active.expires_at,
       remainingSeconds: Number(active.remaining_seconds || 0),
       hasActiveCode: true,
+      ...linkStatus,
+    };
+  }
+
+  private async getAlexaLinkStatusForUser(
+    id_usuario: number,
+  ): Promise<{ isLinked: boolean; linkedAt: string | null }> {
+    const rows = await this.readerDataSource.query(
+      `
+      SELECT to_char(linked_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS') || 'Z' AS linked_at
+      FROM core.alexa_account_links
+      WHERE id_usuario = $1
+        AND active = true
+      ORDER BY linked_at DESC
+      LIMIT 1;
+      `,
+      [Number(id_usuario)],
+    );
+
+    return {
+      isLinked: !!rows[0],
+      linkedAt: rows[0]?.linked_at || null,
     };
   }
 
