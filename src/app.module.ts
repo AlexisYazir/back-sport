@@ -11,6 +11,7 @@ import { AppController } from './app.controller';
 import { BackupModule } from './modules/backups/backup.module';
 import { CompanyModule } from './modules/company/company.module';
 import { LogsModule } from './modules/logs/logs.module';
+import { ReportsModule } from './modules/reports/reports.module';
 
 @Module({
   imports: [
@@ -111,6 +112,7 @@ import { LogsModule } from './modules/logs/logs.module';
     BackupModule,
     CompanyModule,
     LogsModule,
+    ReportsModule,
   ],
   controllers: [AppController],
   providers: [

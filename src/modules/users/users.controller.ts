@@ -121,7 +121,6 @@ export class UsersController {
 
   @Post('create-user')
   async createUser(@Body() createUserDto: CreateUserDto) {
-    console.log(createUserDto);
     return this.usersService.createUser(createUserDto);
   }
 
@@ -229,8 +228,6 @@ export class UsersController {
   @UseGuards(AuthGuard('jwt'))
   @Get('profile')
   async getProfile(@Req() req: any) {
-    console.log('req.user completo:', req.user); // Para depurar
-    
     if (!req.user) {
       throw new BadRequestException('Usuario no autenticado');
     }
@@ -238,11 +235,9 @@ export class UsersController {
     const id_usuario = req.user.id_usuario;
     
     if (!id_usuario) {
-      console.error('req.user no contiene id_usuario:', req.user);
       throw new BadRequestException('Token inválido: no se encontró ID de usuario');
     }
     
-    console.log('ID de usuario extraído:', id_usuario);
     return this.usersService.getProfile(id_usuario);
   }
 

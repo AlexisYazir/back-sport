@@ -26,6 +26,11 @@ export interface LogQuery {
 @Injectable()
 export class CloudflareLogService {
   private readonly logger = new Logger(CloudflareLogService.name);
+  private readonly persistableLevels = new Set<LogLevel>([
+    'warn',
+    'error',
+    'critical',
+  ]);
 
   constructor(
     private readonly r2StorageService: R2StorageService,
@@ -84,6 +89,10 @@ export class CloudflareLogService {
           : {}),
       },
     };
+
+    if (!this.persistableLevels.has(entry.level)) {
+      return;
+    }
 
     await this.appendLog(entry);
 
@@ -175,6 +184,7 @@ export class CloudflareLogService {
 
     const filtered = entries
       .filter((entry) => entry.module !== 'logs')
+      .filter((entry) => this.persistableLevels.has(entry.level))
       .filter((entry) => !query.level || query.level === 'all' || entry.level === query.level)
       .filter((entry) => this.matchesSearch(entry, query.search))
       .sort((a, b) => b.timestamp.localeCompare(a.timestamp));

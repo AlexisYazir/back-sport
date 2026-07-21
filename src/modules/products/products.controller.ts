@@ -213,7 +213,6 @@ export class ProductsController {
   @Roles(3)
   @Post('create-attribute')
   async createAttribute(@Body() createAttributeDto: CreateAttributeDto) {
-    console.log(createAttributeDto);
     return this.productsService.createAttribute(createAttributeDto);
   }
 
