@@ -1,0 +1,48 @@
+{
+  "status": "succeeded",
+  "started_at": "2026-07-23T08:05:44.706666+00:00",
+  "pipelines": {
+    "demand": {
+      "rows": 1075,
+      "result_rows": 25,
+      "metrics": {
+        "r2": -0.07943,
+        "mae": 9.807336,
+        "rmse": 14.121898,
+        "train_rows": 925,
+        "test_rows": 150
+      },
+      "files": [
+        "01_resultados_prediccion_demanda.csv",
+        "demand_model.joblib"
+      ]
+    },
+    "recommendation": {
+      "rows": 29,
+      "result_rows": 232,
+      "metrics": {
+        "catalog_coverage_percent": 100.0,
+        "average_top_5_score": 0.398523
+      },
+      "files": [
+        "02_resultados_recomendacion_productos.csv",
+        "recommendation_model.joblib"
+      ]
+    },
+    "clustering": {
+      "rows": 600,
+      "result_rows": 600,
+      "metrics": {
+        "silhouette": 0.395186,
+        "davies_bouldin": 0.90984,
+        "clusters": 4
+      },
+      "files": [
+        "03_resultados_segmentacion_clientes.csv",
+        "clustering_model.joblib"
+      ]
+    }
+  },
+  "finished_at": "2026-07-23T08:05:46.648140+00:00",
+  "duration_ms": 1941
+}

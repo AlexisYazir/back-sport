@@ -245,17 +245,18 @@ export class ProductCatalogService {
                 'stock', vi.stock_actual,
                 'imagenes', v.imagenes,
                 'atributos',
-                  COALESCE(
-                    (
+                  CASE
+                    WHEN jsonb_typeof(v.atributos) = 'object'
+                      AND v.atributos <> '{}'::jsonb
+                    THEN v.atributos
+                    ELSE COALESCE((
                     SELECT jsonb_object_agg(a.nombre, vav.valor)
                     FROM core.variant_attribute_values vav
                     JOIN core.attributes a
                       ON a.id_atributo = vav.id_atributo
                     WHERE vav.id_variante = v.id_variante
-                    ),
-                    v.atributos,
-                    '{}'::jsonb
-                  )
+                    ), '{}'::jsonb)
+                  END
               )
             ) FILTER (WHERE v.id_variante IS NOT NULL),
             '[]'::jsonb
@@ -366,17 +367,18 @@ export class ProductCatalogService {
                 'stock', COALESCE(vi.stock_actual, 0),
                 'imagenes', v.imagenes,
                 'atributos',
-                  COALESCE(
-                    (
+                  CASE
+                    WHEN jsonb_typeof(v.atributos) = 'object'
+                      AND v.atributos <> '{}'::jsonb
+                    THEN v.atributos
+                    ELSE COALESCE((
                     SELECT jsonb_object_agg(a.nombre, vav.valor)
                     FROM core.variant_attribute_values vav
                     JOIN core.attributes a
                       ON a.id_atributo = vav.id_atributo
                     WHERE vav.id_variante = v.id_variante
-                    ),
-                    v.atributos,
-                    '{}'::jsonb
-                  )
+                    ), '{}'::jsonb)
+                  END
               )
             ) FILTER (WHERE v.id_variante IS NOT NULL),
             '[]'::jsonb
@@ -464,14 +466,14 @@ export class ProductCatalogService {
       );
     }
 
-    const result: UpdateProductVarAttResult[] =
-      await this.productVariantEditorRepository.query(
+    return this.editorDataSource.transaction(async (manager) => {
+      const result: UpdateProductVarAttResult[] = await manager.query(
         `
-      SELECT * FROM core.update_product_variant(
-        $1,
-        $2, $3, $4, $5, $6
-      )
-      `,
+        SELECT * FROM core.update_product_variant(
+          $1,
+          $2, $3, $4, $5, $6
+        )
+        `,
         [
           dto.id_producto,
           dto.id_variante,
@@ -482,7 +484,89 @@ export class ProductCatalogService {
         ],
       );
 
-    return result[0];
+      // La aplicación mantiene los atributos tanto en el JSON de la variante
+      // como en la tabla normalizada usada por el catálogo público.
+      await manager.query(
+        `DELETE FROM core.variant_attribute_values WHERE id_variante = $1`,
+        [dto.id_variante],
+      );
+
+      const attributeEntries = Object.entries(dto.atributos ?? {}).filter(
+        ([name, value]) =>
+          name.trim().length > 0 &&
+          value !== null &&
+          value !== undefined &&
+          String(value).trim().length > 0,
+      );
+
+      if (attributeEntries.length > 0) {
+        const normalizedNames = attributeEntries.map(([name]) =>
+          name.trim().toLocaleLowerCase(),
+        );
+        const knownAttributes: Array<{
+          id_atributo: number;
+          nombre_normalizado: string;
+        }> = await manager.query(
+          `
+          SELECT
+            id_atributo,
+            LOWER(TRIM(nombre)) AS nombre_normalizado
+          FROM core.attributes
+          WHERE id_padre IS NULL
+            AND LOWER(TRIM(nombre)) = ANY($1::text[])
+          `,
+          [normalizedNames],
+        );
+
+        const attributeIds = new Map(
+          knownAttributes.map((attribute) => [
+            attribute.nombre_normalizado,
+            attribute.id_atributo,
+          ]),
+        );
+        const valuesToInsert = attributeEntries
+          .map(([name, value]) => ({
+            id_atributo: attributeIds.get(name.trim().toLocaleLowerCase()),
+            valor: String(value).trim(),
+          }))
+          .filter(
+            (
+              attribute,
+            ): attribute is { id_atributo: number; valor: string } =>
+              attribute.id_atributo !== undefined,
+          );
+
+        if (valuesToInsert.length > 0) {
+          const placeholders = valuesToInsert
+            .map(
+              (_, index) =>
+                `($1, $${index * 2 + 2}, $${index * 2 + 3})`,
+            )
+            .join(', ');
+          const parameters = [
+            dto.id_variante,
+            ...valuesToInsert.flatMap((attribute) => [
+              attribute.id_atributo,
+              attribute.valor,
+            ]),
+          ];
+
+          await manager.query(
+            `
+            INSERT INTO core.variant_attribute_values (
+              id_variante,
+              id_atributo,
+              valor
+            )
+            VALUES ${placeholders}
+            `,
+            parameters,
+          );
+        }
+      }
+
+      return result[0];
+    });
   }
 
   getAttributes(): Promise<Attribute[]> {

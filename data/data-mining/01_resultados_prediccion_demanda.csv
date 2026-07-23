@@ -1,0 +1,26 @@
+id_producto,id_variante,nombre_producto,mes_objetivo,mes_proyectado,cantidad_hace_3_meses,cantidad_hace_2_meses,cantidad_mes_anterior,cantidad_mes_objetivo,demanda_estimada,variacion_estimada,tendencia
+24,78,Playera puma color negra,2026-06-01,2026-07-01,8,11,3,24,9,-15,decreciente
+13,80,Short marca puma pa jugar,2026-06-01,2026-07-01,5,17,10,28,19,-9,decreciente
+23,81,Playera deportiva para niña marca puma,2026-06-01,2026-07-01,17,31,15,68,20,-48,decreciente
+37,82,Balón blanco marca puma,2026-06-01,2026-07-01,21,30,9,47,19,-28,decreciente
+53,92,Calcetines Under Armour Hombre 3 Pares Calcetas Original Negro-07 Logo 7-12us,2026-06-01,2026-07-01,5,13,8,27,16,-11,decreciente
+41,86,Playera Mujer Blusa Licra Deportivo Ejercicio Correr,2026-06-01,2026-07-01,15,24,15,65,24,-41,decreciente
+42,87,Tenis de la marca pirma originales,2026-06-01,2026-07-01,11,25,5,37,22,-15,decreciente
+43,88,"Tacos de futbol para hombre, en color azul con blanco",2026-06-01,2026-07-01,19,30,12,51,20,-31,decreciente
+30,76,Playera puma para niños color blanca,2026-06-01,2026-07-01,11,27,10,55,22,-33,decreciente
+38,83,Balón No.4 Morph marca Voit,2026-06-01,2026-07-01,15,27,12,51,22,-29,decreciente
+12,75,Short para correr,2026-06-01,2026-07-01,14,11,5,32,16,-16,decreciente
+16,68,Calcetines negros,2026-06-01,2026-07-01,9,17,8,21,13,-8,decreciente
+19,72,Muñequeras color negro marca adidas,2026-06-01,2026-07-01,4,5,0,6,5,-1,estable
+26,71,Playera puma para niños color azul,2026-06-01,2026-07-01,17,28,7,55,21,-34,decreciente
+2,70,Espinilleras Adidas Ghost Graphic,2026-06-01,2026-07-01,13,23,10,46,25,-21,decreciente
+5,69,Nike Phantom Elite Color Cafe,2026-06-01,2026-07-01,17,33,13,56,20,-36,decreciente
+17,67,Playera  puma color cafe,2026-06-01,2026-07-01,7,21,6,24,16,-8,decreciente
+20,66,Espinilleras color blanco y negro,2026-06-01,2026-07-01,23,25,9,54,19,-35,decreciente
+1,65,Playera marca Nike en color azulito,2026-06-01,2026-07-01,24,21,16,55,25,-30,decreciente
+33,64,Balón de futbol marca puma,2026-06-01,2026-07-01,24,24,10,59,24,-35,decreciente
+34,62,Short deportivo para hombre marca nike,2026-06-01,2026-07-01,9,17,9,17,10,-7,decreciente
+35,58,Balón de futbol marca voit,2026-06-01,2026-07-01,21,22,15,42,24,-18,decreciente
+54,93,Playera Under Armour Casual Bubble Wordmark Niño 1389963,2026-06-01,2026-07-01,13,9,4,29,8,-21,decreciente
+21,74,Gorra blanca nike,2026-06-01,2026-07-01,12,16,9,21,13,-8,decreciente
+66,96,Gorra negra para de la marca alo,2026-06-01,2026-07-01,2,5,2,3,4,1,estable

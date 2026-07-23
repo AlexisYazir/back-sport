@@ -1,0 +1,601 @@
+id_usuario,fecha_corte,recencia_dias,frecuencia_12_meses,gasto_12_meses,cluster,segmento,accion_sugerida
+16,2026-07-01,6,7,13745.19,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+17,2026-07-01,9,4,5440.5,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+18,2026-07-01,8,4,4605.15,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+19,2026-07-01,18,5,4578.26,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+20,2026-07-01,17,5,4942.74,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+21,2026-07-01,29,4,8788.37,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+22,2026-07-01,28,4,8837.87,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+23,2026-07-01,25,2,756.42,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+24,2026-07-01,24,2,6623.38,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+25,2026-07-01,23,2,3551.38,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+26,2026-07-01,22,3,4450.02,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+27,2026-07-01,187,2,1797.82,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+28,2026-07-01,186,2,3382.32,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+29,2026-07-01,185,2,1893.65,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+30,2026-07-01,184,2,1145.07,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+31,2026-07-01,60,1,1079.44,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+32,2026-07-01,70,1,2079.07,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+33,2026-07-01,69,1,868.44,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+34,2026-07-01,68,2,3396.45,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+35,2026-07-01,3,9,12134.82,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+36,2026-07-01,2,9,9157.76,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+37,2026-07-01,11,4,2442.82,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+38,2026-07-01,10,4,6844.83,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+39,2026-07-01,9,4,12863.48,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+40,2026-07-01,8,4,6707.19,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+41,2026-07-01,25,2,4370.45,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+42,2026-07-01,24,3,4107.07,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+43,2026-07-01,23,3,5389.63,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+44,2026-07-01,22,3,3625.6,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+45,2026-07-01,21,4,15620.55,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+46,2026-07-01,20,4,10250.39,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+47,2026-07-01,190,2,1774.12,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+48,2026-07-01,189,2,2505.66,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+49,2026-07-01,188,3,3202.62,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+50,2026-07-01,187,3,1779.0,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+51,2026-07-01,68,1,1534.14,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+52,2026-07-01,67,1,575.4,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+53,2026-07-01,66,2,1173.03,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+54,2026-07-01,65,2,1733.72,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+55,2026-07-01,4,7,6683.85,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+56,2026-07-01,3,8,16671.7,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+57,2026-07-01,13,6,8018.48,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+58,2026-07-01,12,6,8822.2,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+59,2026-07-01,11,4,5703.75,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+60,2026-07-01,10,4,6169.14,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+61,2026-07-01,23,4,5087.7,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+62,2026-07-01,22,4,3495.96,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+63,2026-07-01,30,2,5284.28,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+64,2026-07-01,29,2,2837.94,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+65,2026-07-01,28,2,2589.96,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+66,2026-07-01,27,3,1527.5,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+67,2026-07-01,182,3,2274.05,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+68,2026-07-01,181,3,4147.96,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+69,2026-07-01,186,2,3108.25,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+70,2026-07-01,185,2,1798.58,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+71,2026-07-01,65,1,953.89,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+72,2026-07-01,64,1,1617.84,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+73,2026-07-01,63,2,2898.64,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+74,2026-07-01,62,2,5358.06,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+75,2026-07-01,11,9,15359.43,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+76,2026-07-01,10,10,13506.41,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+77,2026-07-01,15,6,5399.33,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+78,2026-07-01,14,6,5550.53,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+79,2026-07-01,13,6,14671.92,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+80,2026-07-01,12,6,9499.61,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+81,2026-07-01,30,2,2956.48,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+82,2026-07-01,29,3,2218.95,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+83,2026-07-01,28,3,2262.05,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+84,2026-07-01,27,3,2381.65,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+85,2026-07-01,26,4,9106.89,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+86,2026-07-01,25,4,9096.72,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+87,2026-07-01,180,2,4302.7,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+88,2026-07-01,190,2,2885.85,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+89,2026-07-01,189,2,2852.58,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+90,2026-07-01,188,2,1338.39,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+91,2026-07-01,62,1,2253.05,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+92,2026-07-01,61,1,6268.15,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+93,2026-07-01,60,1,1463.56,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+94,2026-07-01,70,2,2612.32,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+95,2026-07-01,1,8,9185.95,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+96,2026-07-01,11,8,6588.8,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+97,2026-07-01,17,5,8372.39,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+98,2026-07-01,16,5,7204.83,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+99,2026-07-01,15,6,7737.47,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+100,2026-07-01,14,6,4682.39,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+101,2026-07-01,28,4,7611.54,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+102,2026-07-01,27,4,5182.86,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+103,2026-07-01,24,2,870.74,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+104,2026-07-01,23,2,4630.71,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+105,2026-07-01,22,2,3938.05,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+106,2026-07-01,21,3,2886.49,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+107,2026-07-01,183,2,2108.32,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+108,2026-07-01,182,2,5378.64,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+109,2026-07-01,181,2,5158.86,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+110,2026-07-01,180,2,1665.9,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+111,2026-07-01,70,1,709.0,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+112,2026-07-01,69,1,981.15,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+113,2026-07-01,68,2,2330.55,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+114,2026-07-01,67,2,2193.11,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+115,2026-07-01,8,10,15478.84,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+116,2026-07-01,7,10,14849.11,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+117,2026-07-01,8,4,3246.3,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+118,2026-07-01,18,5,4828.66,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+119,2026-07-01,17,5,4612.94,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+120,2026-07-01,16,5,6511.4,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+121,2026-07-01,24,2,5363.17,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+122,2026-07-01,23,3,3589.18,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+123,2026-07-01,22,3,3288.8,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+124,2026-07-01,21,3,2742.7,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+125,2026-07-01,20,4,2661.46,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+126,2026-07-01,30,4,3449.83,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+127,2026-07-01,186,2,2513.79,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+128,2026-07-01,185,2,2935.49,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+129,2026-07-01,184,2,1441.15,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+130,2026-07-01,183,3,2688.45,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+131,2026-07-01,67,1,970.06,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+132,2026-07-01,66,1,1122.13,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+133,2026-07-01,65,2,4646.82,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+134,2026-07-01,64,2,1685.41,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+135,2026-07-01,9,8,9675.89,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+136,2026-07-01,8,8,11171.38,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+137,2026-07-01,10,4,1967.29,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+138,2026-07-01,9,4,4351.73,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+139,2026-07-01,8,4,3396.51,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+140,2026-07-01,18,5,8076.32,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+141,2026-07-01,22,4,2394.77,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+142,2026-07-01,21,4,2711.74,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+143,2026-07-01,29,2,1978.47,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+144,2026-07-01,28,2,2945.3,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+145,2026-07-01,27,2,3093.63,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+146,2026-07-01,26,3,3199.29,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+147,2026-07-01,189,2,4994.37,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+148,2026-07-01,188,3,3214.29,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+149,2026-07-01,187,3,7557.34,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+150,2026-07-01,181,2,1258.83,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+151,2026-07-01,64,1,259.76,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+152,2026-07-01,63,1,264.94,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+153,2026-07-01,62,1,132.5,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+154,2026-07-01,61,2,1293.8,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+155,2026-07-01,5,10,12323.1,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+156,2026-07-01,4,10,13064.3,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+157,2026-07-01,12,6,14190.58,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+158,2026-07-01,11,4,3282.18,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+159,2026-07-01,10,4,5246.88,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+160,2026-07-01,9,4,5002.74,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+161,2026-07-01,29,2,1947.14,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+162,2026-07-01,28,3,2062.21,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+163,2026-07-01,27,3,4129.47,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+164,2026-07-01,26,3,3612.73,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+165,2026-07-01,25,4,4907.75,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+166,2026-07-01,24,4,6951.05,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+167,2026-07-01,181,3,2097.99,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+168,2026-07-01,186,2,5147.88,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+169,2026-07-01,185,2,8106.8,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+170,2026-07-01,184,2,2687.36,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+171,2026-07-01,61,1,591.83,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+172,2026-07-01,60,1,1978.2,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+173,2026-07-01,70,1,644.77,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+174,2026-07-01,69,2,4439.0,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+175,2026-07-01,6,8,9873.38,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+176,2026-07-01,5,9,13056.86,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+177,2026-07-01,14,6,7583.99,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+178,2026-07-01,13,6,6282.93,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+179,2026-07-01,12,6,6068.5,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+180,2026-07-01,11,4,4195.75,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+181,2026-07-01,27,4,8811.64,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+182,2026-07-01,26,4,3338.32,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+183,2026-07-01,23,2,1667.12,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+184,2026-07-01,22,2,1442.33,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+185,2026-07-01,21,2,1239.65,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+186,2026-07-01,20,3,2233.66,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+187,2026-07-01,190,2,1469.03,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+188,2026-07-01,189,2,697.77,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+189,2026-07-01,188,2,1313.4,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+190,2026-07-01,187,2,1169.97,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+191,2026-07-01,69,1,1294.2,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+192,2026-07-01,68,1,2403.69,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+193,2026-07-01,67,2,5613.82,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+194,2026-07-01,66,2,2205.91,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+195,2026-07-01,2,10,12569.08,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+196,2026-07-01,1,11,12994.7,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+197,2026-07-01,16,5,5793.36,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+198,2026-07-01,15,6,6116.43,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+199,2026-07-01,14,6,7705.13,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+200,2026-07-01,13,6,7741.63,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+201,2026-07-01,23,2,1134.93,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+202,2026-07-01,22,3,1882.24,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+203,2026-07-01,21,3,2637.86,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+204,2026-07-01,20,3,2321.74,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+205,2026-07-01,30,4,3119.15,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+206,2026-07-01,29,4,4143.06,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+207,2026-07-01,182,2,2744.23,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+208,2026-07-01,181,2,1143.22,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+209,2026-07-01,180,2,1775.43,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+210,2026-07-01,190,2,1020.28,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+211,2026-07-01,66,1,659.55,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+212,2026-07-01,65,1,648.76,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+213,2026-07-01,64,2,3532.84,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+214,2026-07-01,63,2,4261.03,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+215,2026-07-01,3,9,12057.76,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+216,2026-07-01,2,9,15234.6,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+217,2026-07-01,18,5,6992.38,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+218,2026-07-01,17,5,4992.5,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+219,2026-07-01,16,5,5193.41,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+220,2026-07-01,15,6,9323.65,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+221,2026-07-01,21,4,8602.75,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+222,2026-07-01,20,4,3804.49,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+223,2026-07-01,28,2,1847.83,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+224,2026-07-01,27,2,3548.15,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+225,2026-07-01,26,2,1984.69,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+226,2026-07-01,25,3,5582.5,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+227,2026-07-01,185,2,3044.72,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+228,2026-07-01,184,2,3490.77,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+229,2026-07-01,183,3,2857.02,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+230,2026-07-01,182,3,2255.97,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+231,2026-07-01,63,1,614.83,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+232,2026-07-01,62,1,2070.92,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+233,2026-07-01,61,1,2422.73,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+234,2026-07-01,60,2,2206.95,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+235,2026-07-01,10,11,14284.31,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+236,2026-07-01,3,7,12118.46,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+237,2026-07-01,9,4,6249.23,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+238,2026-07-01,8,4,5047.69,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+239,2026-07-01,18,5,10078.22,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+240,2026-07-01,17,5,11644.78,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+241,2026-07-01,28,2,3214.83,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+242,2026-07-01,27,3,4232.07,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+243,2026-07-01,26,3,4001.27,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+244,2026-07-01,25,3,7813.33,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+245,2026-07-01,24,4,9873.44,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+246,2026-07-01,23,4,4408.04,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+247,2026-07-01,188,3,5071.41,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+248,2026-07-01,187,3,5407.45,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+249,2026-07-01,181,2,2073.71,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+250,2026-07-01,180,2,1926.88,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+251,2026-07-01,60,1,332.59,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+252,2026-07-01,70,1,598.82,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+253,2026-07-01,69,1,1130.64,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+254,2026-07-01,68,2,1819.92,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+255,2026-07-01,11,9,8780.03,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+256,2026-07-01,10,9,15253.69,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+257,2026-07-01,11,4,7595.95,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+258,2026-07-01,10,4,4763.5,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+259,2026-07-01,9,4,5627.83,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+260,2026-07-01,8,4,4823.94,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+261,2026-07-01,26,4,3262.96,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+262,2026-07-01,25,4,5543.93,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+263,2026-07-01,22,2,2142.58,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+264,2026-07-01,21,2,2791.47,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+265,2026-07-01,20,2,2230.39,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+266,2026-07-01,30,3,2349.78,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+267,2026-07-01,186,2,1007.79,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+268,2026-07-01,185,2,2036.41,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+269,2026-07-01,184,2,1563.28,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+270,2026-07-01,183,2,903.57,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+271,2026-07-01,68,1,847.14,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+272,2026-07-01,67,1,1502.76,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+273,2026-07-01,66,2,2784.6,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+274,2026-07-01,65,2,3290.2,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+275,2026-07-01,1,7,10888.23,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+276,2026-07-01,11,7,12277.5,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+277,2026-07-01,13,6,9876.71,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+278,2026-07-01,12,6,7247.07,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+279,2026-07-01,11,4,3281.25,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+280,2026-07-01,10,4,8396.4,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+281,2026-07-01,22,2,1804.11,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+282,2026-07-01,21,3,3234.62,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+283,2026-07-01,20,3,2772.86,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+284,2026-07-01,30,3,3184.16,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+285,2026-07-01,29,4,6927.6,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+286,2026-07-01,28,4,8026.23,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+287,2026-07-01,189,2,2381.92,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+288,2026-07-01,188,2,1639.87,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+289,2026-07-01,187,2,1205.44,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+290,2026-07-01,186,2,1034.01,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+291,2026-07-01,65,1,1515.05,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+292,2026-07-01,64,1,3974.1,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+293,2026-07-01,63,2,4922.91,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+294,2026-07-01,62,2,2587.96,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+295,2026-07-01,8,9,12850.65,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+296,2026-07-01,7,9,8466.74,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+297,2026-07-01,15,6,11654.3,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+298,2026-07-01,14,6,8164.94,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+299,2026-07-01,13,6,7908.44,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+300,2026-07-01,12,6,8438.27,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+301,2026-07-01,20,4,7057.92,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+302,2026-07-01,30,4,3907.63,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+303,2026-07-01,27,2,2110.24,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+304,2026-07-01,26,2,5615.47,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+305,2026-07-01,25,2,4808.75,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+306,2026-07-01,24,3,6422.41,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+307,2026-07-01,181,2,2345.33,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+308,2026-07-01,180,2,2710.43,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+309,2026-07-01,190,2,2107.71,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+310,2026-07-01,189,3,4331.87,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+311,2026-07-01,62,1,840.59,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+312,2026-07-01,61,1,1434.82,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+313,2026-07-01,60,1,607.28,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+314,2026-07-01,70,2,3002.0,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+315,2026-07-01,9,7,9023.64,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+316,2026-07-01,8,8,7953.9,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+317,2026-07-01,17,5,4750.96,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+318,2026-07-01,16,5,6327.19,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+319,2026-07-01,15,6,5306.78,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+320,2026-07-01,14,6,7460.08,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+321,2026-07-01,27,2,5308.77,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+322,2026-07-01,26,3,4023.67,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+323,2026-07-01,25,3,2771.75,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+324,2026-07-01,24,3,2197.17,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+325,2026-07-01,23,4,4736.31,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+326,2026-07-01,22,4,2982.27,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+327,2026-07-01,184,2,5742.23,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+328,2026-07-01,183,3,13546.65,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+329,2026-07-01,182,3,3353.6,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+330,2026-07-01,187,2,2299.81,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+331,2026-07-01,70,1,3129.14,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+332,2026-07-01,69,1,2310.7,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+333,2026-07-01,68,2,2496.83,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+334,2026-07-01,67,2,1515.36,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+335,2026-07-01,5,9,13623.71,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+336,2026-07-01,4,10,17968.67,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+337,2026-07-01,8,4,2745.28,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+338,2026-07-01,18,5,4153.3,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+339,2026-07-01,17,5,5905.78,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+340,2026-07-01,16,5,6029.13,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+341,2026-07-01,25,4,4822.0,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+342,2026-07-01,24,4,5880.48,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+343,2026-07-01,21,2,2087.3,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+344,2026-07-01,20,2,4359.26,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+345,2026-07-01,30,2,4532.82,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+346,2026-07-01,29,3,2184.55,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+347,2026-07-01,187,3,4077.63,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+348,2026-07-01,181,2,2127.47,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+349,2026-07-01,180,2,1570.86,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+350,2026-07-01,190,2,599.97,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+351,2026-07-01,67,1,349.49,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+352,2026-07-01,66,1,1597.95,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+353,2026-07-01,65,2,2026.14,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+354,2026-07-01,64,2,1285.57,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+355,2026-07-01,6,8,7539.21,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+356,2026-07-01,5,8,8839.18,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+357,2026-07-01,10,4,9623.35,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+358,2026-07-01,9,4,6545.27,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+359,2026-07-01,8,4,3516.02,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+360,2026-07-01,18,5,4885.05,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+361,2026-07-01,21,2,1734.91,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+362,2026-07-01,20,3,2095.41,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+363,2026-07-01,30,3,4591.28,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+364,2026-07-01,29,3,6248.16,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+365,2026-07-01,28,4,3981.92,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+366,2026-07-01,27,4,5500.37,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+367,2026-07-01,185,2,2088.01,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+368,2026-07-01,184,2,3816.39,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+369,2026-07-01,183,2,1933.27,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+370,2026-07-01,182,2,2468.05,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+371,2026-07-01,64,1,1671.69,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+372,2026-07-01,63,1,1892.11,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+373,2026-07-01,62,1,612.7,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+374,2026-07-01,61,2,5755.09,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+375,2026-07-01,2,10,21745.01,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+376,2026-07-01,1,10,18017.04,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+377,2026-07-01,12,6,7237.44,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+378,2026-07-01,11,4,3200.82,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+379,2026-07-01,10,4,4174.32,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+380,2026-07-01,9,4,16064.63,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+381,2026-07-01,30,4,7262.52,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+382,2026-07-01,29,4,5190.82,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+383,2026-07-01,26,2,1309.66,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+384,2026-07-01,25,2,1677.16,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+385,2026-07-01,24,2,2397.64,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+386,2026-07-01,23,3,3079.52,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+387,2026-07-01,188,2,1053.58,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+388,2026-07-01,187,2,3190.58,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+389,2026-07-01,186,2,2771.57,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+390,2026-07-01,185,2,1982.59,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+391,2026-07-01,61,1,2218.37,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+392,2026-07-01,60,1,3605.67,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+393,2026-07-01,70,1,1771.24,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+394,2026-07-01,69,2,2584.1,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+395,2026-07-01,3,8,7238.4,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+396,2026-07-01,2,8,8218.42,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+397,2026-07-01,14,6,7180.79,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+398,2026-07-01,13,6,7762.24,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+399,2026-07-01,12,6,9594.76,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+400,2026-07-01,11,4,6378.88,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+401,2026-07-01,26,2,2515.37,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+402,2026-07-01,25,3,3517.65,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+403,2026-07-01,24,3,3466.68,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+404,2026-07-01,23,3,7119.8,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+405,2026-07-01,22,4,6252.04,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+406,2026-07-01,21,4,5296.38,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+407,2026-07-01,180,2,3080.43,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+408,2026-07-01,190,2,2402.48,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+409,2026-07-01,189,3,4409.68,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+410,2026-07-01,188,3,5688.2,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+411,2026-07-01,69,1,866.76,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+412,2026-07-01,68,1,491.13,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+413,2026-07-01,67,2,2188.74,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+414,2026-07-01,66,2,1659.95,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+415,2026-07-01,10,10,12903.36,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+416,2026-07-01,9,10,16972.84,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+417,2026-07-01,16,5,5099.41,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+418,2026-07-01,15,6,6231.56,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+419,2026-07-01,14,6,7288.38,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+420,2026-07-01,13,6,6328.8,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+421,2026-07-01,24,4,7457.08,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+422,2026-07-01,23,4,5528.42,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+423,2026-07-01,20,2,1752.46,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+424,2026-07-01,30,2,5243.73,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+425,2026-07-01,29,2,2669.07,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+426,2026-07-01,28,3,5284.84,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+427,2026-07-01,183,3,4305.7,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+428,2026-07-01,182,3,2696.39,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+429,2026-07-01,187,2,1077.99,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+430,2026-07-01,186,2,1311.58,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+431,2026-07-01,66,1,1418.59,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+432,2026-07-01,65,1,2604.72,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+433,2026-07-01,64,2,2631.56,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+434,2026-07-01,63,2,1418.48,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+435,2026-07-01,11,8,12173.68,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+436,2026-07-01,10,8,10376.26,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+437,2026-07-01,18,5,7072.79,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+438,2026-07-01,17,5,4385.23,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+439,2026-07-01,16,5,6421.23,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+440,2026-07-01,15,6,12600.91,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+441,2026-07-01,20,2,2874.46,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+442,2026-07-01,30,3,3572.93,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+443,2026-07-01,29,3,2748.62,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+444,2026-07-01,28,3,4064.88,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+445,2026-07-01,27,4,11916.3,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+446,2026-07-01,26,4,5357.89,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+447,2026-07-01,181,2,2783.03,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+448,2026-07-01,180,2,2232.15,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+449,2026-07-01,190,2,3937.6,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+450,2026-07-01,189,2,646.05,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+451,2026-07-01,63,1,1732.33,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+452,2026-07-01,62,1,427.47,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+453,2026-07-01,61,1,259.79,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+454,2026-07-01,60,2,1126.98,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+455,2026-07-01,7,10,11750.21,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+456,2026-07-01,6,10,23867.63,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+457,2026-07-01,9,4,5406.29,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+458,2026-07-01,8,4,3645.68,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+459,2026-07-01,18,5,3660.18,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+460,2026-07-01,17,5,4353.77,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+461,2026-07-01,29,4,4351.33,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+462,2026-07-01,28,4,5636.97,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+463,2026-07-01,25,2,1247.56,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+464,2026-07-01,24,2,5376.32,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+465,2026-07-01,23,2,3089.54,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+466,2026-07-01,22,3,2706.99,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+467,2026-07-01,184,2,1500.69,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+468,2026-07-01,183,2,2695.41,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+469,2026-07-01,182,2,7526.79,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+470,2026-07-01,181,2,2639.99,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+471,2026-07-01,60,1,1102.69,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+472,2026-07-01,70,1,2052.4,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+473,2026-07-01,69,1,517.69,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+474,2026-07-01,68,2,5081.81,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+475,2026-07-01,8,8,15173.5,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+476,2026-07-01,7,9,8995.23,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+477,2026-07-01,11,4,4413.84,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+478,2026-07-01,10,4,2509.0,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+479,2026-07-01,9,4,2735.9,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+480,2026-07-01,8,4,13639.26,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+481,2026-07-01,25,2,4398.61,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+482,2026-07-01,24,3,2728.94,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+483,2026-07-01,23,3,5294.74,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+484,2026-07-01,22,3,1801.0,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+485,2026-07-01,21,4,6023.82,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+486,2026-07-01,20,4,15226.94,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+487,2026-07-01,187,2,2146.12,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+488,2026-07-01,186,2,2069.9,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+489,2026-07-01,185,2,2059.32,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+490,2026-07-01,184,3,3354.35,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+491,2026-07-01,68,1,1736.89,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+492,2026-07-01,67,1,3251.79,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+493,2026-07-01,66,2,2395.32,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+494,2026-07-01,65,2,2635.06,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+495,2026-07-01,4,10,14063.09,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+496,2026-07-01,8,7,8672.07,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+497,2026-07-01,13,6,6058.03,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+498,2026-07-01,12,6,9745.28,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+499,2026-07-01,11,4,6125.96,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+500,2026-07-01,10,4,3055.33,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+501,2026-07-01,23,4,8575.99,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+502,2026-07-01,22,4,4304.52,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+503,2026-07-01,30,2,2606.48,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+504,2026-07-01,29,2,4687.97,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+505,2026-07-01,28,2,2025.89,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+506,2026-07-01,27,3,4105.32,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+507,2026-07-01,190,2,2687.24,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+508,2026-07-01,189,3,3356.56,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+509,2026-07-01,188,3,6637.55,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+510,2026-07-01,182,2,1534.16,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+511,2026-07-01,65,1,670.64,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+512,2026-07-01,64,1,1381.38,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+513,2026-07-01,63,2,1653.13,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+514,2026-07-01,62,2,2329.01,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+515,2026-07-01,5,9,14274.12,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+516,2026-07-01,4,9,9508.82,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+517,2026-07-01,15,6,5682.8,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+518,2026-07-01,14,6,9030.6,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+519,2026-07-01,13,6,5260.46,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+520,2026-07-01,12,6,7503.24,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+521,2026-07-01,30,2,3527.92,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+522,2026-07-01,29,3,3092.0,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+523,2026-07-01,28,3,3462.72,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+524,2026-07-01,27,3,3043.67,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+525,2026-07-01,26,4,4645.19,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+526,2026-07-01,25,4,3654.56,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+527,2026-07-01,182,3,4929.95,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+528,2026-07-01,187,2,2298.87,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+529,2026-07-01,186,2,1530.79,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+530,2026-07-01,185,2,2972.59,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+531,2026-07-01,62,1,1147.92,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+532,2026-07-01,61,1,2976.76,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+533,2026-07-01,60,1,4671.29,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+534,2026-07-01,70,2,1313.38,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+535,2026-07-01,6,7,11361.93,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+536,2026-07-01,5,7,9418.21,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+537,2026-07-01,17,5,5242.64,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+538,2026-07-01,16,5,4740.85,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+539,2026-07-01,15,6,10129.45,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+540,2026-07-01,14,6,11687.52,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+541,2026-07-01,28,4,3793.87,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+542,2026-07-01,27,4,1908.42,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+543,2026-07-01,24,2,3449.57,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+544,2026-07-01,23,2,2317.12,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+545,2026-07-01,22,2,3374.46,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+546,2026-07-01,21,3,3977.93,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+547,2026-07-01,180,2,2222.29,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+548,2026-07-01,190,2,3349.36,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+549,2026-07-01,189,2,3068.23,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+550,2026-07-01,188,2,2450.04,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+551,2026-07-01,70,1,657.12,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+552,2026-07-01,69,1,1778.97,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+553,2026-07-01,68,2,1416.17,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+554,2026-07-01,67,2,1072.08,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+555,2026-07-01,2,9,9763.57,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+556,2026-07-01,1,9,15245.92,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+557,2026-07-01,8,4,6728.9,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+558,2026-07-01,18,5,7277.13,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+559,2026-07-01,17,5,5961.01,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+560,2026-07-01,16,5,6227.52,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+561,2026-07-01,24,2,3070.32,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+562,2026-07-01,23,3,1548.35,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+563,2026-07-01,22,3,3073.35,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+564,2026-07-01,21,3,5530.05,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+565,2026-07-01,20,4,5973.76,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+566,2026-07-01,30,4,4326.27,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+567,2026-07-01,183,2,1780.15,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+568,2026-07-01,182,2,3614.23,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+569,2026-07-01,181,2,4770.77,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+570,2026-07-01,180,2,4180.92,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+571,2026-07-01,67,1,608.03,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+572,2026-07-01,66,1,1071.9,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+573,2026-07-01,65,2,2784.82,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+574,2026-07-01,64,2,4900.04,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+575,2026-07-01,3,7,9453.56,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+576,2026-07-01,2,8,9602.52,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+577,2026-07-01,10,4,6347.36,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+578,2026-07-01,9,4,4199.91,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+579,2026-07-01,8,4,3248.24,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+580,2026-07-01,18,5,7948.26,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+581,2026-07-01,22,4,7293.47,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+582,2026-07-01,21,4,2523.13,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+583,2026-07-01,29,2,808.47,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+584,2026-07-01,28,2,1662.89,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+585,2026-07-01,27,2,915.76,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+586,2026-07-01,26,3,6045.53,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+587,2026-07-01,186,2,4506.25,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+588,2026-07-01,185,2,2968.88,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+589,2026-07-01,184,3,5443.98,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+590,2026-07-01,183,3,2728.75,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+591,2026-07-01,64,1,1430.44,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+592,2026-07-01,63,1,2697.05,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+593,2026-07-01,62,1,3892.63,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+594,2026-07-01,61,2,1582.5,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+595,2026-07-01,10,9,11530.91,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+596,2026-07-01,9,10,11317.94,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+597,2026-07-01,12,6,7330.15,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
+598,2026-07-01,11,4,5066.62,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+599,2026-07-01,10,4,5964.93,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+600,2026-07-01,9,4,5253.39,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+601,2026-07-01,29,2,1147.31,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+602,2026-07-01,28,3,1911.43,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+603,2026-07-01,27,3,4401.39,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+604,2026-07-01,26,3,3893.31,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+605,2026-07-01,25,4,7089.47,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+606,2026-07-01,24,4,3879.1,3,Clientes con potencial,Promociones para aumentar frecuencia y ticket.
+607,2026-07-01,189,3,3218.39,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+608,2026-07-01,188,3,2425.37,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+609,2026-07-01,182,2,2930.94,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+610,2026-07-01,181,2,2598.38,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+611,2026-07-01,61,1,937.04,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+612,2026-07-01,60,1,541.64,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+613,2026-07-01,70,1,894.28,0,Clientes ocasionales,Recordatorios y ofertas sencillas de reactivacion.
+614,2026-07-01,69,2,2268.76,2,Clientes en riesgo,Campana de recuperacion y seguimiento personalizado.
+615,2026-07-01,11,8,11999.59,1,Clientes de alto valor,Beneficios exclusivos y comunicacion de novedades.
