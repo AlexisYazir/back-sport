@@ -237,12 +237,31 @@ export class ProductInventoryService {
     try {
       const movements = await this.inventoryMovementsReaderRepository.query(`
         SELECT
-          m.*,
+          m.id_movimiento,
+          m.id_variante,
+          m.tipo,
+          m.cantidad,
+          m.costo_unitario,
+          m.referencia_tipo,
+          m.referencia_id,
+          m.fecha,
+          COALESCE(NULLIF(pv.sku, ''), CONCAT('Variante #', pv.id_variante)) AS sku,
+          p.nombre AS producto,
+          COALESCE(ma.nombre, '') AS marca,
           COALESCE(pv.imagenes, '[]'::jsonb) AS imagenes_variante,
-          COALESCE(pv.imagenes->>0, '') AS imagen_variante
-        FROM core.get_inventory_movements() m
-        LEFT JOIN core.product_variants pv
+          COALESCE(NULLIF(pv.imagenes->>0, ''), '') AS imagen_variante
+        FROM core.inventory_movements m
+        INNER JOIN core.product_variants pv
           ON pv.id_variante = m.id_variante
+        INNER JOIN core.products p
+          ON p.id_producto = pv.id_producto
+        LEFT JOIN core.marcas ma
+          ON ma.id_marca = p.id_marca
+        WHERE m.id_movimiento IS NOT NULL
+          AND m.id_variante IS NOT NULL
+          AND m.fecha IS NOT NULL
+          AND p.nombre IS NOT NULL
+        ORDER BY m.fecha DESC, m.id_movimiento DESC
       `);
 
       return movements;

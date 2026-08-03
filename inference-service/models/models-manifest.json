@@ -1,0 +1,35 @@
+{
+  "promoted_at": "2026-08-03T02:55:14.571980+00:00",
+  "models": {
+    "demand": {
+      "version": "20260803T025513Z",
+      "algorithm": "StackingRegressor(GradientBoostingRegressor + RandomForestRegressor)",
+      "metrics": {
+        "mae": 2.604093852594451,
+        "rmse": 3.539971456331974,
+        "r2": 0.812463573947062,
+        "baseline_mae": 2.8181818181818183,
+        "baseline_r2": 0.7566245339082689,
+        "train_rows": 726,
+        "test_rows": 198
+      },
+      "file": "demand_forecasting_pipeline.joblib",
+      "sha256": "88bef0bf5f24f756264b6ca62cdb2912ae958ad69186c09ecfda50681203aaf6",
+      "bytes": 23801263
+    },
+    "recommendation": {
+      "version": "20260803T025513Z",
+      "algorithm": "TF-IDF + OneHotEncoder + cosine_similarity",
+      "metrics": {
+        "products": 29,
+        "coverage": 1.0,
+        "category_precision_at_5": 0.47586206896551725,
+        "brand_precision_at_5": 0.43448275862068964,
+        "average_similarity_at_5": 0.4435072254199406
+      },
+      "file": "content_recommender.joblib",
+      "sha256": "412aa402e81b78f54a2b7e807fb4a005850ed5f08221d52a1070631239c119d3",
+      "bytes": 44382
+    }
+  }
+}

@@ -12,6 +12,9 @@ import { BackupModule } from './modules/backups/backup.module';
 import { CompanyModule } from './modules/company/company.module';
 import { LogsModule } from './modules/logs/logs.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { DemandForecastModule } from './modules/demand-forecast/demand-forecast.module';
+import { MlInferenceModule } from './modules/ml-inference/ml-inference.module';
+import { ProductRecommendationsModule } from './modules/product-recommendations/product-recommendations.module';
 
 @Module({
   imports: [
@@ -113,6 +116,9 @@ import { ReportsModule } from './modules/reports/reports.module';
     CompanyModule,
     LogsModule,
     ReportsModule,
+    MlInferenceModule,
+    DemandForecastModule,
+    ProductRecommendationsModule,
   ],
   controllers: [AppController],
   providers: [
