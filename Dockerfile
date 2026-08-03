@@ -31,6 +31,10 @@ COPY . .
 # ===== COMPILAR NESTJS =====
 RUN npm run build
 
+# ===== VERIFICAR QUE EL BUILD EXISTE =====
+RUN ls -la /app/dist/
+RUN ls -la /app/dist/src/ || echo "❌ dist/src no existe"
+
 # ===== LIMPIAR DEPENDENCIAS DE DESARROLLO PARA PRODUCCIÓN =====
 RUN npm prune --production
 
