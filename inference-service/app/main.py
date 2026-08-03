@@ -9,6 +9,7 @@ import joblib
 import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -19,6 +20,16 @@ DEMAND_MODEL_PATH = MODELS_DIR / "demand_forecasting_pipeline.joblib"
 RECOMMENDER_MODEL_PATH = MODELS_DIR / "content_recommender.joblib"
 
 app = FastAPI(title="Sport Center ML Inference", version="1.0.0")
+
+# ===== CORS PARA PRODUCCIÓN =====
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 demand_artifact: dict[str, Any] | None = None
 recommender_artifact: dict[str, Any] | None = None
 
@@ -29,6 +40,21 @@ class DemandRequest(BaseModel):
     cantidad_hace_2_meses: float = Field(ge=0)
     cantidad_mes_anterior: float = Field(ge=0)
     mes_objetivo: str | None = None
+    mes_num: float | None = None
+    mes_sin: float | None = None
+    mes_cos: float | None = None
+    q1: float | None = None
+    q2: float | None = None
+    q3: float | None = None
+    q4: float | None = None
+    lag_mean: float | None = None
+    lag_weighted: float | None = None
+    lag_trend: float | None = None
+    lag_last_delta: float | None = None
+    lag_volatility: float | None = None
+    lag_min: float | None = None
+    lag_max: float | None = None
+    zero_lags: float | None = None
 
 
 class ProductFeatures(BaseModel):
@@ -45,6 +71,11 @@ class ProductFeatures(BaseModel):
 
 class RecommendationRequest(BaseModel):
     product: ProductFeatures
+    limit: int = Field(default=10, ge=1, le=20)
+
+
+class RecommendByIdRequest(BaseModel):
+    product_id: int = Field(gt=0)
     limit: int = Field(default=10, ge=1, le=20)
 
 
@@ -100,6 +131,9 @@ def enrich_demand_row(row: dict[str, Any]) -> dict[str, Any]:
     l2 = float(row.get("cantidad_hace_2_meses") or 0)
     l1 = float(row.get("cantidad_mes_anterior") or 0)
     lags = np.array([l3, l2, l1], dtype=float)
+
+    if row.get("mes_num") is not None:
+        return row
 
     row["mes_num"] = month
     row["mes_sin"] = math.sin(2 * math.pi * month / 12)
@@ -200,6 +234,57 @@ def recommend_products(payload: RecommendationRequest) -> dict[str, Any]:
             break
     return {
         "product_id": payload.product.id_producto,
+        "model_version": recommender_artifact.get("version"),
+        "algorithm": recommender_artifact.get("algorithm"),
+        "recommendations": ranked,
+    }
+
+
+@app.post("/v1/products/recommend-by-id")
+def recommend_by_id(payload: RecommendByIdRequest) -> dict[str, Any]:
+    if recommender_artifact is None:
+        raise HTTPException(status_code=503, detail="Modelo de recomendacion no cargado.")
+    
+    product_ids = [int(value) for value in recommender_artifact["product_ids"]]
+    matrix = recommender_artifact["matrix"]
+    
+    product_index = None
+    for idx, pid in enumerate(product_ids):
+        if int(pid) == payload.product_id:
+            product_index = idx
+            break
+    
+    if product_index is None:
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Producto {payload.product_id} no encontrado en el modelo."
+        )
+    
+    try:
+        vector = matrix[product_index:product_index + 1]
+        scores = cosine_similarity(vector, matrix)[0]
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"No fue posible calcular recomendaciones: {exc}"
+        ) from exc
+
+    ranked: list[dict[str, Any]] = []
+    for idx in np.argsort(scores)[::-1]:
+        candidate_id = product_ids[idx]
+        if candidate_id == payload.product_id:
+            continue
+        ranked.append(
+            {
+                "id_producto": candidate_id,
+                "score": round(float(scores[idx]), 6),
+            }
+        )
+        if len(ranked) >= payload.limit:
+            break
+    
+    return {
+        "product_id": payload.product_id,
         "model_version": recommender_artifact.get("version"),
         "algorithm": recommender_artifact.get("algorithm"),
         "recommendations": ranked,

@@ -1,7 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
-import { MlInferenceService } from '../ml-inference/ml-inference.service';
+import {
+  DemandPredictionRequest,
+  MlInferenceService,
+} from '../ml-inference/ml-inference.service';
 
 interface VariantDemandFeatures {
   id_producto: number;
@@ -31,13 +34,11 @@ export class DemandForecastService {
 
     const predictions = await Promise.all(
       features.map(async (row) => {
-        const prediction = await this.mlInferenceService.predictDemand({
-          id_variante: row.id_variante,
-          cantidad_hace_3_meses: row.cantidad_hace_3_meses,
-          cantidad_hace_2_meses: row.cantidad_hace_2_meses,
-          cantidad_mes_anterior: row.cantidad_mes_anterior,
-          mes_objetivo: row.mes_proyectado,
-        });
+        // Calcular todas las features antes de enviar
+        const enrichedPayload = this.enrichDemandFeatures(row);
+        const prediction = await this.mlInferenceService.predictDemand(
+          enrichedPayload,
+        );
         return this.toDemandProduct(row, prediction.predicted_units);
       }),
     );
@@ -79,6 +80,9 @@ export class DemandForecastService {
           'Ventas de hace 3 meses',
           'Ventas de hace 2 meses',
           'Ventas del mes anterior',
+          'Features cíclicas (mes_num, mes_sin, mes_cos)',
+          'Features de tendencia (lag_mean, lag_weighted, lag_trend)',
+          'Features de volatilidad (lag_volatility, lag_min, lag_max)',
         ],
         note: 'La predicción se calcula con los tres meses completos anteriores; los meses sin ventas se completan con cero.',
       },
@@ -91,13 +95,11 @@ export class DemandForecastService {
       throw new NotFoundException('Variante no encontrada o inactiva');
     }
 
-    const prediction = await this.mlInferenceService.predictDemand({
-      id_variante: row.id_variante,
-      cantidad_hace_3_meses: row.cantidad_hace_3_meses,
-      cantidad_hace_2_meses: row.cantidad_hace_2_meses,
-      cantidad_mes_anterior: row.cantidad_mes_anterior,
-      mes_objetivo: row.mes_proyectado,
-    });
+    // Calcular todas las features antes de enviar
+    const enrichedPayload = this.enrichDemandFeatures(row);
+    const prediction = await this.mlInferenceService.predictDemand(
+      enrichedPayload,
+    );
 
     return {
       id_variante: row.id_variante,
@@ -111,10 +113,86 @@ export class DemandForecastService {
         cantidad_hace_2_meses: row.cantidad_hace_2_meses,
         cantidad_mes_anterior: row.cantidad_mes_anterior,
       },
+      features_adicionales: {
+        mes_num: enrichedPayload.mes_num,
+        lag_mean: enrichedPayload.lag_mean,
+        lag_weighted: enrichedPayload.lag_weighted,
+        lag_trend: enrichedPayload.lag_trend,
+        lag_volatility: enrichedPayload.lag_volatility,
+        zero_lags: enrichedPayload.zero_lags,
+      },
       unidades_predichas: Math.max(0, Math.round(prediction.predicted_units)),
       modelVersion: prediction.model_version,
       algorithm: prediction.algorithm,
     };
+  }
+
+  /**
+   * Enriquecer las features de demanda con todas las variables que el modelo espera
+   * Esto es CRÍTICO para que el modelo funcione correctamente
+   */
+  private enrichDemandFeatures(row: VariantDemandFeatures): DemandPredictionRequest {
+    const lags = [
+      row.cantidad_hace_3_meses,
+      row.cantidad_hace_2_meses,
+      row.cantidad_mes_anterior,
+    ];
+
+    // Calcular mes objetivo
+    let targetDate: Date;
+    if (row.mes_proyectado) {
+      targetDate = new Date(row.mes_proyectado + '-01');
+    } else {
+      targetDate = new Date();
+      targetDate.setDate(1);
+    }
+    const month = targetDate.getMonth() + 1; // 1-12
+
+    // Calcular todas las features derivadas
+    const lagMean = lags.reduce((a, b) => a + b, 0) / lags.length;
+    const lagWeighted = lags[0] * 0.2 + lags[1] * 0.3 + lags[2] * 0.5;
+    const lagTrend = lags[2] - lags[0];
+    const lagLastDelta = lags[2] - lags[1];
+    const lagVolatility = this.calculateStdDev(lags);
+    const lagMin = Math.min(...lags);
+    const lagMax = Math.max(...lags);
+    const zeroLags = lags.filter((v) => v === 0).length;
+
+    return {
+      id_variante: row.id_variante,
+      cantidad_hace_3_meses: row.cantidad_hace_3_meses,
+      cantidad_hace_2_meses: row.cantidad_hace_2_meses,
+      cantidad_mes_anterior: row.cantidad_mes_anterior,
+      mes_objetivo: row.mes_proyectado,
+      // Features cíclicas para capturar estacionalidad
+      mes_num: month,
+      mes_sin: Math.sin((2 * Math.PI * month) / 12),
+      mes_cos: Math.cos((2 * Math.PI * month) / 12),
+      // One-hot encoding de trimestres
+      q1: month >= 1 && month <= 3 ? 1 : 0,
+      q2: month >= 4 && month <= 6 ? 1 : 0,
+      q3: month >= 7 && month <= 9 ? 1 : 0,
+      q4: month >= 10 && month <= 12 ? 1 : 0,
+      // Features de tendencia
+      lag_mean: Math.round(lagMean * 100) / 100,
+      lag_weighted: Math.round(lagWeighted * 100) / 100,
+      lag_trend: lagTrend,
+      lag_last_delta: lagLastDelta,
+      // Features de volatilidad
+      lag_volatility: Math.round(lagVolatility * 100) / 100,
+      lag_min: lagMin,
+      lag_max: lagMax,
+      // Contador de meses sin ventas
+      zero_lags: zeroLags,
+    };
+  }
+
+  private calculateStdDev(values: number[]): number {
+    if (values.length === 0) return 0;
+    const mean = values.reduce((a, b) => a + b, 0) / values.length;
+    const squaredDiffs = values.map((v) => Math.pow(v - mean, 2));
+    const variance = squaredDiffs.reduce((a, b) => a + b, 0) / values.length;
+    return Math.sqrt(variance);
   }
 
   private toDemandProduct(row: VariantDemandFeatures, predictedUnits: number) {

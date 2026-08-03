@@ -15,20 +15,25 @@ export class ProductRecommendationsService {
   ) {}
 
   async getRecommendations(productId: number, limit = 10): Promise<any> {
+    // 1. Verificar que el producto existe
     const product = await this.getProductFeatures(productId);
     if (!product) {
       throw new NotFoundException('Producto no encontrado');
     }
 
-    const mlResponse = await this.mlInferenceService.recommendProducts(
-      product,
-      Math.min(limit + 8, 20),
+    // 2. OPTIMIZACIÓN: Enviar solo el ID a FastAPI
+    // Ya no enviamos todo el producto, solo el ID
+    const mlResponse = await this.mlInferenceService.recommendById(
+      productId,
+      Math.min(limit + 8, 20), // Pedir más para compensar filtros
     );
 
+    // 3. Obtener IDs de los productos recomendados
     const ids = mlResponse.recommendations
       .map((item) => Number(item.id_producto))
       .filter((id) => Number.isFinite(id) && id !== productId);
 
+    // 4. Enriquecer con datos actuales de la base de datos
     const currentProducts = await this.getCurrentProducts(ids);
     const productMap = new Map(currentProducts.map((item) => [item.idProduct, item]));
     const used = new Set<number>();
@@ -50,6 +55,7 @@ export class ProductRecommendationsService {
       productId,
       model: mlResponse.algorithm || 'Filtrado basado en contenido',
       modelVersion: mlResponse.model_version,
+      totalRecommended: mlResponse.recommendations.length,
       recommendations,
     };
   }

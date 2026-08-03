@@ -4,10 +4,27 @@ import axios, { AxiosInstance } from 'axios';
 
 export interface DemandPredictionRequest {
   id_variante: number;
+  // Features base (historial de ventas)
   cantidad_hace_3_meses: number;
   cantidad_hace_2_meses: number;
   cantidad_mes_anterior: number;
   mes_objetivo?: string;
+  // Features derivadas que el modelo espera (calcular en el servicio)
+  mes_num?: number;
+  mes_sin?: number;
+  mes_cos?: number;
+  q1?: number;
+  q2?: number;
+  q3?: number;
+  q4?: number;
+  lag_mean?: number;
+  lag_weighted?: number;
+  lag_trend?: number;
+  lag_last_delta?: number;
+  lag_volatility?: number;
+  lag_min?: number;
+  lag_max?: number;
+  zero_lags?: number;
 }
 
 export interface DemandPredictionResponse {
@@ -37,6 +54,11 @@ export interface ProductRecommendationResponse {
     id_producto: number;
     score: number;
   }>;
+}
+
+export interface RecommendByIdRequest {
+  product_id: number;
+  limit: number;
 }
 
 @Injectable()
@@ -80,6 +102,25 @@ export class MlInferenceService {
     );
   }
 
+  /**
+   * Nuevo método: Recomendación por ID de producto
+   * Optimizado para enviar solo el ID y evitar enviar datos redundantes
+   */
+  async recommendById(
+    productId: number,
+    limit: number,
+  ): Promise<ProductRecommendationResponse> {
+    const payload: RecommendByIdRequest = {
+      product_id: productId,
+      limit,
+    };
+    return this.request<ProductRecommendationResponse>(
+      'post',
+      '/v1/products/recommend-by-id',
+      payload,
+    );
+  }
+
   private async request<T>(
     method: 'get' | 'post',
     url: string,
@@ -97,4 +138,7 @@ export class MlInferenceService {
       throw new BadGatewayException('Servicio de inteligencia no disponible');
     }
   }
+  
+  
 }
+
