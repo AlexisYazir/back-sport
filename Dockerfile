@@ -1,7 +1,18 @@
 FROM node:20-alpine
 
-# Instalar Python para FastAPI
-RUN apk add --no-cache python3 py3-pip
+# ===== INSTALAR PYTHON Y DEPENDENCIAS DE COMPILACIÓN =====
+RUN apk add --no-cache \
+    python3 \
+    py3-pip \
+    gcc \
+    g++ \
+    musl-dev \
+    python3-dev \
+    libffi-dev \
+    openblas-dev \
+    lapack-dev \
+    gfortran \
+    build-base
 
 WORKDIR /app
 
@@ -9,9 +20,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --only=production
 
-# ===== INSTALAR DEPENDENCIAS DE FASTAPI (CORREGIDO) =====
+# ===== INSTALAR DEPENDENCIAS DE FASTAPI =====
 COPY inference-service/requirements.txt ./inference-service/
-# Usar --break-system-packages para evitar el error de entorno externamente gestionado
+RUN pip3 install --no-cache-dir --break-system-packages --no-build-isolation numpy==2.4.4
 RUN pip3 install --no-cache-dir --break-system-packages -r ./inference-service/requirements.txt
 
 # ===== COPIAR TODO EL CÓDIGO =====
