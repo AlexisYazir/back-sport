@@ -9,9 +9,10 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --only=production
 
-# ===== INSTALAR DEPENDENCIAS DE FASTAPI =====
+# ===== INSTALAR DEPENDENCIAS DE FASTAPI (CORREGIDO) =====
 COPY inference-service/requirements.txt ./inference-service/
-RUN pip3 install --no-cache-dir -r ./inference-service/requirements.txt
+# Usar --break-system-packages para evitar el error de entorno externamente gestionado
+RUN pip3 install --no-cache-dir --break-system-packages -r ./inference-service/requirements.txt
 
 # ===== COPIAR TODO EL CÓDIGO =====
 COPY . .
