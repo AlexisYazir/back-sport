@@ -19,6 +19,17 @@ echo "🚀 Iniciando FastAPI en puerto 8001..."
 cd /app/inference-service
 python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8001 &
 
+# Esperar a que FastAPI esté listo
+echo "⏳ Esperando a que FastAPI esté listo..."
+sleep 5
+
+# Verificar que FastAPI esté corriendo
+if curl -s http://localhost:8001/health > /dev/null; then
+    echo "✅ FastAPI corriendo en http://localhost:8001"
+else
+    echo "⚠️  FastAPI no responde en http://localhost:8001, pero continuamos..."
+fi
+
 # Iniciar NestJS (Backend)
 echo "🚀 Iniciando NestJS en puerto 3000..."
 cd /app
