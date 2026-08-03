@@ -16,9 +16,9 @@ RUN apk add --no-cache \
 
 WORKDIR /app
 
-# ===== INSTALAR DEPENDENCIAS DE NESTJS =====
+# ===== INSTALAR DEPENDENCIAS DE NESTJS (INCLUYENDO DEV PARA COMPILAR) =====
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm ci
 
 # ===== INSTALAR DEPENDENCIAS DE FASTAPI =====
 COPY inference-service/requirements.txt ./inference-service/
@@ -30,6 +30,9 @@ COPY . .
 
 # ===== COMPILAR NESTJS =====
 RUN npm run build
+
+# ===== LIMPIAR DEPENDENCIAS DE DESARROLLO PARA PRODUCCIÓN =====
+RUN npm prune --production
 
 # ===== HACER EJECUTABLE EL SCRIPT =====
 RUN chmod +x start.sh
