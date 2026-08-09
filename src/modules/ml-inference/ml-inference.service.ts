@@ -67,6 +67,7 @@ export class MlInferenceService {
 
   constructor(private readonly configService: ConfigService) {
     // URL del servicio ML (ahora externo)
+    // TODO ESTE SERVICIO SE DEBE QUITAR XD, SOLO SE DEBE DEJAR LO DE RECOMENDACION DE PRODUCTOS
     this.mlUrl = this.configService.get<string>('ML_INFERENCE_URL') || 'http://localhost:8001';
     
     this.client = axios.create({
