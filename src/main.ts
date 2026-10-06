@@ -32,7 +32,7 @@ async function bootstrap() {
   );
 
   app.enableCors({
-    origin: ['http://localhost:4200', 'https://sport-center-sitie.netlify.app'],
+    origin: ['http://localhost:4200', 'https://sport-center-sitie.netlify.app', 'http://localhost:8081', 'http://localhost:19006',],
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
       'Content-Type',
