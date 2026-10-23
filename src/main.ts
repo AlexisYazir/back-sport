@@ -37,8 +37,8 @@ async function bootstrap() {
     allowedHeaders: [
       'Content-Type',
       'Authorization',
-      'X-CSRF-Token', // Agregar este header (puede ser en minúsculas o mayúsculas)
-      'x-csrf-token', // También en minúsculas por si acaso
+      'X-CSRF-Token', // Hola mundo
+      'x-csrf-token',
     ],
     credentials: true,
   });
