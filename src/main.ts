@@ -37,7 +37,7 @@ async function bootstrap() {
       'https://sport-center-sitie.netlify.app',
       'http://localhost:8081',
       'http://localhost:19006',
-      'front-sport-rust.vercel.app',
+      'http://front-sport-rust.vercel.app',
     ],
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
