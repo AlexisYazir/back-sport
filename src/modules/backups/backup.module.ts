@@ -22,7 +22,16 @@ import { BackupRetentionPolicyEntity } from './entities/backup-retention-policy.
       'adminConnection',
     ),
   ],
-  controllers: [DbBackupController, DbMonitoringController, DbMaintenanceController],
-  providers: [DbBackupService, DbMonitoringService, DbMaintenanceService, R2StorageService],
+  controllers: [
+    DbBackupController,
+    DbMonitoringController,
+    DbMaintenanceController,
+  ],
+  providers: [
+    DbBackupService,
+    DbMonitoringService,
+    DbMaintenanceService,
+    R2StorageService,
+  ],
 })
 export class BackupModule {}

@@ -1,4 +1,3 @@
-/* eslint-disable */
 import { Controller, Get, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from '../../../services/auth/roles.guard';

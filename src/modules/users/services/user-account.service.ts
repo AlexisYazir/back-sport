@@ -7,6 +7,7 @@ import * as crypto from 'crypto';
 
 import { MailService } from '../../../services/mail/mail.service';
 import { CreateUserDto } from '../dto/create-user.dto';
+import { CreateUserResponseDto } from '../dto/create-user-response.dto';
 import { UpdateUserDto } from '../dto/update-user.dto';
 import { User } from '../entities/user.entity';
 
@@ -26,7 +27,9 @@ export class UserAccountService {
     private readonly mailService: MailService,
   ) {}
 
-  async createUser(createUserDto: CreateUserDto): Promise<User> {
+  async createUser(
+    createUserDto: CreateUserDto,
+  ): Promise<CreateUserResponseDto> {
     if (!createUserDto.email) {
       throw new BadRequestException('El correo es obligatorio');
     }
@@ -104,11 +107,14 @@ export class UserAccountService {
       await this.userEditorRepository.delete({ email: newUser.email });
       this.logger.error(error);
       throw new BadRequestException(
-        'Revisa que tu información sea correcta. Intenta de nuevo 1.' + error,
+        'Revisa que tu información sea correcta. Intenta de nuevo 1.',
       );
     }
 
-    return newUser;
+    return {
+      id_usuario: newUser.id_usuario,
+      email: newUser.email,
+    };
   }
 
   async verifyEmail(

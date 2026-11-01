@@ -11,7 +11,15 @@ import {
 
 export class UpdateShipmentDto {
   @IsString()
-  @IsIn(['pendiente', 'preparando', 'enviado', 'en transito', 'en_transito', 'entregado', 'incidencia'])
+  @IsIn([
+    'pendiente',
+    'preparando',
+    'enviado',
+    'en transito',
+    'en_transito',
+    'entregado',
+    'incidencia',
+  ])
   estado:
     | 'pendiente'
     | 'preparando'

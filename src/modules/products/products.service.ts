@@ -1,4 +1,3 @@
-/* eslint-disable */
 import { Injectable } from '@nestjs/common';
 
 import { CreateCategorieDto } from './dto/categories/create-categorie.dto';
@@ -100,9 +99,7 @@ export class ProductsService {
     return this.catalogService.uploadImage(file, folder);
   }
 
-  createProductVariant(
-    dto: CreateProductVariantDto,
-  ): Promise<ProductVariant> {
+  createProductVariant(dto: CreateProductVariantDto): Promise<ProductVariant> {
     return this.catalogService.createProductVariant(dto);
   }
 
@@ -116,23 +113,23 @@ export class ProductsService {
     return this.catalogService.createVariantAttributeValue(dto);
   }
 
-  getAllProducts(): Promise<any[]> {
+  getAllProducts(): Promise<unknown[]> {
     return this.catalogService.getAllProducts();
   }
 
-  getRecientProducts(): Promise<any[]> {
+  getRecientProducts(): Promise<unknown[]> {
     return this.catalogService.getRecientProducts();
   }
 
-  getProductsWithoutVariantsAttributes(): Promise<any[]> {
+  getProductsWithoutVariantsAttributes(): Promise<unknown[]> {
     return this.catalogService.getProductsWithoutVariantsAttributes();
   }
 
-  getVariantsByProduct(id: number): Promise<any[]> {
+  getVariantsByProduct(id: number): Promise<unknown[]> {
     return this.catalogService.getVariantsByProduct(id);
   }
 
-  getProductDetail(id: number): Promise<any[]> {
+  getProductDetail(id: number): Promise<unknown[]> {
     return this.catalogService.getProductDetail(id);
   }
 
@@ -150,7 +147,7 @@ export class ProductsService {
     return this.catalogService.getAttributes();
   }
 
-  getInventoryProducts(): Promise<any[]> {
+  getInventoryProducts(): Promise<unknown[]> {
     return this.inventoryService.getInventoryProducts();
   }
 
@@ -180,7 +177,7 @@ export class ProductsService {
     return this.inventoryService.getInventoryMovements();
   }
 
-  getVariantsForInventoryMovement(): Promise<any[]> {
+  getVariantsForInventoryMovement(): Promise<unknown[]> {
     return this.inventoryService.getVariantsForInventoryMovement();
   }
 
@@ -216,15 +213,15 @@ export class ProductsService {
     return this.brandCategoryService.getSports();
   }
 
-  getCompleteMenu(): Promise<any> {
+  getCompleteMenu(): Promise<unknown> {
     return this.brandCategoryService.getCompleteMenu();
   }
 
-  getOrderDetail(id: number): Promise<any[]> {
+  getOrderDetail(id: number): Promise<unknown[]> {
     return this.ordersService.getOrderDetail(id);
   }
 
-  getAllOrders(): Promise<any[]> {
+  getAllOrders(): Promise<unknown[]> {
     return this.ordersService.getAllOrders();
   }
 
@@ -232,11 +229,11 @@ export class ProductsService {
     return this.ordersService.getOrderss();
   }
 
-  getEmployeeOrders(): Promise<any[]> {
+  getEmployeeOrders(): Promise<unknown[]> {
     return this.ordersService.getEmployeeOrders();
   }
 
-  getUserOrders(id_usuario: number): Promise<any[]> {
+  getUserOrders(id_usuario: number): Promise<unknown[]> {
     return this.ordersService.getUserOrders(id_usuario);
   }
 
@@ -248,11 +245,11 @@ export class ProductsService {
     return this.ordersService.updateOrderStatus(id_orden, estado, cambiado_por);
   }
 
-  getOrderTracking(id_usuario: number, id_orden: number): Promise<any> {
+  getOrderTracking(id_usuario: number, id_orden: number): Promise<unknown> {
     return this.ordersService.getOrderTracking(id_usuario, id_orden);
   }
 
-  getOrderTrackingForStaff(id_orden: number): Promise<any> {
+  getOrderTrackingForStaff(id_orden: number): Promise<unknown> {
     return this.ordersService.getOrderTrackingForStaff(id_orden);
   }
 
@@ -260,14 +257,14 @@ export class ProductsService {
     id_orden: number,
     dto: UpdateShipmentDto,
     cambiado_por: number,
-  ): Promise<any> {
+  ): Promise<unknown> {
     return this.ordersService.updateShipment(id_orden, dto, cambiado_por);
   }
 
   generateDeliveryConfirmationCode(
     id_orden: number,
     generado_por: number,
-  ): Promise<any> {
+  ): Promise<unknown> {
     return this.ordersService.generateDeliveryConfirmationCode(
       id_orden,
       generado_por,
@@ -278,7 +275,7 @@ export class ProductsService {
     id_usuario: number,
     id_orden: number,
     codigo: string,
-  ): Promise<any> {
+  ): Promise<unknown> {
     return this.ordersService.confirmDeliveryByCustomer(
       id_usuario,
       id_orden,
@@ -289,15 +286,15 @@ export class ProductsService {
   createReturnRequest(
     id_usuario: number,
     dto: CreateReturnDto,
-  ): Promise<any> {
+  ): Promise<unknown> {
     return this.ordersService.createReturnRequest(id_usuario, dto);
   }
 
-  getUserReturns(id_usuario: number): Promise<any[]> {
+  getUserReturns(id_usuario: number): Promise<unknown[]> {
     return this.ordersService.getUserReturns(id_usuario);
   }
 
-  getAllReturns(): Promise<any[]> {
+  getAllReturns(): Promise<unknown[]> {
     return this.ordersService.getAllReturns();
   }
 
@@ -305,7 +302,7 @@ export class ProductsService {
     id_devolucion: number,
     dto: UpdateReturnStatusDto,
     cambiado_por: number,
-  ): Promise<any> {
+  ): Promise<unknown> {
     return this.ordersService.updateReturnStatus(
       id_devolucion,
       dto,
@@ -313,11 +310,14 @@ export class ProductsService {
     );
   }
 
-  getProductReviews(id_producto: number): Promise<any> {
+  getProductReviews(id_producto: number): Promise<unknown> {
     return this.reviewsService.getProductReviews(id_producto);
   }
 
-  getReviewEligibility(id_usuario: number, id_producto: number): Promise<{
+  getReviewEligibility(
+    id_usuario: number,
+    id_producto: number,
+  ): Promise<{
     canReview: boolean;
     hasDeliveredPurchase: boolean;
     hasReview: boolean;
@@ -330,15 +330,15 @@ export class ProductsService {
     return this.reviewsService.createReview(id_usuario, dto);
   }
 
-  getAllReviewsAdmin(): Promise<any[]> {
+  getAllReviewsAdmin(): Promise<unknown[]> {
     return this.reviewsService.getAllReviewsAdmin();
   }
 
-  getCart(id_usuario: number): Promise<any> {
+  getCart(id_usuario: number): Promise<unknown> {
     return this.cartService.getCart(id_usuario);
   }
 
-  addCartItem(id_usuario: number, dto: AddCartItemDto): Promise<any> {
+  addCartItem(id_usuario: number, dto: AddCartItemDto): Promise<unknown> {
     return this.cartService.addItem(id_usuario, dto);
   }
 
@@ -346,15 +346,15 @@ export class ProductsService {
     id_usuario: number,
     id_variante: number,
     dto: UpdateCartItemDto,
-  ): Promise<any> {
+  ): Promise<unknown> {
     return this.cartService.updateItem(id_usuario, id_variante, dto);
   }
 
-  removeCartItem(id_usuario: number, id_variante: number): Promise<any> {
+  removeCartItem(id_usuario: number, id_variante: number): Promise<unknown> {
     return this.cartService.removeItem(id_usuario, id_variante);
   }
 
-  clearCart(id_usuario: number): Promise<any> {
+  clearCart(id_usuario: number): Promise<unknown> {
     return this.cartService.clearCart(id_usuario);
   }
 
@@ -362,7 +362,7 @@ export class ProductsService {
     id_usuario: number,
     codigo_promocion?: string,
     id_metodo_envio?: number,
-  ): Promise<any> {
+  ): Promise<unknown> {
     return this.checkoutService.getCheckoutSummary(
       id_usuario,
       codigo_promocion,
@@ -370,25 +370,25 @@ export class ProductsService {
     );
   }
 
-  lookupPostalCode(codigoPostal: string): Promise<any> {
+  lookupPostalCode(codigoPostal: string): Promise<unknown> {
     return this.checkoutService.lookupPostalCode(codigoPostal);
   }
 
-  getUserPaymentMethods(id_usuario: number): Promise<any[]> {
+  getUserPaymentMethods(id_usuario: number): Promise<unknown[]> {
     return this.checkoutService.getUserPaymentMethods(id_usuario);
   }
 
   createUserPaymentMethod(
     id_usuario: number,
     dto: CheckoutCardDto,
-  ): Promise<any> {
+  ): Promise<unknown> {
     return this.checkoutService.createUserPaymentMethod(id_usuario, dto);
   }
 
   deleteUserPaymentMethod(
     id_usuario: number,
     id_metodo_pago: number,
-  ): Promise<any> {
+  ): Promise<unknown> {
     return this.checkoutService.deleteUserPaymentMethod(
       id_usuario,
       id_metodo_pago,
@@ -398,23 +398,26 @@ export class ProductsService {
   confirmCheckout(
     id_usuario: number,
     dto: CreateCheckoutOrderDto,
-  ): Promise<any> {
+  ): Promise<unknown> {
     return this.checkoutService.confirmCheckout(id_usuario, dto);
   }
 
-  processMercadoPagoWebhook(body: any, query: any): Promise<any> {
+  processMercadoPagoWebhook(
+    body: unknown,
+    query: Record<string, unknown>,
+  ): Promise<unknown> {
     return this.checkoutService.processMercadoPagoWebhook(body, query);
   }
 
-  getPromotions(admin = false): Promise<any[]> {
+  getPromotions(admin = false): Promise<unknown[]> {
     return this.promotionsService.getPromotions(admin);
   }
 
-  getOfferProducts(): Promise<any[]> {
+  getOfferProducts(): Promise<unknown[]> {
     return this.promotionsService.getOfferProducts();
   }
 
-  createPromotion(dto: CreatePromotionDto, userId: number): Promise<any> {
+  createPromotion(dto: CreatePromotionDto, userId: number): Promise<unknown> {
     return this.promotionsService.createPromotion(dto, userId);
   }
 
@@ -422,19 +425,18 @@ export class ProductsService {
     id: number,
     dto: UpdatePromotionDto,
     userId: number,
-  ): Promise<any> {
+  ): Promise<unknown> {
     return this.promotionsService.updatePromotion(id, dto, userId);
   }
 
-  getShippingMethods(admin = false): Promise<any[]> {
+  getShippingMethods(admin = false): Promise<unknown[]> {
     return this.promotionsService.getShippingMethods(admin);
   }
 
   updateShippingMethod(
     id: number,
     dto: UpdateShippingMethodDto,
-  ): Promise<any> {
+  ): Promise<unknown> {
     return this.promotionsService.updateShippingMethod(id, dto);
   }
-
 }

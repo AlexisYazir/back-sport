@@ -12,7 +12,9 @@ import {
   ParseIntPipe,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import type { AuthenticatedRequest } from '../../services/auth/authenticated-request';
 import { CompanyService } from './company.service';
+import type { BannerImageInput } from './dto/banner-image.dto';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { CreateFaqDto } from './dto/create-faq.dto';
@@ -56,16 +58,19 @@ export class CompanyController {
 
   @Post('banner')
   @UseGuards(AuthGuard('jwt'))
-  async createBannerImage(@Req() req: any, @Body() dto: any) {
+  async createBannerImage(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: BannerImageInput,
+  ) {
     return this.companyService.createBannerImage(dto, req.user?.id_usuario);
   }
 
   @Patch('banner/:id')
   @UseGuards(AuthGuard('jwt'))
   async updateBannerImage(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,
-    @Body() dto: any,
+    @Body() dto: BannerImageInput,
   ) {
     return this.companyService.updateBannerImage(id, dto, req.user?.id_usuario);
   }

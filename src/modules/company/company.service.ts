@@ -11,6 +11,7 @@ import { Faq } from './entities/faq.entity';
 import { ContactMessage } from './entities/contact-message.entity';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
+import type { BannerImage, BannerImageInput } from './dto/banner-image.dto';
 import { CreateFaqDto } from './dto/create-faq.dto';
 import { UpdateFaqDto } from './dto/update-faq.dto';
 import { CreateContactMessageDto } from './dto/create-contact-message.dto';
@@ -137,7 +138,10 @@ export class CompanyService {
     `);
   }
 
-  async createBannerImage(dto: any, userId?: number): Promise<any> {
+  async createBannerImage(
+    dto: BannerImageInput,
+    userId?: number,
+  ): Promise<BannerImage> {
     const url = this.cleanRequiredText(dto?.url_imagen, 1200);
     const active = dto?.activo !== false;
 
@@ -145,7 +149,7 @@ export class CompanyService {
       await this.validateActiveBannerLimit();
     }
 
-    const rows = await this.editorDataSource.query(
+    const rows = await this.editorDataSource.query<BannerImage[]>(
       `
       INSERT INTO core.home_banner_images (
         url_imagen,
@@ -178,12 +182,18 @@ export class CompanyService {
     return rows[0];
   }
 
-  async updateBannerImage(id: number, dto: any, userId?: number): Promise<any> {
+  async updateBannerImage(
+    id: number,
+    dto: BannerImageInput,
+    userId?: number,
+  ): Promise<BannerImage> {
     if (!Number.isInteger(Number(id)) || Number(id) <= 0) {
       throw new BadRequestException('El banner debe ser válido');
     }
 
-    const existingRows = await this.readerDataSource.query(
+    const existingRows = await this.readerDataSource.query<
+      Pick<BannerImage, 'id_banner' | 'activo'>[]
+    >(
       `
       SELECT id_banner, activo
       FROM core.home_banner_images
@@ -201,7 +211,7 @@ export class CompanyService {
       await this.validateActiveBannerLimit(Number(id));
     }
 
-    const rows = await this.editorDataSource.query(
+    const rows = await this.editorDataSource.query<BannerImage[]>(
       `
       UPDATE core.home_banner_images
       SET url_imagen = COALESCE($2, url_imagen),
@@ -222,11 +232,15 @@ export class CompanyService {
         dto?.cloudinary_public_id !== undefined
           ? this.cleanOptionalText(dto.cloudinary_public_id, 255)
           : null,
-        dto?.titulo !== undefined ? this.cleanOptionalText(dto.titulo, 120) : null,
+        dto?.titulo !== undefined
+          ? this.cleanOptionalText(dto.titulo, 120)
+          : null,
         dto?.descripcion !== undefined
           ? this.cleanOptionalText(dto.descripcion, 255)
           : null,
-        dto?.alt_text !== undefined ? this.cleanOptionalText(dto.alt_text, 180) : null,
+        dto?.alt_text !== undefined
+          ? this.cleanOptionalText(dto.alt_text, 180)
+          : null,
         dto?.orden !== undefined ? this.toPositiveInteger(dto.orden, 1) : null,
         dto?.activo !== undefined ? Boolean(dto.activo) : null,
         userId || null,

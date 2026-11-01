@@ -59,6 +59,10 @@ export interface RecommendByIdRequest {
   limit: number;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
 @Injectable()
 export class MlInferenceService {
   private readonly logger = new Logger(MlInferenceService.name);
@@ -68,18 +72,26 @@ export class MlInferenceService {
   constructor(private readonly configService: ConfigService) {
     // URL del servicio ML (ahora externo)
     // TODO ESTE SERVICIO SE DEBE QUITAR XD, SOLO SE DEBE DEJAR LO DE RECOMENDACION DE PRODUCTOS
-    this.mlUrl = this.configService.get<string>('ML_INFERENCE_URL') || 'http://localhost:8001';
-    
+    this.mlUrl =
+      this.configService.get<string>('ML_INFERENCE_URL') ||
+      'http://localhost:8001';
+
     this.client = axios.create({
       baseURL: this.mlUrl,
-      timeout: Number(this.configService.get('ML_INFERENCE_TIMEOUT_MS') || 30000),
+      timeout: Number(
+        this.configService.get<string | number>('ML_INFERENCE_TIMEOUT_MS') ||
+          30000,
+      ),
     });
 
     this.logger.log(`🔗 ML Service conectado a: ${this.mlUrl}`);
   }
 
   async health(): Promise<Record<string, unknown>> {
-    const response = await this.request<Record<string, unknown>>('get', '/health');
+    const response = await this.request<Record<string, unknown>>(
+      'get',
+      '/health',
+    );
     return response;
   }
 
@@ -130,15 +142,25 @@ export class MlInferenceService {
           ? await this.client.get<T>(url)
           : await this.client.post<T>(url, data);
       return response.data;
-    } catch (error: any) {
-      const detail = error?.response?.data?.detail || error?.message || error;
-      this.logger.error(`❌ Error en servicio ML ${this.mlUrl}${url}: ${detail}`);
-      
+    } catch (error: unknown) {
+      const errorRecord = isRecord(error) ? error : undefined;
+      const response = errorRecord?.response;
+      const responseData = isRecord(response) ? response.data : undefined;
+      const detail =
+        (isRecord(responseData) ? responseData.detail : undefined) ||
+        errorRecord?.message ||
+        error;
+      this.logger.error(
+        `❌ Error en servicio ML ${this.mlUrl}${url}: ${String(detail)}`,
+      );
+
       // Si el ML no responde, devolvemos un error claro
-      if (error?.code === 'ECONNREFUSED') {
-        throw new BadGatewayException(`Servicio ML no disponible en ${this.mlUrl}`);
+      if (errorRecord?.code === 'ECONNREFUSED') {
+        throw new BadGatewayException(
+          `Servicio ML no disponible en ${this.mlUrl}`,
+        );
       }
-      
+
       throw new BadGatewayException('Servicio de inteligencia no disponible');
     }
   }
