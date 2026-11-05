@@ -3,6 +3,7 @@ import {
   Injectable,
   BadRequestException,
   NotFoundException,
+  ConflictException,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
@@ -423,7 +424,7 @@ export class CompanyService {
   }
 
   async getAllContactMessages(leido?: boolean): Promise<ContactMessage[]> {
-    const where: any = {};
+    const where: { leido?: boolean } = {};
     if (leido !== undefined) {
       where.leido = leido;
     }
@@ -431,14 +432,12 @@ export class CompanyService {
     return await this.contactReaderRepository.find({
       where,
       order: { created_at: 'DESC' },
-      relations: ['usuario_responde'],
     });
   }
 
   async getContactMessageById(id: number): Promise<ContactMessage> {
-    const message = await this.contactReaderRepository.findOne({
+    const message = await this.contactEditorRepository.findOne({
       where: { id_mensaje: id },
-      relations: ['usuario_responde'],
     });
 
     if (!message) {
@@ -449,7 +448,10 @@ export class CompanyService {
     if (!message.leido) {
       message.leido = true;
       message.fecha_lectura = new Date();
-      await this.contactEditorRepository.save(message);
+      await this.contactEditorRepository.update(id, {
+        leido: true,
+        fecha_lectura: message.fecha_lectura,
+      });
     }
 
     return message;
@@ -458,8 +460,12 @@ export class CompanyService {
   async updateContactMessage(
     id: number,
     updateDto: UpdateContactMessageDto,
+    actorId: number,
   ): Promise<ContactMessage> {
-    const message = await this.contactReaderRepository.findOne({
+    if (!Number.isSafeInteger(actorId) || actorId <= 0) {
+      throw new BadRequestException('El administrador no es válido');
+    }
+    const message = await this.contactEditorRepository.findOne({
       where: { id_mensaje: id },
     });
 
@@ -467,21 +473,68 @@ export class CompanyService {
       throw new NotFoundException('Mensaje de contacto no encontrado');
     }
 
-    Object.assign(message, updateDto);
-    return await this.contactEditorRepository.save(message);
+    const changes: Partial<ContactMessage> = {};
+    if (updateDto.leido !== undefined) {
+      changes.leido = updateDto.leido;
+      changes.fecha_lectura = updateDto.leido
+        ? (message.fecha_lectura ?? new Date())
+        : null;
+    }
+    if (updateDto.respondido !== undefined) {
+      changes.respondido = updateDto.respondido;
+      changes.id_usuario_responde = updateDto.respondido ? actorId : null;
+    }
+    if (Object.keys(changes).length === 0) return message;
+    const result = await this.contactEditorRepository.update(id, changes);
+    if (result.affected !== 1) {
+      throw new NotFoundException('Mensaje de contacto no encontrado');
+    }
+    const updated = await this.contactEditorRepository.findOne({
+      where: { id_mensaje: id },
+    });
+    if (!updated) {
+      throw new NotFoundException('Mensaje de contacto no encontrado');
+    }
+    return updated;
   }
 
   async deleteContactMessage(id: number): Promise<{ message: string }> {
-    const message = await this.contactReaderRepository.findOne({
-      where: { id_mensaje: id },
-    });
-
-    if (!message) {
-      throw new NotFoundException('Mensaje de contacto no encontrado');
+    try {
+      return await this.editorDataSource.transaction(async (manager) => {
+        const contacts = manager.getRepository(ContactMessage);
+        const message = await contacts.findOne({
+          where: { id_mensaje: id },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!message) {
+          throw new NotFoundException('Mensaje de contacto no encontrado');
+        }
+        const history = await manager.query<{ id_evento: number }[]>(
+          'SELECT id_evento FROM core.review_moderation_events WHERE id_mensaje = $1 LIMIT 1',
+          [id],
+        );
+        if (history.length) {
+          throw new ConflictException(
+            'El reporte forma parte del historial de moderación y debe conservarse',
+          );
+        }
+        await contacts.delete(id);
+        return { message: 'Mensaje eliminado correctamente' };
+      });
+    } catch (error: unknown) {
+      // La FK también protege frente a una vinculación concurrente del folio.
+      if (
+        error !== null &&
+        typeof error === 'object' &&
+        'code' in error &&
+        error.code === '23503'
+      ) {
+        throw new ConflictException(
+          'El reporte forma parte del historial de moderación y debe conservarse',
+        );
+      }
+      throw error;
     }
-
-    await this.contactEditorRepository.delete(id);
-    return { message: 'Mensaje eliminado correctamente' };
   }
 
   private cleanRequiredText(value: unknown, maxLength: number): string {

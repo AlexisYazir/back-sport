@@ -6,6 +6,7 @@ import { Repository } from 'typeorm';
 import { CreateReviewDto } from '../dto/reviews/create-review.dto';
 import { Product } from '../entities/product/product.entity';
 import { Review } from '../entities/reviews/review.entity';
+import type { PublicReview } from '../types/review-moderation.types';
 
 @Injectable()
 export class ProductReviewsService {
@@ -133,8 +134,11 @@ export class ProductReviewsService {
         throw new BadRequestException('El producto debe ser válido');
       }
 
-      const reviews = await this.reviewReaderRepository.query(
-        `
+      return await this.reviewReaderRepository.manager.transaction(
+        'REPEATABLE READ',
+        async (manager) => {
+          const reviews = await manager.query(
+            `
         SELECT
           r.id_review,
           r.id_producto,
@@ -146,27 +150,29 @@ export class ProductReviewsService {
         FROM core.reviews r
         LEFT JOIN core.users u
           ON u.id_usuario = r.id_usuario
-        WHERE r.id_producto = $1
+        WHERE r.id_producto = $1 AND r.retirada = false
         ORDER BY r.fecha DESC;
         `,
-        [id_producto],
-      );
+            [id_producto],
+          );
 
-      const summary = await this.reviewReaderRepository.query(
-        `
+          const summary = await manager.query(
+            `
         SELECT
           COUNT(*)::int AS total,
           COALESCE(ROUND(AVG(calificacion)::numeric, 1), 0)::float AS promedio
         FROM core.reviews
-        WHERE id_producto = $1;
+        WHERE id_producto = $1 AND retirada = false;
         `,
-        [id_producto],
-      );
+            [id_producto],
+          );
 
-      return {
-        reviews,
-        summary: summary[0] ?? { total: 0, promedio: 0 },
-      };
+          return {
+            reviews,
+            summary: summary[0] ?? { total: 0, promedio: 0 },
+          };
+        },
+      );
     } catch (error) {
       this.logger.error('Error al consultar reseñas de producto:', error);
       throw error;
@@ -176,7 +182,7 @@ export class ProductReviewsService {
   async createReview(
     id_usuario: number,
     dto: CreateReviewDto,
-  ): Promise<Review> {
+  ): Promise<PublicReview> {
     try {
       if (!Number.isInteger(id_usuario) || id_usuario <= 0) {
         throw new BadRequestException('El usuario debe ser válido');
@@ -202,7 +208,15 @@ export class ProductReviewsService {
         comentario: this.normalizeComment(dto.comentario),
       });
 
-      return await this.reviewEditorRepository.save(review);
+      const saved = await this.reviewEditorRepository.save(review);
+      return {
+        id_review: saved.id_review,
+        id_producto: saved.id_producto,
+        id_usuario: saved.id_usuario,
+        calificacion: saved.calificacion,
+        comentario: saved.comentario,
+        fecha: saved.fecha,
+      };
     } catch (error) {
       this.logger.error('Error al crear reseña de producto:', error);
 
@@ -229,6 +243,8 @@ export class ProductReviewsService {
         r.calificacion,
         r.comentario,
         r.fecha,
+        r.retirada,
+        r.revision,
         COALESCE(NULLIF(TRIM(u.nombre), ''), 'Usuario') AS usuario,
         u.email,
         p.nombre AS producto

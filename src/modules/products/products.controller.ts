@@ -16,6 +16,7 @@ import {
   ParseIntPipe,
   Req,
   Query,
+  Header,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
@@ -40,6 +41,7 @@ import { Roles } from '../../services/auth/roles.decorator';
 import { AuthGuard } from '@nestjs/passport';
 import type { AuthenticatedRequest } from '../../services/auth/authenticated-request';
 import { RolesGuard } from '../../services/auth/roles.guard';
+import { ActiveAdminGuard } from '../../services/auth/active-admin.guard';
 
 import { CreateInventoryMovementDto } from './dto/inventory/create-inventory_movement.dto';
 import { CreateInventoryMovementSkuDto } from './dto/inventory/create-inventory-movement-sku.dto';
@@ -58,6 +60,10 @@ import {
   UpdateShippingMethodDto,
 } from './dto/promotions/promotion.dto';
 import { CreateReviewDto } from './dto/reviews/create-review.dto';
+import {
+  ModerateReviewDto,
+  ReviewReportsQueryDto,
+} from './dto/reviews/moderation.dto';
 import { AddCartItemDto } from './dto/cart/add-cart-item.dto';
 import { UpdateCartItemDto } from './dto/cart/update-cart-item.dto';
 import {
@@ -462,6 +468,7 @@ export class ProductsController {
   }
 
   @Get('reviews/product/:id')
+  @Header('Cache-Control', 'no-store')
   async getProductReviews(@Param('id', ParseIntPipe) id: number) {
     return this.productsService.getProductReviews(id);
   }
@@ -475,11 +482,40 @@ export class ProductsController {
     return this.productsService.getReviewEligibility(req.user.id_usuario, id);
   }
 
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(AuthGuard('jwt'), RolesGuard, ActiveAdminGuard)
   @Roles(3)
   @Get('reviews/admin/all')
+  @Header('Cache-Control', 'no-store')
   async getAllReviewsAdmin() {
     return this.productsService.getAllReviewsAdmin();
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard, ActiveAdminGuard)
+  @Roles(3)
+  @Get('reviews/admin/reports')
+  @Header('Cache-Control', 'no-store')
+  async getReviewReports(@Query() query: ReviewReportsQueryDto) {
+    return this.productsService.getReviewReports(query);
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard, ActiveAdminGuard)
+  @Roles(3)
+  @Get('reviews/admin/:id/moderation')
+  @Header('Cache-Control', 'no-store')
+  async getReviewModeration(@Param('id', ParseIntPipe) id: number) {
+    return this.productsService.getReviewModeration(id);
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard, ActiveAdminGuard)
+  @Roles(3)
+  @Post('reviews/admin/:id/moderation')
+  @Header('Cache-Control', 'no-store')
+  async moderateReview(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ModerateReviewDto,
+  ) {
+    return this.productsService.moderateReview(id, req.user.id_usuario, dto);
   }
 
   @UseGuards(AuthGuard('jwt'))

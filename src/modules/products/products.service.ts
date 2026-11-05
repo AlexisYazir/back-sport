@@ -28,7 +28,6 @@ import { Attribute } from './entities/product/atributtes.entity';
 import { Product } from './entities/product/product.entity';
 import { ProductVariant } from './entities/product/product_variant.entity';
 import { VariantAttributeValue } from './entities/product/variant_attr_vals.entity';
-import { Review } from './entities/reviews/review.entity';
 import { Sports } from './entities/sports/sport.entity';
 import { CreateReviewDto } from './dto/reviews/create-review.dto';
 import { CloudinaryUploadResult } from './services/cloudinary.service';
@@ -37,6 +36,16 @@ import { ProductCatalogService } from './services/product-catalog.service';
 import { ProductInventoryService } from './services/product-inventory.service';
 import { ProductOrdersService } from './services/product-orders.service';
 import { ProductReviewsService } from './services/product-reviews.service';
+import { ProductReviewModerationService } from './services/product-review-moderation.service';
+import {
+  ModerateReviewDto,
+  ReviewReportsQueryDto,
+} from './dto/reviews/moderation.dto';
+import type {
+  PublicReview,
+  ReviewModerationDetail,
+  ReviewReportPage,
+} from './types/review-moderation.types';
 import { ProductCartService } from './services/product-cart.service';
 import { ProductCheckoutService } from './services/product-checkout.service';
 import { ProductPromotionsService } from './services/product-promotions.service';
@@ -79,6 +88,7 @@ export class ProductsService {
     private readonly cartService: ProductCartService,
     private readonly checkoutService: ProductCheckoutService,
     private readonly promotionsService: ProductPromotionsService,
+    private readonly reviewModerationService: ProductReviewModerationService,
   ) {}
 
   createProduct(createProductDto: CreateProductDto): Promise<Product> {
@@ -326,12 +336,31 @@ export class ProductsService {
     return this.reviewsService.getReviewEligibility(id_usuario, id_producto);
   }
 
-  createReview(id_usuario: number, dto: CreateReviewDto): Promise<Review> {
+  createReview(
+    id_usuario: number,
+    dto: CreateReviewDto,
+  ): Promise<PublicReview> {
     return this.reviewsService.createReview(id_usuario, dto);
   }
 
   getAllReviewsAdmin(): Promise<unknown[]> {
     return this.reviewsService.getAllReviewsAdmin();
+  }
+
+  getReviewReports(query: ReviewReportsQueryDto): Promise<ReviewReportPage> {
+    return this.reviewModerationService.getReviewReports(query);
+  }
+
+  getReviewModeration(id: number): Promise<ReviewModerationDetail> {
+    return this.reviewModerationService.getReviewModeration(id);
+  }
+
+  moderateReview(
+    id: number,
+    actorId: number,
+    dto: ModerateReviewDto,
+  ): Promise<ReviewModerationDetail> {
+    return this.reviewModerationService.moderateReview(id, actorId, dto);
   }
 
   getCart(id_usuario: number): Promise<unknown> {

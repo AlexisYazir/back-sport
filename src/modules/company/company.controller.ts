@@ -13,6 +13,9 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import type { AuthenticatedRequest } from '../../services/auth/authenticated-request';
+import { Roles } from '../../services/auth/roles.decorator';
+import { RolesGuard } from '../../services/auth/roles.guard';
+import { ActiveAdminGuard } from '../../services/auth/active-admin.guard';
 import { CompanyService } from './company.service';
 import type { BannerImageInput } from './dto/banner-image.dto';
 import { CreateCompanyDto } from './dto/create-company.dto';
@@ -139,7 +142,8 @@ export class CompanyController {
   }
 
   @Get('contact')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), RolesGuard, ActiveAdminGuard)
+  @Roles(3)
   async getAllContactMessages(@Query('leido') leido?: string) {
     const leidoBool =
       leido === 'true' ? true : leido === 'false' ? false : undefined;
@@ -147,22 +151,30 @@ export class CompanyController {
   }
 
   @Get('contact/:id')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), RolesGuard, ActiveAdminGuard)
+  @Roles(3)
   async getContactMessageById(@Param('id', ParseIntPipe) id: number) {
     return this.companyService.getContactMessageById(id);
   }
 
   @Patch('contact/:id')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), RolesGuard, ActiveAdminGuard)
+  @Roles(3)
   async updateContactMessage(
+    @Req() req: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,
     @Body() updateDto: UpdateContactMessageDto,
   ) {
-    return this.companyService.updateContactMessage(id, updateDto);
+    return this.companyService.updateContactMessage(
+      id,
+      updateDto,
+      req.user.id_usuario,
+    );
   }
 
   @Delete('contact/:id')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), RolesGuard, ActiveAdminGuard)
+  @Roles(3)
   async deleteContactMessage(@Param('id', ParseIntPipe) id: number) {
     return this.companyService.deleteContactMessage(id);
   }
