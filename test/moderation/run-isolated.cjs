@@ -18,6 +18,8 @@ const FILES = [
   'src/modules/products/entities/reviews/review.entity.ts',
   'src/modules/products/entities/reviews/review-moderation-event.entity.ts',
   'src/database/migrations/1793740000000-ReviewModeration.ts',
+  'src/database/moderation-data-source.ts',
+  'scripts/moderation-migrate.cjs',
   'src/modules/company/company.controller.ts',
   'src/modules/company/company.service.ts',
   'src/modules/company/entities/contact-message.entity.ts',
@@ -30,6 +32,7 @@ const FILES = [
   'test/moderation/schema.sql',
   'test/moderation/compose.yml',
   'test/moderation/run-isolated.cjs',
+  'test/moderation/network-guard.cjs',
   'package-lock.json',
 ];
 const hashes = () =>
@@ -45,7 +48,7 @@ const hashes = () =>
 function guard(config) {
   assert.match(config.name, /^sportcenter-moderation-qa-\d+$/);
   assert.deepEqual(Object.keys(config.services), ['db']);
-  assert.equal(config.networks.isolated.internal === true, false);
+  assert.notEqual(config.networks.isolated.internal, true);
   const db = config.services.db;
   assert.equal(db.image, PG);
   assert.deepEqual(Object.keys(db.networks), ['isolated']);
@@ -64,26 +67,14 @@ function guard(config) {
 function testEnvironment(port) {
   assert.match(String(port), /^\d+$/);
   assert.ok(Number(port) >= 1024 && Number(port) <= 65535);
-  const env = Object.fromEntries(
-    Object.entries(process.env).filter(([key]) =>
-      [
-        'PATH',
-        'SystemRoot',
-        'SYSTEMROOT',
-        'WINDIR',
-        'TEMP',
-        'TMP',
-        'USERPROFILE',
-        'COMSPEC',
-        'ComSpec',
-      ].includes(key),
-    ),
-  );
+  const env = systemEnvironment();
+  delete env.DOCKER_CONFIG;
   Object.assign(env, {
     NODE_ENV: 'test',
     MODERATION_QA: 'true',
     MODERATION_QA_PORT: String(port),
     JWT_SECRET: SECRET,
+    NODE_OPTIONS: '--require="' + path.join(__dirname, 'network-guard.cjs').replace(/\\/g, '/') + '"',
   });
   for (const role of ['ADMIN', 'EDITOR', 'READER'])
     env['DATABASE_URL_' + role] =
@@ -96,25 +87,35 @@ function testEnvironment(port) {
       '/sportcenter_moderation_qa';
   return env;
 }
-function main() {
+function systemEnvironment() {
+  return Object.fromEntries(Object.entries(process.env).filter(([key]) =>
+    /^(?:PATH|SystemRoot|SystemDrive|WINDIR|COMSPEC|PATHEXT|USERPROFILE|HOMEDRIVE|HOMEPATH|TEMP|TMP|APPDATA|LOCALAPPDATA|PROGRAMDATA|ProgramFiles(?:\(x86\))?|ProgramW6432|CommonProgramFiles(?:\(x86\))?|CommonProgramW6432|DOCKER_CONFIG)$/i.test(key)));
+}
+async function main() {
   assert.equal(
     process.env.MODERATION_QA,
     'true',
     'MODERATION_QA_OPT_IN_REQUIRED',
   );
-  const project = 'sportcenter-moderation-qa-' + process.pid;
+  const project = 'sportcenter-moderation-qa-' + process.pid + Date.now();
   const proof = path.join(ROOT, 'test-results', project);
   fs.mkdirSync(proof, { recursive: true, mode: 0o700 });
+  let dockerContext;
   const command = (program, args, options = {}) =>
-    execFileSync(program, args, {
+    execFileSync(program, program === 'docker' && dockerContext ? ['--context', dockerContext, ...args] : args, {
       cwd: ROOT,
       encoding: 'utf8',
-      env: { ...process.env, COMPOSE_DISABLE_ENV_FILE: 'true' },
+      env: { ...systemEnvironment(), COMPOSE_DISABLE_ENV_FILE: 'true' },
       stdio: ['ignore', 'pipe', 'pipe'],
       timeout: 30000,
       maxBuffer: 4 * 1024 * 1024,
       ...options,
     });
+  dockerContext = command('docker', ['context', 'show']).trim();
+  assert.match(dockerContext, /^[a-zA-Z0-9_.-]+$/);
+  const context = JSON.parse(command('docker', ['context', 'inspect', dockerContext]));
+  assert.equal(context.length, 1);
+  assert.ok(['npipe:////./pipe/dockerDesktopLinuxEngine', 'unix:///var/run/docker.sock'].includes(context[0].Endpoints.docker.Host), 'MODERATION_QA_LOCAL_DOCKER_REQUIRED');
   const compose = (args, timeout) =>
     command(
       'docker',
@@ -163,6 +164,8 @@ function main() {
     noProviderCredentials: true,
     loopbackPortVerified: false,
     internalDatabaseNetwork: false,
+    hostProcessLoopbackGuard: true,
+    dockerEndpointVerifiedLocal: true,
     migrationReal: true,
     jwtAndRolesReal: true,
     loginIssuanceTested: false,
@@ -180,6 +183,7 @@ function main() {
     );
     const id = compose(['ps', '--quiet', 'db']).trim();
     assert.match(id, /^[a-f0-9]{64}$/);
+    assert.equal(command('docker', ['network', 'inspect', project + '_isolated', '--format', '{{.Internal}}']).trim(), 'false');
     const ports = JSON.parse(
       command('docker', [
         'inspect',
@@ -192,6 +196,7 @@ function main() {
     assert.equal(ports['5432/tcp'].length, 1);
     const binding = ports['5432/tcp'][0];
     assert.equal(binding.HostIp, '127.0.0.1');
+    report.databaseLoopbackPort = Number(binding.HostPort);
     const env = testEnvironment(binding.HostPort);
     report.loopbackPortVerified = true;
     try {
@@ -227,8 +232,8 @@ function main() {
     report.total = report.tests.length;
     assert.ok(
       result.success &&
-        result.numTotalTests === 14 &&
-        result.numPassedTests === 14 &&
+        result.numTotalTests === 23 &&
+        result.numPassedTests === result.numTotalTests &&
         result.numPendingTests === 0,
     );
     assert.ok(
@@ -252,8 +257,15 @@ function main() {
   } finally {
     if (started)
       try {
+        const dump = compose(['exec', '-T', 'db', 'pg_dump', '--no-owner', '--no-acl', '-U', 'qa_admin', '-d', 'sportcenter_moderation_qa']);
+        fs.writeFileSync(path.join(proof, 'synthetic-final.sql'), dump, { mode: 0o600, flag: 'wx' });
+        report.finalDumpSha256 = crypto.createHash('sha256').update(dump).digest('hex');
+      } catch { report.finalDumpSha256 = null; }
+    if (started)
+      try {
         compose(['down', '--remove-orphans', '--timeout', '5']);
-        report.clean = compose(['ps', '--all', '--quiet']).trim() === '';
+        report.clean = compose(['ps', '--all', '--quiet']).trim() === '' &&
+          command('docker', ['network', 'ls', '--quiet', '--filter', 'label=com.docker.compose.project=' + project]).trim() === '';
       } catch {
         report.clean = false;
       }
@@ -261,8 +273,10 @@ function main() {
       report.status = 'failed';
       report.errorCode = 'MODERATION_QA_CLEANUP_FAILED';
     }
-    const raw = path.join(proof, 'jest-private.json');
-    if (report.status === 'passed' && fs.existsSync(raw)) fs.unlinkSync(raw);
+    if (!report.finalDumpSha256) {
+      report.status = 'failed';
+      report.errorCode = 'MODERATION_QA_BACKUP_FAILED';
+    }
     fs.writeFileSync(
       path.join(proof, 'summary.json'),
       JSON.stringify(report, null, 2) + '\n',
@@ -282,9 +296,11 @@ function main() {
 }
 module.exports = { guard, testEnvironment };
 if (require.main === module)
-  try {
-    main();
-  } catch {
+  main().catch((error) => {
+    const preparationProof = path.join(ROOT, 'test-results');
+    fs.mkdirSync(preparationProof, { recursive: true });
+    fs.writeFileSync(path.join(preparationProof, 'preparation-failure-' + process.pid + '-' + Date.now() + '.txt'),
+      String(error.stack || error) + '\n' + String(error.stderr || ''), { mode: 0o600 });
     process.stderr.write('MODERATION_QA_PREPARATION_FAILED\n');
     process.exitCode = 1;
-  }
+  });

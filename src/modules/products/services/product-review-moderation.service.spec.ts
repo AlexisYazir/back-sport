@@ -150,6 +150,14 @@ describe('Moderación: validación y decisiones del servidor', () => {
     expect(detail.review).toMatchObject({ retirada: false, revision: 0 });
     expect(detail.reports).toEqual(page.items);
     expect(detail.history).toEqual([]);
+    const contactReads = query.mock.calls
+      .map(([sql]) => sql)
+      .filter((sql) => sql.includes('contact_messages'));
+    expect(contactReads.length).toBeGreaterThan(0);
+    expect(
+      contactReads.every((sql) => sql.includes('FROM core.contact_messages')),
+    ).toBe(true);
+    expect(contactReads.join('\n')).not.toContain('public.contact_messages');
     expect(transaction.mock.calls.map(([level]) => level)).toEqual([
       'REPEATABLE READ',
       'REPEATABLE READ',
@@ -256,6 +264,10 @@ describe('Moderación: validación y decisiones del servidor', () => {
       1,
     ]);
     expect(f.writes[2].sql).toContain('leido=true');
+    expect(f.writes[2].sql).toContain('UPDATE core.contact_messages');
+    expect(
+      f.query.mock.calls.find(([sql]) => sql.startsWith('SELECT asunto'))?.[0],
+    ).toContain('FROM core.contact_messages');
     expect(f.writes[2].sql).not.toContain('respondido');
     expect(f.detailSpy).toHaveBeenCalledWith(7);
   });

@@ -60,7 +60,7 @@ const reportColumns = `m.id_mensaje,m.nombre,m.email,m.asunto,m.mensaje,
   m.created_at,m.leido,m.respondido,
   (r.id_review IS NOT NULL) AS referencia_valida,
   EXISTS(SELECT 1 FROM core.review_moderation_events e WHERE e.id_mensaje=m.id_mensaje) AS atendido`;
-const reportJoin = `FROM public.contact_messages m
+const reportJoin = `FROM core.contact_messages m
   LEFT JOIN LATERAL regexp_match(m.asunto,$1) AS ref(parts) ON true
   LEFT JOIN core.reviews r ON r.id_review::text=ref.parts[1]
     AND r.id_producto::text=ref.parts[2]`;
@@ -192,7 +192,7 @@ export class ProductReviewModerationService {
         );
       if (decision.id_mensaje !== undefined) {
         const messages = await manager.query<{ asunto: string | null }[]>(
-          'SELECT asunto FROM public.contact_messages WHERE id_mensaje=$1 FOR UPDATE',
+          'SELECT asunto FROM core.contact_messages WHERE id_mensaje=$1 FOR UPDATE',
           [decision.id_mensaje],
         );
         const reference = parseReviewReportSubject(messages[0]?.asunto ?? null);
@@ -230,7 +230,7 @@ export class ProductReviewModerationService {
       );
       if (decision.id_mensaje !== undefined)
         await manager.query(
-          `UPDATE public.contact_messages SET leido=true,
+          `UPDATE core.contact_messages SET leido=true,
            fecha_lectura=COALESCE(fecha_lectura,CURRENT_TIMESTAMP) WHERE id_mensaje=$1`,
           [decision.id_mensaje],
         );

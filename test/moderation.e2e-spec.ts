@@ -1,11 +1,13 @@
 import type { Server } from 'node:http';
+import { spawnSync } from 'node:child_process';
+import * as path from 'node:path';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { getDataSourceToken, getRepositoryToken } from '@nestjs/typeorm';
 import * as jwt from 'jsonwebtoken';
 import request from 'supertest';
-import { DataSource } from 'typeorm';
+import { DataSource, type QueryRunner } from 'typeorm';
 import { ReviewModeration1793740000000 } from '../src/database/migrations/1793740000000-ReviewModeration';
 import { CompanyController } from '../src/modules/company/company.controller';
 import { CompanyService } from '../src/modules/company/company.service';
@@ -108,22 +110,50 @@ function connection(role: 'ADMIN' | 'EDITOR' | 'READER'): string {
     throw new Error('MODERATION_QA_PROVIDERS_FORBIDDEN');
   }
   const value = process.env['DATABASE_URL_' + role] ?? '';
-  const url = new URL(value);
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error('MODERATION_QA_DATABASE_REQUIRED');
+  }
   const loopback =
     url.hostname === '127.0.0.1' &&
     /^\d+$/.test(process.env.MODERATION_QA_PORT ?? '') &&
     url.port === process.env.MODERATION_QA_PORT &&
-    Number(url.port) >= 1024;
+    Number(url.port) >= 1024 &&
+    Number(url.port) <= 65535;
   if (
     url.protocol !== 'postgres:' ||
     !loopback ||
     url.pathname !== '/sportcenter_moderation_qa' ||
-    url.username !== 'qa_' + role.toLowerCase()
+    url.username !== 'qa_' + role.toLowerCase() ||
+    url.password !== 'qa-' + role.toLowerCase() + '-local' ||
+    url.search !== '' ||
+    url.hash !== ''
   ) {
     throw new Error('MODERATION_QA_DATABASE_REQUIRED');
   }
   return value;
 }
+
+it('M00 rejects query parameters and fragments for every QA database role', () => {
+  for (const role of ['ADMIN', 'EDITOR', 'READER'] as const) {
+    const key = 'DATABASE_URL_' + role;
+    const original = process.env[key];
+    expect(typeof original).toBe('string');
+    try {
+      for (const suffix of ['?host=shared.invalid', '#host=shared.invalid']) {
+        process.env[key] = original + suffix;
+        expect(() => connection(role)).toThrow(
+          'MODERATION_QA_DATABASE_REQUIRED',
+        );
+      }
+    } finally {
+      if (original === undefined) delete process.env[key];
+      else process.env[key] = original;
+    }
+  }
+});
 
 describe('Moderation: real isolated PostgreSQL and HTTP', () => {
   let app: INestApplication<Server> | undefined;
@@ -135,6 +165,7 @@ describe('Moderation: real isolated PostgreSQL and HTTP', () => {
   let reportB: number;
   let rollbackReport: number;
   let originalContact: ContactMessage;
+  const migrationStatements: string[] = [];
 
   const token = (
     role: number,
@@ -189,16 +220,76 @@ describe('Moderation: real isolated PostgreSQL and HTTP', () => {
     responseBody<ModerationDetail>(
       await adminGet(`${BASE}/${id}/moderation`).expect(200),
     );
+  const migrationCli = (action: 'up' | 'down') => {
+    const env: NodeJS.ProcessEnv = {};
+    for (const key of [
+      'SystemRoot',
+      'WINDIR',
+      'ComSpec',
+      'PATH',
+      'PATHEXT',
+      'TEMP',
+      'TMP',
+    ]) {
+      if (process.env[key]) env[key] = process.env[key];
+    }
+    Object.assign(env, {
+      NODE_ENV: 'test',
+      ISOLATED_TEST_ENV: 'true',
+      QA_REVIEW_MODERATION: 'true',
+      DATABASE_URL_ADMIN: connection('ADMIN'),
+      NODE_OPTIONS: `--require="${path.join(__dirname, 'moderation/network-guard.cjs').replace(/\\/g, '/')}"`,
+    });
+    const result = spawnSync(
+      process.execPath,
+      [path.resolve(__dirname, '../scripts/moderation-migrate.cjs'), action],
+      {
+        cwd: path.resolve(__dirname, '..'),
+        env,
+        windowsHide: true,
+        encoding: 'utf8',
+        timeout: 15000,
+        maxBuffer: 65536,
+      },
+    );
+    expect(result.error).toBeUndefined();
+    expect(result.signal).toBeNull();
+    return result;
+  };
+  const migrationFootprint = async (): Promise<unknown> => {
+    const tables = await admin.query<unknown[]>(`
+      SELECT n.nspname,c.relname,c.relkind,a.attnum,a.attname,
+        pg_catalog.format_type(a.atttypid,a.atttypmod) AS data_type,a.attnotnull
+      FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
+      LEFT JOIN pg_catalog.pg_attribute a ON a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped
+      WHERE n.nspname IN ('core','public') ORDER BY n.nspname,c.relname,a.attnum
+    `);
+    const reviews = await admin.query<unknown[]>(
+      'SELECT * FROM core.reviews ORDER BY id_review',
+    );
+    return { tables, reviews };
+  };
 
   beforeAll(async () => {
     admin = new DataSource({
       type: 'postgres',
       url: connection('ADMIN'),
+      schema: 'core',
       entities,
       migrations: [ReviewModeration1793740000000],
-      migrationsTableName: 'moderation_qa_migrations',
+      migrationsTableName: 'review_moderation_migrations',
       synchronize: false,
-      logging: false,
+      logging: ['query'],
+      logger: {
+        logQuery(sql: string) {
+          migrationStatements.push(sql);
+        },
+        logQueryError() {},
+        logQuerySlow() {},
+        logSchemaBuild() {},
+        logMigration() {},
+        log() {},
+      },
     });
     editor = new DataSource({
       type: 'postgres',
@@ -279,16 +370,49 @@ describe('Moderation: real isolated PostgreSQL and HTTP', () => {
         transform: true,
       }),
     );
-    await app.init();
+    await app.listen(0, '127.0.0.1');
   }, 60000);
 
   afterAll(async () => {
-    if (app) await app.close();
-    for (const source of [reader, editor, admin])
-      if (source?.isInitialized) await source.destroy();
+    let closeFailed = false;
+    try {
+      if (app) await app.close();
+    } catch {
+      closeFailed = true;
+    }
+    for (const source of [reader, editor, admin]) {
+      try {
+        if (source?.isInitialized) await source.destroy();
+      } catch {
+        closeFailed = true;
+      }
+    }
+    if (closeFailed) throw new Error('MODERATION_QA_CLOSE_FAILED');
   });
 
   it('M01 migration up/down preserves existing rows and grants no PUBLIC access', async () => {
+    for (const source of [admin, editor, reader]) {
+      expect(
+        await source.query<Array<{ schema: string }>>(
+          'SELECT current_schema() AS schema',
+        ),
+      ).toEqual([{ schema: 'public' }]);
+    }
+    expect(editor.getRepository(ContactMessage).metadata.tablePath).toBe(
+      'core.contact_messages',
+    );
+    expect(
+      await admin.query<Array<{ present: string | null }>>(
+        "SELECT to_regclass('public.contact_messages')::text AS present",
+      ),
+    ).toEqual([{ present: null }]);
+    expect(
+      await admin.query<Array<{ referenced_table: string }>>(
+        `SELECT confrelid::regclass::text AS referenced_table FROM pg_constraint
+         WHERE conrelid='core.review_moderation_events'::regclass
+           AND confrelid='core.contact_messages'::regclass AND contype='f'`,
+      ),
+    ).toEqual([{ referenced_table: 'core.contact_messages' }]);
     const rows = await admin.query<
       Array<{ retirada: boolean; revision: number }>
     >('SELECT retirada,revision FROM core.reviews ORDER BY id_review');
@@ -313,6 +437,171 @@ describe('Moderation: real isolated PostgreSQL and HTTP', () => {
     ).toEqual([{ total: 5 }]);
     await admin.runMigrations({ transaction: 'all' });
   });
+
+  it('M19 actual CLI refuses an invalid schema without creating any migration ledger', async () => {
+    await admin.undoLastMigration({ transaction: 'all' });
+    expect(
+      await admin.query<Array<{ total: number }>>(
+        'SELECT count(*)::int AS total FROM core.review_moderation_migrations',
+      ),
+    ).toEqual([{ total: 0 }]);
+    await admin.query('DROP TABLE core.review_moderation_migrations');
+    await admin.query('ALTER TABLE core.contact_messages SET SCHEMA public');
+    try {
+      const before = await migrationFootprint();
+      const result = migrationCli('up');
+      expect(result.status).toBe(1);
+      expect(result.stderr).toBe('MODERATION_MIGRATION_CORE_SCHEMA_REQUIRED\n');
+      expect(await migrationFootprint()).toEqual(before);
+      expect(
+        await admin.query<Array<{ total: number }>>(`
+          SELECT count(*)::int AS total FROM pg_catalog.pg_class c
+          JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
+          WHERE n.nspname IN ('core','public')
+            AND c.relname IN ('review_moderation_migrations','moderation_qa_migrations')
+        `),
+      ).toEqual([{ total: 0 }]);
+    } finally {
+      await admin.query('ALTER TABLE public.contact_messages SET SCHEMA core');
+      await admin.runMigrations({ transaction: 'all' });
+    }
+  });
+
+  it('M20 actual CLI applies the canonical factory and refuses repeated up without mutations', async () => {
+    await admin.undoLastMigration({ transaction: 'all' });
+    try {
+      const applied = migrationCli('up');
+      expect(applied.status).toBe(0);
+      expect(applied.stdout).toBe('MODERATION_MIGRATION_QA_COMPLETED\n');
+      expect(applied.stderr).toBe('');
+      const ledger = await admin.query<unknown[]>(
+        'SELECT id,name,timestamp::text AS timestamp FROM core.review_moderation_migrations ORDER BY id',
+      );
+      expect(ledger).toEqual([
+        expect.objectContaining({
+          name: 'ReviewModeration1793740000000',
+          timestamp: '1793740000000',
+        }),
+      ]);
+      const before = await migrationFootprint();
+      const repeated = migrationCli('up');
+      expect(repeated.status).toBe(1);
+      expect(repeated.stderr).toBe(
+        'MODERATION_MIGRATION_ALREADY_RECORDED_REVIEW_REQUIRED\n',
+      );
+      expect(await migrationFootprint()).toEqual(before);
+      expect(
+        await admin.query<unknown[]>(
+          'SELECT id,name,timestamp::text AS timestamp FROM core.review_moderation_migrations ORDER BY id',
+        ),
+      ).toEqual(ledger);
+      expect(
+        await admin.query<Array<{ total: number }>>(
+          'SELECT count(*)::int AS total FROM core.review_moderation_events',
+        ),
+      ).toEqual([{ total: 0 }]);
+    } finally {
+      await admin.runMigrations({ transaction: 'all' });
+    }
+  });
+
+  it('M21 actual CLI refuses a legacy ledger without schema or ledger changes', async () => {
+    await admin.undoLastMigration({ transaction: 'all' });
+    await admin.query(
+      'CREATE TABLE public.moderation_qa_migrations(id integer PRIMARY KEY,name text NOT NULL,timestamp bigint NOT NULL)',
+    );
+    try {
+      const before = await migrationFootprint();
+      const result = migrationCli('up');
+      expect(result.status).toBe(1);
+      expect(result.stderr).toBe(
+        'MODERATION_MIGRATION_LEDGER_REVIEW_REQUIRED\n',
+      );
+      expect(await migrationFootprint()).toEqual(before);
+      for (const table of [
+        'core.review_moderation_migrations',
+        'public.moderation_qa_migrations',
+      ]) {
+        expect(
+          await admin.query<Array<{ total: number }>>(
+            `SELECT count(*)::int AS total FROM ${table}`,
+          ),
+        ).toEqual([{ total: 0 }]);
+      }
+    } finally {
+      await admin.query('DROP TABLE public.moderation_qa_migrations');
+      await admin.runMigrations({ transaction: 'all' });
+    }
+  });
+
+  it.each([
+    [
+      'M14',
+      'public-only contact table',
+      'ALTER TABLE core.contact_messages SET SCHEMA public',
+      'MODERATION_MIGRATION_CORE_SCHEMA_REQUIRED',
+    ],
+    [
+      'M15',
+      'ambiguous duplicate contact table',
+      'CREATE TABLE public.contact_messages (LIKE core.contact_messages INCLUDING ALL)',
+      'MODERATION_MIGRATION_CORE_SCHEMA_REQUIRED',
+    ],
+    [
+      'M16',
+      'missing contact column',
+      'ALTER TABLE core.contact_messages DROP COLUMN respondido',
+      'MODERATION_MIGRATION_CORE_SCHEMA_REQUIRED',
+    ],
+    [
+      'M17',
+      'incompatible contact primary-key type',
+      'ALTER TABLE core.contact_messages ALTER COLUMN id_mensaje TYPE bigint',
+      'MODERATION_MIGRATION_CORE_SCHEMA_REQUIRED',
+    ],
+    [
+      'M18',
+      'partially installed moderation columns',
+      'ALTER TABLE core.reviews ADD COLUMN retirada boolean NOT NULL DEFAULT false',
+      'MODERATION_MIGRATION_PARTIAL_SCHEMA',
+    ],
+  ])(
+    '%s preflight rejects %s before executing DDL',
+    async (_id, _label, mutation, code) => {
+      await admin.undoLastMigration({ transaction: 'all' });
+      const runner = admin.createQueryRunner();
+      const schemaState = async (source: QueryRunner): Promise<unknown> =>
+        (await source.query(
+          `SELECT n.nspname,c.relname,c.relkind,a.attnum,a.attname,
+           pg_catalog.format_type(a.atttypid,a.atttypmod) AS data_type,a.attnotnull
+         FROM pg_catalog.pg_class c
+         JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
+         LEFT JOIN pg_catalog.pg_attribute a ON a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped
+         WHERE n.nspname IN ('core','public')
+         ORDER BY n.nspname,c.relname,a.attnum`,
+        )) as unknown;
+      try {
+        await runner.connect();
+        await runner.startTransaction();
+        await runner.query(mutation);
+        const before = await schemaState(runner);
+        const offset = migrationStatements.length;
+        await expect(
+          new ReviewModeration1793740000000().up(runner),
+        ).rejects.toThrow(code);
+        const statements = migrationStatements.slice(offset);
+        expect(statements.length).toBeGreaterThan(0);
+        expect(
+          statements.every((sql) => /^\s*(SELECT|WITH)\b/i.test(sql)),
+        ).toBe(true);
+        expect(await schemaState(runner)).toEqual(before);
+      } finally {
+        if (runner.isTransactionActive) await runner.rollbackTransaction();
+        await runner.release();
+        await admin.runMigrations({ transaction: 'all' });
+      }
+    },
+  );
 
   it('M02 rejects guests on all moderation and private contact endpoints', async () => {
     for (const path of [
@@ -405,7 +694,7 @@ describe('Moderation: real isolated PostgreSQL and HTTP', () => {
     rollbackReport = await contact(330005, 320002);
     originalContact = (
       await admin.query<ContactMessage[]>(
-        'SELECT * FROM public.contact_messages WHERE id_mensaje=$1',
+        'SELECT * FROM core.contact_messages WHERE id_mensaje=$1',
         [reportA],
       )
     )[0];
@@ -457,7 +746,7 @@ describe('Moderation: real isolated PostgreSQL and HTTP', () => {
     expect(
       (
         await admin.query<ContactMessage[]>(
-          'SELECT * FROM public.contact_messages WHERE id_mensaje=$1',
+          'SELECT * FROM core.contact_messages WHERE id_mensaje=$1',
           [reportA],
         )
       )[0],
@@ -469,7 +758,15 @@ describe('Moderation: real isolated PostgreSQL and HTTP', () => {
       responseBody<PublicPage>(
         await http().get('/products/reviews/product/320001').expect(200),
       );
+    const getFromOtherCustomer = async () =>
+      responseBody<PublicPage>(
+        await http()
+          .get('/products/reviews/product/320001')
+          .auth(token(1, 310006, 6), { type: 'bearer' })
+          .expect(200),
+      );
     expect((await getPublic()).summary).toEqual({ total: 2, promedio: 3 });
+    expect(await getFromOtherCustomer()).toEqual(await getPublic());
     let result = responseBody<ModerationDetail>(
       await decision(330001, 0, 'conservar', { id_mensaje: reportA }).expect(
         201,
@@ -487,6 +784,7 @@ describe('Moderation: real isolated PostgreSQL and HTTP', () => {
     const withdrawn = await getPublic();
     expect(withdrawn.summary).toEqual({ total: 1, promedio: 1 });
     expect(withdrawn.reviews.map((row) => row.id_review)).toEqual([330002]);
+    expect(await getFromOtherCustomer()).toEqual(withdrawn);
     for (const row of withdrawn.reviews)
       expect(
         Object.keys(row).some((key) =>
@@ -507,6 +805,7 @@ describe('Moderation: real isolated PostgreSQL and HTTP', () => {
     );
     expect(result.review).toMatchObject({ retirada: false, revision: 4 });
     expect((await getPublic()).summary).toEqual({ total: 2, promedio: 3 });
+    expect(await getFromOtherCustomer()).toEqual(await getPublic());
     expect(result.history).toHaveLength(4);
     expect(
       result.history.every(
@@ -519,7 +818,7 @@ describe('Moderation: real isolated PostgreSQL and HTTP', () => {
     ).toEqual([1, 2, 3, 4]);
     const contactRow = (
       await admin.query<ContactMessage[]>(
-        'SELECT * FROM public.contact_messages WHERE id_mensaje=$1',
+        'SELECT * FROM core.contact_messages WHERE id_mensaje=$1',
         [reportA],
       )
     )[0];
@@ -608,7 +907,7 @@ describe('Moderation: real isolated PostgreSQL and HTTP', () => {
       expect(
         (
           await admin.query<ContactMessage[]>(
-            'SELECT * FROM public.contact_messages WHERE id_mensaje=$1',
+            'SELECT * FROM core.contact_messages WHERE id_mensaje=$1',
             [rollbackReport],
           )
         )[0],
@@ -644,7 +943,7 @@ describe('Moderation: real isolated PostgreSQL and HTTP', () => {
       admin.query('TRUNCATE core.review_moderation_events'),
     ).rejects.toMatchObject({ code: '42501' });
     await expect(
-      admin.query('DELETE FROM public.contact_messages WHERE id_mensaje=$1', [
+      admin.query('DELETE FROM core.contact_messages WHERE id_mensaje=$1', [
         reportA,
       ]),
     ).rejects.toMatchObject({ code: '23503' });
@@ -680,14 +979,17 @@ describe('Moderation: real isolated PostgreSQL and HTTP', () => {
   it('M13 down refuses to erase existing decisions or retired data and rolls back its ledger', async () => {
     const before = await detail(330001);
     const ledger = await admin.query<Record<string, unknown>[]>(
-      'SELECT * FROM public.moderation_qa_migrations ORDER BY id',
+      'SELECT * FROM core.review_moderation_migrations ORDER BY id',
     );
     await expect(
       admin.undoLastMigration({ transaction: 'all' }),
     ).rejects.toBeDefined();
+    const result = migrationCli('down');
+    expect(result.status).toBe(1);
+    expect(result.stderr).toBe('MODERATION_MIGRATION_QA_FAILED\n');
     expect(
       await admin.query<Record<string, unknown>[]>(
-        'SELECT * FROM public.moderation_qa_migrations ORDER BY id',
+        'SELECT * FROM core.review_moderation_migrations ORDER BY id',
       ),
     ).toEqual(ledger);
     expect(await detail(330001)).toEqual(before);

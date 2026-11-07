@@ -1,5 +1,10 @@
 {
   "version": 2,
+  "git": {
+    "deploymentEnabled": {
+      "feature/moderacion-resenas-backend": false
+    }
+  },
   "builds": [
     {
       "src": "api/index.ts",
