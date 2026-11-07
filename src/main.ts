@@ -1,6 +1,6 @@
-import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { configureHttpApplication } from './config/http-application';
 import morgan from 'morgan';
 
 const APP_TIME_ZONE = 'America/Mexico_City';
@@ -23,31 +23,7 @@ morgan.token('date-mx', () =>
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-    }),
-  );
-
-  app.enableCors({
-    origin: [
-      'http://localhost:4200',
-      'https://sport-center-sitie.netlify.app',
-      'http://localhost:8081',
-      'http://localhost:19006',
-      'http://front-sport-rust.vercel.app',
-    ],
-    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-    allowedHeaders: [
-      'Content-Type',
-      'Authorization',
-      'X-CSRF-Token', // Hola mundo
-      'x-csrf-token',
-    ],
-    credentials: true,
-  });
+  configureHttpApplication(app);
 
   // Morgan sigue funcionando para logs HTTP
   app.use(
