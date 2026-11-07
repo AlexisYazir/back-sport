@@ -1,4 +1,4 @@
-import { IsOptional, IsBoolean, IsNumber } from 'class-validator';
+import { IsOptional, IsBoolean } from 'class-validator';
 
 export class UpdateContactMessageDto {
   @IsOptional()
@@ -8,8 +8,4 @@ export class UpdateContactMessageDto {
   @IsOptional()
   @IsBoolean()
   respondido?: boolean;
-
-  @IsOptional()
-  @IsNumber()
-  id_usuario_responde?: number;
 }

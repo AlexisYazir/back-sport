@@ -18,6 +18,12 @@ interface VariantDemandFeatures {
   cantidad_mes_anterior: number;
 }
 
+export interface HistoricalDemandRow {
+  month: string;
+  actual: number;
+  records: number;
+}
+
 @Injectable()
 export class DemandForecastService {
   constructor(
@@ -26,7 +32,7 @@ export class DemandForecastService {
     private readonly mlInferenceService: MlInferenceService,
   ) {}
 
-  async getDemandReport(): Promise<any> {
+  async getDemandReport() {
     const [features, trend] = await Promise.all([
       this.getAllVariantFeatures(),
       this.getHistoricalTrend(),
@@ -36,9 +42,8 @@ export class DemandForecastService {
       features.map(async (row) => {
         // Calcular todas las features antes de enviar
         const enrichedPayload = this.enrichDemandFeatures(row);
-        const prediction = await this.mlInferenceService.predictDemand(
-          enrichedPayload,
-        );
+        const prediction =
+          await this.mlInferenceService.predictDemand(enrichedPayload);
         return this.toDemandProduct(row, prediction.predicted_units);
       }),
     );
@@ -60,22 +65,31 @@ export class DemandForecastService {
         model: 'Regresión mensual por variante',
         generatedAt: new Date().toISOString(),
         projectedMonth: features[0]?.mes_proyectado || null,
-        historicalRecords: trend.reduce((sum, row) => sum + Number(row.records || 0), 0),
+        historicalRecords: trend.reduce(
+          (sum, row) => sum + Number(row.records || 0),
+          0,
+        ),
       },
       summary: {
         variants: predictions.length,
         projectedDemand,
         lastDemand,
         variation,
-        variationPercent: lastDemand > 0 ? Number(((variation / lastDemand) * 100).toFixed(1)) : 0,
-        growing: predictions.filter((row) => row.tendencia === 'creciente').length,
+        variationPercent:
+          lastDemand > 0
+            ? Number(((variation / lastDemand) * 100).toFixed(1))
+            : 0,
+        growing: predictions.filter((row) => row.tendencia === 'creciente')
+          .length,
         stable: predictions.filter((row) => row.tendencia === 'estable').length,
-        declining: predictions.filter((row) => row.tendencia === 'decreciente').length,
+        declining: predictions.filter((row) => row.tendencia === 'decreciente')
+          .length,
       },
       trend,
       products: predictions,
       methodology: {
-        objective: 'Estimar la demanda del siguiente mes por variante para apoyar compras e inventario.',
+        objective:
+          'Estimar la demanda del siguiente mes por variante para apoyar compras e inventario.',
         features: [
           'Ventas de hace 3 meses',
           'Ventas de hace 2 meses',
@@ -89,7 +103,7 @@ export class DemandForecastService {
     };
   }
 
-  async predictVariant(idVariante: number): Promise<any> {
+  async predictVariant(idVariante: number) {
     const row = await this.getVariantFeatures(idVariante);
     if (!row) {
       throw new NotFoundException('Variante no encontrada o inactiva');
@@ -97,9 +111,8 @@ export class DemandForecastService {
 
     // Calcular todas las features antes de enviar
     const enrichedPayload = this.enrichDemandFeatures(row);
-    const prediction = await this.mlInferenceService.predictDemand(
-      enrichedPayload,
-    );
+    const prediction =
+      await this.mlInferenceService.predictDemand(enrichedPayload);
 
     return {
       id_variante: row.id_variante,
@@ -131,7 +144,9 @@ export class DemandForecastService {
    * Enriquecer las features de demanda con todas las variables que el modelo espera
    * Esto es CRÍTICO para que el modelo funcione correctamente
    */
-  private enrichDemandFeatures(row: VariantDemandFeatures): DemandPredictionRequest {
+  private enrichDemandFeatures(
+    row: VariantDemandFeatures,
+  ): DemandPredictionRequest {
     const lags = [
       row.cantidad_hace_3_meses,
       row.cantidad_hace_2_meses,
@@ -196,7 +211,10 @@ export class DemandForecastService {
   }
 
   private toDemandProduct(row: VariantDemandFeatures, predictedUnits: number) {
-    const demandaEstimada = Math.max(0, Math.round(Number(predictedUnits) || 0));
+    const demandaEstimada = Math.max(
+      0,
+      Math.round(Number(predictedUnits) || 0),
+    );
     const variacion = demandaEstimada - row.cantidad_mes_anterior;
     const tendencia =
       Math.abs(variacion) <= 2
@@ -226,7 +244,7 @@ export class DemandForecastService {
   private async getVariantFeatures(
     idVariante: number,
   ): Promise<VariantDemandFeatures | null> {
-    const rows = await this.adminDataSource.query(
+    const rows = await this.adminDataSource.query<VariantDemandFeatures[]>(
       this.featuresSql('WHERE pv.id_variante = $1'),
       [idVariante],
     );
@@ -234,11 +252,15 @@ export class DemandForecastService {
   }
 
   private async getAllVariantFeatures(): Promise<VariantDemandFeatures[]> {
-    const rows = await this.adminDataSource.query(this.featuresSql(''));
+    const rows = await this.adminDataSource.query<VariantDemandFeatures[]>(
+      this.featuresSql(''),
+    );
     return rows.map((row) => this.normalizeFeatureRow(row));
   }
 
-  private normalizeFeatureRow(row: any): VariantDemandFeatures {
+  private normalizeFeatureRow(
+    row: VariantDemandFeatures,
+  ): VariantDemandFeatures {
     return {
       id_producto: Number(row.id_producto),
       id_variante: Number(row.id_variante),
@@ -304,8 +326,8 @@ export class DemandForecastService {
     `;
   }
 
-  private async getHistoricalTrend(): Promise<any[]> {
-    const rows = await this.adminDataSource.query(`
+  private async getHistoricalTrend(): Promise<HistoricalDemandRow[]> {
+    const rows = await this.adminDataSource.query<HistoricalDemandRow[]>(`
       WITH meses AS (
         SELECT generate_series(
           date_trunc('month', CURRENT_DATE)::date - INTERVAL '12 months',

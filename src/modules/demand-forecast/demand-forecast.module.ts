@@ -5,10 +5,7 @@ import { DemandForecastController } from './demand-forecast.controller';
 import { DemandForecastService } from './demand-forecast.service';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([], 'adminConnection'),
-    MlInferenceModule,
-  ],
+  imports: [TypeOrmModule.forFeature([], 'adminConnection'), MlInferenceModule],
   controllers: [DemandForecastController],
   providers: [DemandForecastService],
   exports: [DemandForecastService],

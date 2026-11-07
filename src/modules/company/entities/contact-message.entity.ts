@@ -1,6 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
 
-@Entity('contact_messages')
+@Entity({ schema: 'core', name: 'contact_messages' })
 export class ContactMessage {
   @PrimaryGeneratedColumn()
   id_mensaje: number;
@@ -27,10 +27,10 @@ export class ContactMessage {
   respondido: boolean;
 
   @Column({ type: 'timestamp', nullable: true })
-  fecha_lectura: Date;
+  fecha_lectura: Date | null;
 
-  @Column({ nullable: true })
-  id_usuario_responde: number;
+  @Column({ type: 'int', nullable: true })
+  id_usuario_responde: number | null;
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   created_at: Date;

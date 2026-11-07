@@ -5,6 +5,7 @@ import { CompanyService } from './company.service';
 import { CompanyInfo } from './entities/company-info.entity';
 import { Faq } from './entities/faq.entity';
 import { ContactMessage } from './entities/contact-message.entity';
+import { ActiveAdminGuard } from '../../services/auth/active-admin.guard';
 
 @Module({
   imports: [
@@ -18,7 +19,7 @@ import { ContactMessage } from './entities/contact-message.entity';
     ),
   ],
   controllers: [CompanyController],
-  providers: [CompanyService],
+  providers: [CompanyService, ActiveAdminGuard],
   exports: [CompanyService],
 })
 export class CompanyModule {}

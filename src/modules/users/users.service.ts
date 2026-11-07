@@ -2,6 +2,7 @@
 import { Injectable } from '@nestjs/common';
 
 import { CreateUserDto } from './dto/create-user.dto';
+import { CreateUserResponseDto } from './dto/create-user-response.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { Roles } from './entities/roles.entity';
 import { User } from './entities/user.entity';
@@ -32,7 +33,7 @@ export class UsersService {
     return this.sessionService.logout(sessionId);
   }
 
-  createUser(createUserDto: CreateUserDto): Promise<User> {
+  createUser(createUserDto: CreateUserDto): Promise<CreateUserResponseDto> {
     return this.accountService.createUser(createUserDto);
   }
 

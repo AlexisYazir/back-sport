@@ -16,6 +16,7 @@ import {
   ParseIntPipe,
   Req,
   Query,
+  Header,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
@@ -38,7 +39,9 @@ import { CreateMarcaDto } from './dto/marca/create-marca.tdo';
 import { UpdateMarcaDto } from './dto/marca/update-marca.dto';
 import { Roles } from '../../services/auth/roles.decorator';
 import { AuthGuard } from '@nestjs/passport';
+import type { AuthenticatedRequest } from '../../services/auth/authenticated-request';
 import { RolesGuard } from '../../services/auth/roles.guard';
+import { ActiveAdminGuard } from '../../services/auth/active-admin.guard';
 
 import { CreateInventoryMovementDto } from './dto/inventory/create-inventory_movement.dto';
 import { CreateInventoryMovementSkuDto } from './dto/inventory/create-inventory-movement-sku.dto';
@@ -57,6 +60,10 @@ import {
   UpdateShippingMethodDto,
 } from './dto/promotions/promotion.dto';
 import { CreateReviewDto } from './dto/reviews/create-review.dto';
+import {
+  ModerateReviewDto,
+  ReviewReportsQueryDto,
+} from './dto/reviews/moderation.dto';
 import { AddCartItemDto } from './dto/cart/add-cart-item.dto';
 import { UpdateCartItemDto } from './dto/cart/update-cart-item.dto';
 import {
@@ -144,8 +151,12 @@ export class ProductsController {
     };
     const requestedFolder = folder?.trim();
     const resolvedFolder = requestedFolder
-      ? configuredFolders[requestedFolder] ||
-        Object.values(configuredFolders).find((value) => value === requestedFolder)
+      ? Object.entries(configuredFolders).find(
+          ([name]) => name === requestedFolder,
+        )?.[1] ||
+        Object.values(configuredFolders).find(
+          (value) => value === requestedFolder,
+        )
       : undefined;
 
     if (requestedFolder && !resolvedFolder) {
@@ -280,7 +291,7 @@ export class ProductsController {
 
   @UseGuards(AuthGuard('jwt'))
   @Get('orders/user')
-  async getUserOrders(@Req() req: any) {
+  async getUserOrders(@Req() req: AuthenticatedRequest) {
     return this.productsService.getUserOrders(req.user.id_usuario);
   }
 
@@ -288,7 +299,7 @@ export class ProductsController {
   @Roles(2, 3)
   @Put('orders/:id/status')
   async updateOrderStatus(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateOrderStatusDto,
   ) {
@@ -302,7 +313,7 @@ export class ProductsController {
   @UseGuards(AuthGuard('jwt'))
   @Get('orders/:id/tracking')
   async getOrderTracking(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,
   ) {
     return this.productsService.getOrderTracking(req.user.id_usuario, id);
@@ -319,7 +330,7 @@ export class ProductsController {
   @Roles(2, 3)
   @Put('orders/:id/shipment')
   async updateShipment(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateShipmentDto,
   ) {
@@ -330,7 +341,7 @@ export class ProductsController {
   @Roles(2, 3)
   @Post('orders/:id/delivery-code')
   async generateDeliveryCode(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,
   ) {
     return this.productsService.generateDeliveryConfirmationCode(
@@ -343,7 +354,7 @@ export class ProductsController {
   @Roles(1)
   @Post('orders/:id/confirm-delivery')
   async confirmDeliveryCode(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: ConfirmDeliveryCodeDto,
   ) {
@@ -356,13 +367,16 @@ export class ProductsController {
 
   @UseGuards(AuthGuard('jwt'))
   @Post('returns')
-  async createReturnRequest(@Req() req: any, @Body() dto: CreateReturnDto) {
+  async createReturnRequest(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: CreateReturnDto,
+  ) {
     return this.productsService.createReturnRequest(req.user.id_usuario, dto);
   }
 
   @UseGuards(AuthGuard('jwt'))
   @Get('returns/user')
-  async getUserReturns(@Req() req: any) {
+  async getUserReturns(@Req() req: AuthenticatedRequest) {
     return this.productsService.getUserReturns(req.user.id_usuario);
   }
 
@@ -377,7 +391,7 @@ export class ProductsController {
   @Roles(2, 3)
   @Put('returns/:id/status')
   async updateReturnStatus(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateReturnStatusDto,
   ) {
@@ -408,7 +422,10 @@ export class ProductsController {
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(3)
   @Post('promotions')
-  async createPromotion(@Req() req: any, @Body() dto: CreatePromotionDto) {
+  async createPromotion(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: CreatePromotionDto,
+  ) {
     return this.productsService.createPromotion(dto, req.user.id_usuario);
   }
 
@@ -416,7 +433,7 @@ export class ProductsController {
   @Roles(3)
   @Put('promotions/:id')
   async updatePromotion(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdatePromotionDto,
   ) {
@@ -451,6 +468,7 @@ export class ProductsController {
   }
 
   @Get('reviews/product/:id')
+  @Header('Cache-Control', 'no-store')
   async getProductReviews(@Param('id', ParseIntPipe) id: number) {
     return this.productsService.getProductReviews(id);
   }
@@ -458,36 +476,71 @@ export class ProductsController {
   @UseGuards(AuthGuard('jwt'))
   @Get('reviews/product/:id/eligibility')
   async getReviewEligibility(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,
   ) {
     return this.productsService.getReviewEligibility(req.user.id_usuario, id);
   }
 
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(AuthGuard('jwt'), RolesGuard, ActiveAdminGuard)
   @Roles(3)
   @Get('reviews/admin/all')
+  @Header('Cache-Control', 'no-store')
   async getAllReviewsAdmin() {
     return this.productsService.getAllReviewsAdmin();
   }
 
+  @UseGuards(AuthGuard('jwt'), RolesGuard, ActiveAdminGuard)
+  @Roles(3)
+  @Get('reviews/admin/reports')
+  @Header('Cache-Control', 'no-store')
+  async getReviewReports(@Query() query: ReviewReportsQueryDto) {
+    return this.productsService.getReviewReports(query);
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard, ActiveAdminGuard)
+  @Roles(3)
+  @Get('reviews/admin/:id/moderation')
+  @Header('Cache-Control', 'no-store')
+  async getReviewModeration(@Param('id', ParseIntPipe) id: number) {
+    return this.productsService.getReviewModeration(id);
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard, ActiveAdminGuard)
+  @Roles(3)
+  @Post('reviews/admin/:id/moderation')
+  @Header('Cache-Control', 'no-store')
+  async moderateReview(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ModerateReviewDto,
+  ) {
+    return this.productsService.moderateReview(id, req.user.id_usuario, dto);
+  }
+
   @UseGuards(AuthGuard('jwt'))
   @Post('reviews')
-  async createReview(@Req() req: any, @Body() dto: CreateReviewDto) {
+  async createReview(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: CreateReviewDto,
+  ) {
     return this.productsService.createReview(req.user.id_usuario, dto);
   }
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(1)
   @Get('cart')
-  async getCart(@Req() req: any) {
+  async getCart(@Req() req: AuthenticatedRequest) {
     return this.productsService.getCart(req.user.id_usuario);
   }
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(1)
   @Post('cart/items')
-  async addCartItem(@Req() req: any, @Body() dto: AddCartItemDto) {
+  async addCartItem(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: AddCartItemDto,
+  ) {
     return this.productsService.addCartItem(req.user.id_usuario, dto);
   }
 
@@ -495,7 +548,7 @@ export class ProductsController {
   @Roles(1)
   @Put('cart/items/:idVariante')
   async updateCartItem(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Param('idVariante', ParseIntPipe) idVariante: number,
     @Body() dto: UpdateCartItemDto,
   ) {
@@ -510,7 +563,7 @@ export class ProductsController {
   @Roles(1)
   @Delete('cart/items/:idVariante')
   async removeCartItem(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Param('idVariante', ParseIntPipe) idVariante: number,
   ) {
     return this.productsService.removeCartItem(req.user.id_usuario, idVariante);
@@ -519,7 +572,7 @@ export class ProductsController {
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(1)
   @Delete('cart')
-  async clearCart(@Req() req: any) {
+  async clearCart(@Req() req: AuthenticatedRequest) {
     return this.productsService.clearCart(req.user.id_usuario);
   }
 
@@ -527,7 +580,7 @@ export class ProductsController {
   @Roles(1)
   @Get('checkout/summary')
   async getCheckoutSummary(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Query('codigo_promocion') codigoPromocion?: string,
     @Query('id_metodo_envio') idMetodoEnvio?: string,
   ) {
@@ -549,21 +602,24 @@ export class ProductsController {
   @Roles(1)
   @Post('checkout/confirm')
   async confirmCheckout(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Body() dto: CreateCheckoutOrderDto,
   ) {
     return this.productsService.confirmCheckout(req.user.id_usuario, dto);
   }
 
   @Post('checkout/mercado-pago/webhook')
-  async mercadoPagoWebhook(@Body() body: any, @Query() query: any) {
+  async mercadoPagoWebhook(
+    @Body() body: unknown,
+    @Query() query: Record<string, unknown>,
+  ) {
     return this.productsService.processMercadoPagoWebhook(body, query);
   }
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(1)
   @Get('payment-methods')
-  async getUserPaymentMethods(@Req() req: any) {
+  async getUserPaymentMethods(@Req() req: AuthenticatedRequest) {
     return this.productsService.getUserPaymentMethods(req.user.id_usuario);
   }
 
@@ -571,7 +627,7 @@ export class ProductsController {
   @Roles(1)
   @Post('payment-methods')
   async createUserPaymentMethod(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Body() dto: CheckoutCardDto,
   ) {
     return this.productsService.createUserPaymentMethod(
@@ -584,7 +640,7 @@ export class ProductsController {
   @Roles(1)
   @Delete('payment-methods/:idMetodoPago')
   async deleteUserPaymentMethod(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Param('idMetodoPago', ParseIntPipe) idMetodoPago: number,
   ) {
     return this.productsService.deleteUserPaymentMethod(
@@ -693,7 +749,6 @@ export class ProductsController {
 
   @Get('menu/complete-menu')
   async getCompleteMenu() {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return this.productsService.getCompleteMenu();
   }
 }

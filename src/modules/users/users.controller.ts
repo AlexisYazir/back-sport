@@ -1,5 +1,6 @@
 /* eslint-disable */
 import { CreateUserDto } from './dto/create-user.dto';
+import { CreateUserResponseDto } from './dto/create-user-response.dto';
 import { GoogleLoginDto } from './dto/google-login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -120,7 +121,9 @@ export class UsersController {
   }
 
   @Post('create-user')
-  async createUser(@Body() createUserDto: CreateUserDto) {
+  async createUser(
+    @Body() createUserDto: CreateUserDto,
+  ): Promise<CreateUserResponseDto> {
     return this.usersService.createUser(createUserDto);
   }
 

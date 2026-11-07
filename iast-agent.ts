@@ -68,7 +68,7 @@ export class IastMiddleware implements NestMiddleware {
       this.logger.warn('ATAQUE DETECTADO');
       this.logger.warn(`Endpoint: ${req.method} ${req.originalUrl}`);
       this.logger.warn(`Patrones: ${threats.join(', ')}`);
-      if (Object.keys(req.body).length > 0) {
+      if (Object.keys(req.body ?? {}).length > 0) {
         this.logger.warn(`Body: ${JSON.stringify(this.sanitizeForLog(req.body))}`);
       }
       if (Object.keys(req.query).length > 0) {

@@ -72,7 +72,9 @@ export function describeSchedule(config: {
   fecha_ejecucion?: Date | string | null;
 }) {
   if (config.modo_programacion === 'datetime') {
-    return `Fecha exacta: ${new Date(config.fecha_ejecucion as Date | string).toLocaleString('es-MX', {
+    return `Fecha exacta: ${new Date(
+      config.fecha_ejecucion as Date | string,
+    ).toLocaleString('es-MX', {
       timeZone: APP_TIME_ZONE,
     })}`;
   }
@@ -92,15 +94,7 @@ export function normalizeTime(time?: string | null) {
 
 export function getNextExecutionFromJob(job: CronJob): Date | null {
   try {
-    const next = job.nextDate();
-    const maybeJsDate = (next as any)?.toJSDate?.();
-    if (maybeJsDate instanceof Date) {
-      return maybeJsDate;
-    }
-    if (next instanceof Date) {
-      return next;
-    }
-    return new Date(String(next));
+    return job.nextDate().toJSDate();
   } catch {
     return null;
   }

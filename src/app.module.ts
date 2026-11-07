@@ -36,6 +36,7 @@ import { ProductRecommendationsModule } from './modules/product-recommendations/
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
+        name: 'editorConnection',
         type: 'postgres',
         url: configService.get('DATABASE_URL_EDITOR'),
         autoLoadEntities: true,
@@ -56,6 +57,7 @@ import { ProductRecommendationsModule } from './modules/product-recommendations/
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
+        name: 'adminConnection',
         type: 'postgres',
         url: configService.get('DATABASE_URL_ADMIN'),
         autoLoadEntities: true,
@@ -76,6 +78,7 @@ import { ProductRecommendationsModule } from './modules/product-recommendations/
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
+        name: 'readerConnection',
         type: 'postgres',
         url: configService.get('DATABASE_URL_READER'),
         autoLoadEntities: true,
@@ -96,6 +99,7 @@ import { ProductRecommendationsModule } from './modules/product-recommendations/
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
+        name: 'backupConnection',
         type: 'postgres',
         url: configService.get('DATABASE_URL_BACKUP'),
         autoLoadEntities: true,

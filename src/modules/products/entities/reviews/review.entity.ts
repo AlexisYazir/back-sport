@@ -20,4 +20,10 @@ export class Review {
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   fecha: Date;
+
+  @Column({ type: 'boolean', default: false })
+  retirada: boolean;
+
+  @Column({ type: 'int', default: 0 })
+  revision: number;
 }
