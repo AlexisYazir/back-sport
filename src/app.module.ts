@@ -15,6 +15,7 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { DemandForecastModule } from './modules/demand-forecast/demand-forecast.module';
 import { MlInferenceModule } from './modules/ml-inference/ml-inference.module';
 import { ProductRecommendationsModule } from './modules/product-recommendations/product-recommendations.module';
+import { postgresConnectionOptions } from './config/postgres-connection';
 
 @Module({
   imports: [
@@ -38,16 +39,13 @@ import { ProductRecommendationsModule } from './modules/product-recommendations/
       useFactory: (configService: ConfigService) => ({
         name: 'editorConnection',
         type: 'postgres',
-        url: configService.get('DATABASE_URL_EDITOR'),
+        ...postgresConnectionOptions(
+          configService.getOrThrow<string>('DATABASE_URL_EDITOR'),
+          20,
+          configService.get<string>('DATABASE_SSL_CA'),
+        ),
         autoLoadEntities: true,
         synchronize: false,
-        ssl: true,
-        extra: {
-          ssl: {
-            rejectUnauthorized: false,
-          },
-          connectionLimit: 20,
-        },
       }),
     }),
 
@@ -59,16 +57,13 @@ import { ProductRecommendationsModule } from './modules/product-recommendations/
       useFactory: (configService: ConfigService) => ({
         name: 'adminConnection',
         type: 'postgres',
-        url: configService.get('DATABASE_URL_ADMIN'),
+        ...postgresConnectionOptions(
+          configService.getOrThrow<string>('DATABASE_URL_ADMIN'),
+          5,
+          configService.get<string>('DATABASE_SSL_CA'),
+        ),
         autoLoadEntities: true,
         synchronize: false,
-        ssl: true,
-        extra: {
-          ssl: {
-            rejectUnauthorized: false,
-          },
-          connectionLimit: 5,
-        },
       }),
     }),
 
@@ -80,16 +75,13 @@ import { ProductRecommendationsModule } from './modules/product-recommendations/
       useFactory: (configService: ConfigService) => ({
         name: 'readerConnection',
         type: 'postgres',
-        url: configService.get('DATABASE_URL_READER'),
+        ...postgresConnectionOptions(
+          configService.getOrThrow<string>('DATABASE_URL_READER'),
+          30,
+          configService.get<string>('DATABASE_SSL_CA'),
+        ),
         autoLoadEntities: true,
         synchronize: false,
-        ssl: true,
-        extra: {
-          ssl: {
-            rejectUnauthorized: false,
-          },
-          connectionLimit: 30,
-        },
       }),
     }),
 
@@ -101,16 +93,13 @@ import { ProductRecommendationsModule } from './modules/product-recommendations/
       useFactory: (configService: ConfigService) => ({
         name: 'backupConnection',
         type: 'postgres',
-        url: configService.get('DATABASE_URL_BACKUP'),
+        ...postgresConnectionOptions(
+          configService.getOrThrow<string>('DATABASE_URL_BACKUP'),
+          2,
+          configService.get<string>('DATABASE_SSL_CA'),
+        ),
         autoLoadEntities: true,
         synchronize: false,
-        ssl: true,
-        extra: {
-          ssl: {
-            rejectUnauthorized: false,
-          },
-          connectionLimit: 2,
-        },
       }),
     }),
 
