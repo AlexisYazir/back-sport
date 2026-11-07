@@ -104,8 +104,21 @@ Rechaza instalaciones parciales, entradas ya registradas o los nombres anteriore
 en core/public; no interpreta una segunda ejecucion como un no-op aprobado.
 Ante esos rechazos se revisa el esquema, la version y el ledger existente; no se
 borran filas del ledger, se fuerza down ni se modifica el timestamp para continuar.
-El CLI necesita las dependencias de desarrollo locales (ts-node); no se afirma
-que la imagen de produccion, que elimina esas dependencias, pueda ejecutarlo.
+En el checkout fuente el CLI utiliza ts-node. La imagen incluye ese mismo
+script y las clases compiladas en dist, por lo que no necesita dependencias
+de desarrollo para ejecutar `npm run moderation:qa:status`,
+`npm run moderation:qa:plan`, `npm run moderation:qa:up` o
+`npm run moderation:qa:down`. Los dos primeros solo consultan y no crean el
+ledger. Todos conservan las guardas QA: flags explicitos, loopback numerico,
+qa_admin y sportcenter_moderation_qa; no son comandos para una base compartida.
+El CLI QA conserva SSL desactivado en esa conexion local. Esto es independiente
+de las conexiones TLS de main y no cambia su configuracion.
+
+La imagen contiene los clientes PostgreSQL de Debian bookworm. Sus operaciones
+se validan con PostgreSQL 15 QA; antes de activar backups en otro entorno, el
+operador debe verificar version del servidor, version/ruta de pg_dump y psql,
+permisos y restauracion. No se presume compatibilidad con una version Neon
+que no se haya observado.
 
 Despues se comprueban el acceso Admin, la cola y conservar/retirar/restaurar con
 datos autorizados. El panel depende de esas rutas y se activa despues. Las pruebas

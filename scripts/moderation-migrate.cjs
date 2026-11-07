@@ -1,13 +1,18 @@
 'use strict';
 // La migración versionada también puede ser revisada por el dueño de la base;
 // este ejecutable sólo permite su validación en la copia QA local autorizada.
-require('ts-node/register/transpile-only');
+const fs = require('node:fs');
+const path = require('node:path');
+const sourceRoot = fs.existsSync(path.join(__dirname, '../src/database/moderation-data-source.ts'))
+  ? '../src'
+  : '../dist/src';
+if (sourceRoot === '../src') require('ts-node/register/transpile-only');
 const {
   moderationMigrationSource,
-} = require('../src/database/moderation-data-source');
+} = require(sourceRoot + '/database/moderation-data-source');
 const {
   assertReviewModerationBaseSchema,
-} = require('../src/database/migrations/1793740000000-ReviewModeration');
+} = require(sourceRoot + '/database/migrations/1793740000000-ReviewModeration');
 const MIGRATION = 'ReviewModeration1793740000000';
 async function ledgerState(source, action) {
   const ledgers = await source.query(`
@@ -33,21 +38,29 @@ async function ledgerState(source, action) {
   if (action === 'up' && entries.length)
     throw new Error('MODERATION_MIGRATION_ALREADY_RECORDED_REVIEW_REQUIRED');
   if (
-    action === 'down' &&
+    (action === 'down' || (['status', 'plan'].includes(action) && entries.length > 0)) &&
     (entries.length !== 1 ||
       entries[0].name !== MIGRATION ||
       entries[0].timestamp !== '1793740000000')
   )
     throw new Error('MODERATION_MIGRATION_LEDGER_REVIEW_REQUIRED');
+  return entries;
 }
 async function main() {
   const action = process.argv[2];
-  if (!['up', 'down'].includes(action))
+  if (!['up', 'down', 'status', 'plan'].includes(action))
     throw new Error('MODERATION_MIGRATION_ACTION_REQUIRED');
   const source = moderationMigrationSource();
   try {
     await source.initialize();
-    await ledgerState(source, action);
+    const entries = await ledgerState(source, action);
+    if (['status', 'plan'].includes(action)) {
+      if (entries.length === 0) await assertReviewModerationBaseSchema(source);
+      process.stdout.write(JSON.stringify({ scope: 'isolated-local-qa-only', action,
+        migration: MIGRATION, recorded: entries.length === 1,
+        pending: entries.length === 0, writes: false }) + '\n');
+      return;
+    }
     if (action === 'up') {
       // TypeORM creates its ledger before invoking up(); keep invalid targets read-only.
       await assertReviewModerationBaseSchema(source);
