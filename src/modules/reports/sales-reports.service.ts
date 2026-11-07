@@ -36,6 +36,170 @@ interface NumericSummary {
   returnRate: number;
 }
 
+// PostgreSQL returns numeric/decimal aggregates as strings by default.
+type DatabaseNumeric = number | string;
+
+interface SalesSummaryRow {
+  ventas_brutas: DatabaseNumeric;
+  pedidos: number;
+  clientes: number;
+  unidades: number;
+  descuentos: DatabaseNumeric;
+  ingresos_envio: DatabaseNumeric;
+  ticket_promedio: DatabaseNumeric;
+  clientes_recurrentes: number;
+}
+
+interface ReturnsSummaryRow {
+  solicitudes: number;
+  devoluciones_reembolsadas: number;
+  monto_reembolsado: DatabaseNumeric;
+}
+
+interface SalesTrendRow {
+  periodo: string;
+  ventas_brutas: DatabaseNumeric;
+  descuentos: DatabaseNumeric;
+  pedidos: number;
+  unidades: number;
+  reembolsos: DatabaseNumeric;
+}
+
+interface ProductPerformanceRow {
+  id_producto: number;
+  nombre: string;
+  categoria: string | null;
+  marca: string | null;
+  imagen: string | null;
+  unidades: number;
+  pedidos: number;
+  ingresos: DatabaseNumeric;
+}
+
+interface CategoryPerformanceRow {
+  categoria: string;
+  unidades: number;
+  pedidos: number;
+  ingresos: DatabaseNumeric;
+}
+
+interface OrderStatusRow {
+  estado: string | null;
+  pedidos: number;
+  monto: DatabaseNumeric;
+}
+
+interface PromotionPerformanceRow {
+  id_promocion: number;
+  nombre: string;
+  codigo: string | null;
+  usos: number;
+  clientes: number;
+  descuento_aplicado: DatabaseNumeric;
+  ventas_asociadas: DatabaseNumeric;
+}
+
+interface ReturnStatusRow {
+  estado: string | null;
+  solicitudes: number;
+  monto: DatabaseNumeric;
+}
+
+interface CustomerPerformanceRow {
+  id_usuario: number;
+  cliente: string;
+  email: string;
+  pedidos: number;
+  unidades: number;
+  total: DatabaseNumeric;
+  ticket_promedio: DatabaseNumeric;
+}
+
+interface SalesInsight {
+  type: 'info' | 'positive' | 'warning';
+  icon: string;
+  title: string;
+  message: string;
+}
+
+export interface SalesReport {
+  meta: {
+    from: string;
+    to: string;
+    previousFrom: string;
+    previousTo: string;
+    granularity: Granularity;
+    days: number;
+    generatedAt: string;
+    currency: string;
+    timeZone: string;
+  };
+  summary: NumericSummary;
+  comparison: {
+    previous: NumericSummary;
+    netSalesChange: number | null;
+    grossSalesChange: number | null;
+    ordersChange: number | null;
+    averageTicketChange: number | null;
+    customersChange: number | null;
+  };
+  trend: {
+    period: string;
+    grossSales: number;
+    netSales: number;
+    refunds: number;
+    discounts: number;
+    orders: number;
+    units: number;
+  }[];
+  topProducts: {
+    idProduct: number;
+    name: string;
+    category: string;
+    brand: string;
+    image: string | null;
+    units: number;
+    orders: number;
+    revenue: number;
+    contribution: number;
+  }[];
+  categories: {
+    category: string;
+    units: number;
+    orders: number;
+    revenue: number;
+    contribution: number;
+  }[];
+  orderStatuses: {
+    status: string;
+    orders: number;
+    amount: number;
+  }[];
+  promotions: {
+    idPromotion: number;
+    name: string;
+    code: string | null;
+    uses: number;
+    customers: number;
+    discount: number;
+    associatedRevenue: number;
+  }[];
+  returnStatuses: {
+    status: string;
+    requests: number;
+    amount: number;
+  }[];
+  topCustomers: {
+    idUser: number;
+    name: string;
+    email: string;
+    orders: number;
+    units: number;
+    total: number;
+    averageTicket: number;
+  }[];
+  insights: SalesInsight[];
+}
 @Injectable()
 export class SalesReportsService {
   private readonly timeZone = 'America/Mexico_City';
@@ -46,7 +210,7 @@ export class SalesReportsService {
     private readonly adminDataSource: DataSource,
   ) {}
 
-  async getSalesReport(query: ReportQuery): Promise<any> {
+  async getSalesReport(query: ReportQuery): Promise<SalesReport> {
     const range = this.resolveRange(query);
 
     const [
@@ -76,7 +240,10 @@ export class SalesReportsService {
     ]);
 
     const summary = this.normalizeSummary(currentSales, currentReturns);
-    const previousSummary = this.normalizeSummary(previousSales, previousReturns);
+    const previousSummary = this.normalizeSummary(
+      previousSales,
+      previousReturns,
+    );
     const normalizedProducts = topProducts.map((row) => ({
       idProduct: this.toNumber(row.id_producto),
       name: row.nombre,
@@ -86,12 +253,13 @@ export class SalesReportsService {
       units: this.toNumber(row.unidades),
       orders: this.toNumber(row.pedidos),
       revenue: this.toNumber(row.ingresos),
-      contribution: summary.grossSales > 0
-        ? this.round((this.toNumber(row.ingresos) / summary.grossSales) * 100)
-        : 0,
+      contribution:
+        summary.grossSales > 0
+          ? this.round((this.toNumber(row.ingresos) / summary.grossSales) * 100)
+          : 0,
     }));
 
-    const result = {
+    const result: Omit<SalesReport, 'insights'> = {
       meta: {
         from: range.from,
         to: range.to,
@@ -106,14 +274,26 @@ export class SalesReportsService {
       summary,
       comparison: {
         previous: previousSummary,
-        netSalesChange: this.percentageChange(summary.netSales, previousSummary.netSales),
-        grossSalesChange: this.percentageChange(summary.grossSales, previousSummary.grossSales),
-        ordersChange: this.percentageChange(summary.orders, previousSummary.orders),
+        netSalesChange: this.percentageChange(
+          summary.netSales,
+          previousSummary.netSales,
+        ),
+        grossSalesChange: this.percentageChange(
+          summary.grossSales,
+          previousSummary.grossSales,
+        ),
+        ordersChange: this.percentageChange(
+          summary.orders,
+          previousSummary.orders,
+        ),
         averageTicketChange: this.percentageChange(
           summary.averageTicket,
           previousSummary.averageTicket,
         ),
-        customersChange: this.percentageChange(summary.customers, previousSummary.customers),
+        customersChange: this.percentageChange(
+          summary.customers,
+          previousSummary.customers,
+        ),
       },
       trend: trend.map((row) => ({
         period: row.periodo,
@@ -132,9 +312,12 @@ export class SalesReportsService {
         units: this.toNumber(row.unidades),
         orders: this.toNumber(row.pedidos),
         revenue: this.toNumber(row.ingresos),
-        contribution: summary.grossSales > 0
-          ? this.round((this.toNumber(row.ingresos) / summary.grossSales) * 100)
-          : 0,
+        contribution:
+          summary.grossSales > 0
+            ? this.round(
+                (this.toNumber(row.ingresos) / summary.grossSales) * 100,
+              )
+            : 0,
       })),
       orderStatuses: orderStatuses.map((row) => ({
         status: row.estado || 'sin_estado',
@@ -172,8 +355,11 @@ export class SalesReportsService {
     };
   }
 
-  private async getSalesSummary(from: string, to: string): Promise<any> {
-    const rows = await this.adminDataSource.query(
+  private async getSalesSummary(
+    from: string,
+    to: string,
+  ): Promise<Partial<SalesSummaryRow>> {
+    const rows = await this.adminDataSource.query<SalesSummaryRow[]>(
       `
       WITH latest_payment AS (
         SELECT DISTINCT ON (p.id_orden)
@@ -230,8 +416,11 @@ export class SalesReportsService {
     return rows[0] || {};
   }
 
-  private async getReturnsSummary(from: string, to: string): Promise<any> {
-    const rows = await this.adminDataSource.query(
+  private async getReturnsSummary(
+    from: string,
+    to: string,
+  ): Promise<Partial<ReturnsSummaryRow>> {
+    const rows = await this.adminDataSource.query<ReturnsSummaryRow[]>(
       `
       WITH return_totals AS (
         SELECT
@@ -268,19 +457,21 @@ export class SalesReportsService {
     return rows[0] || {};
   }
 
-  private async getSalesTrend(range: ReportRange): Promise<any[]> {
-    const unit = range.granularity === 'day'
-      ? 'day'
-      : range.granularity === 'week'
-        ? 'week'
-        : 'month';
-    const step = range.granularity === 'day'
-      ? '1 day'
-      : range.granularity === 'week'
-        ? '1 week'
-        : '1 month';
+  private async getSalesTrend(range: ReportRange): Promise<SalesTrendRow[]> {
+    const unit =
+      range.granularity === 'day'
+        ? 'day'
+        : range.granularity === 'week'
+          ? 'week'
+          : 'month';
+    const step =
+      range.granularity === 'day'
+        ? '1 day'
+        : range.granularity === 'week'
+          ? '1 week'
+          : '1 month';
 
-    return this.adminDataSource.query(
+    return this.adminDataSource.query<SalesTrendRow[]>(
       `
       WITH latest_payment AS (
         SELECT DISTINCT ON (p.id_orden) p.id_orden, p.estado
@@ -356,8 +547,11 @@ export class SalesReportsService {
     );
   }
 
-  private async getTopProducts(from: string, to: string): Promise<any[]> {
-    return this.adminDataSource.query(
+  private async getTopProducts(
+    from: string,
+    to: string,
+  ): Promise<ProductPerformanceRow[]> {
+    return this.adminDataSource.query<ProductPerformanceRow[]>(
       `
       WITH latest_payment AS (
         SELECT DISTINCT ON (p.id_orden) p.id_orden, p.estado
@@ -397,8 +591,11 @@ export class SalesReportsService {
     );
   }
 
-  private async getCategoryPerformance(from: string, to: string): Promise<any[]> {
-    return this.adminDataSource.query(
+  private async getCategoryPerformance(
+    from: string,
+    to: string,
+  ): Promise<CategoryPerformanceRow[]> {
+    return this.adminDataSource.query<CategoryPerformanceRow[]>(
       `
       WITH latest_payment AS (
         SELECT DISTINCT ON (p.id_orden) p.id_orden, p.estado
@@ -432,8 +629,11 @@ export class SalesReportsService {
     );
   }
 
-  private async getOrderStatusDistribution(from: string, to: string): Promise<any[]> {
-    return this.adminDataSource.query(
+  private async getOrderStatusDistribution(
+    from: string,
+    to: string,
+  ): Promise<OrderStatusRow[]> {
+    return this.adminDataSource.query<OrderStatusRow[]>(
       `
       WITH latest_payment AS (
         SELECT DISTINCT ON (p.id_orden) p.id_orden, p.estado
@@ -458,8 +658,11 @@ export class SalesReportsService {
     );
   }
 
-  private async getPromotionPerformance(from: string, to: string): Promise<any[]> {
-    return this.adminDataSource.query(
+  private async getPromotionPerformance(
+    from: string,
+    to: string,
+  ): Promise<PromotionPerformanceRow[]> {
+    return this.adminDataSource.query<PromotionPerformanceRow[]>(
       `
       WITH latest_payment AS (
         SELECT DISTINCT ON (p.id_orden) p.id_orden, p.estado
@@ -495,8 +698,11 @@ export class SalesReportsService {
     );
   }
 
-  private async getReturnStatusDistribution(from: string, to: string): Promise<any[]> {
-    return this.adminDataSource.query(
+  private async getReturnStatusDistribution(
+    from: string,
+    to: string,
+  ): Promise<ReturnStatusRow[]> {
+    return this.adminDataSource.query<ReturnStatusRow[]>(
       `
       SELECT
         LOWER(TRIM(r.estado)) AS estado,
@@ -513,8 +719,11 @@ export class SalesReportsService {
     );
   }
 
-  private async getTopCustomers(from: string, to: string): Promise<any[]> {
-    return this.adminDataSource.query(
+  private async getTopCustomers(
+    from: string,
+    to: string,
+  ): Promise<CustomerPerformanceRow[]> {
+    return this.adminDataSource.query<CustomerPerformanceRow[]>(
       `
       WITH latest_payment AS (
         SELECT DISTINCT ON (p.id_orden) p.id_orden, p.estado
@@ -559,7 +768,10 @@ export class SalesReportsService {
     );
   }
 
-  private normalizeSummary(sales: any, returns: any): NumericSummary {
+  private normalizeSummary(
+    sales: Partial<SalesSummaryRow>,
+    returns: Partial<ReturnsSummaryRow>,
+  ): NumericSummary {
     const grossSales = this.toNumber(sales.ventas_brutas);
     const refundAmount = this.toNumber(returns.monto_reembolsado);
     const orders = this.toNumber(sales.pedidos);
@@ -574,23 +786,25 @@ export class SalesReportsService {
       averageTicket: this.toNumber(sales.ticket_promedio),
       customers,
       repeatCustomers,
-      repeatCustomerRate: customers > 0
-        ? this.round((repeatCustomers / customers) * 100)
-        : 0,
+      repeatCustomerRate:
+        customers > 0 ? this.round((repeatCustomers / customers) * 100) : 0,
       units,
       discounts: this.toNumber(sales.descuentos),
       shippingRevenue: this.toNumber(sales.ingresos_envio),
       refundAmount,
       returnRequests: this.toNumber(returns.solicitudes),
       refundedReturns: this.toNumber(returns.devoluciones_reembolsadas),
-      returnRate: orders > 0
-        ? this.round((this.toNumber(returns.devoluciones_reembolsadas) / orders) * 100)
-        : 0,
+      returnRate:
+        orders > 0
+          ? this.round(
+              (this.toNumber(returns.devoluciones_reembolsadas) / orders) * 100,
+            )
+          : 0,
     };
   }
 
-  private buildInsights(report: any): any[] {
-    const insights: any[] = [];
+  private buildInsights(report: Omit<SalesReport, 'insights'>): SalesInsight[] {
+    const insights: SalesInsight[] = [];
     const salesChange = report.comparison.netSalesChange;
     const topProduct = report.topProducts[0];
 
@@ -599,7 +813,8 @@ export class SalesReportsService {
         type: 'info',
         icon: 'insights',
         title: 'Primer punto de comparación',
-        message: 'El periodo anterior no tuvo ventas netas; este resultado será una nueva referencia.',
+        message:
+          'El periodo anterior no tuvo ventas netas; este resultado será una nueva referencia.',
       });
     } else if (salesChange >= 5) {
       insights.push({
@@ -620,7 +835,8 @@ export class SalesReportsService {
         type: 'info',
         icon: 'horizontal_rule',
         title: 'Ventas estables',
-        message: 'La variación frente al periodo anterior se mantiene dentro de un rango de 5%.',
+        message:
+          'La variación frente al periodo anterior se mantiene dentro de un rango de 5%.',
       });
     }
 
@@ -634,9 +850,12 @@ export class SalesReportsService {
     }
 
     if (report.summary.refundAmount > 0) {
-      const refundShare = report.summary.grossSales > 0
-        ? this.round((report.summary.refundAmount / report.summary.grossSales) * 100)
-        : 0;
+      const refundShare =
+        report.summary.grossSales > 0
+          ? this.round(
+              (report.summary.refundAmount / report.summary.grossSales) * 100,
+            )
+          : 0;
       insights.push({
         type: refundShare >= 10 ? 'warning' : 'info',
         icon: 'assignment_return',
@@ -648,7 +867,8 @@ export class SalesReportsService {
         type: 'positive',
         icon: 'verified',
         title: 'Sin reembolsos registrados',
-        message: 'No hubo importes reembolsados dentro del periodo seleccionado.',
+        message:
+          'No hubo importes reembolsados dentro del periodo seleccionado.',
       });
     }
 
@@ -678,18 +898,19 @@ export class SalesReportsService {
 
     const days = this.daysBetween(from, to) + 1;
     if (days <= 0) {
-      throw new BadRequestException('La fecha inicial debe ser menor o igual a la final');
+      throw new BadRequestException(
+        'La fecha inicial debe ser menor o igual a la final',
+      );
     }
     if (days > 731) {
-      throw new BadRequestException('El periodo máximo permitido es de 24 meses');
+      throw new BadRequestException(
+        'El periodo máximo permitido es de 24 meses',
+      );
     }
 
     const allowedGranularities: Granularity[] = ['day', 'week', 'month'];
-    const automaticGranularity: Granularity = days <= 45
-      ? 'day'
-      : days <= 180
-        ? 'week'
-        : 'month';
+    const automaticGranularity: Granularity =
+      days <= 45 ? 'day' : days <= 180 ? 'week' : 'month';
     const granularity = query.granularity as Granularity | undefined;
 
     if (granularity && !allowedGranularities.includes(granularity)) {
@@ -711,11 +932,16 @@ export class SalesReportsService {
 
   private validateDate(value: string): void {
     if (!this.datePattern.test(value)) {
-      throw new BadRequestException('Las fechas deben usar el formato AAAA-MM-DD');
+      throw new BadRequestException(
+        'Las fechas deben usar el formato AAAA-MM-DD',
+      );
     }
 
     const date = new Date(`${value}T00:00:00.000Z`);
-    if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) {
+    if (
+      Number.isNaN(date.getTime()) ||
+      date.toISOString().slice(0, 10) !== value
+    ) {
       throw new BadRequestException('La fecha indicada no es válida');
     }
   }

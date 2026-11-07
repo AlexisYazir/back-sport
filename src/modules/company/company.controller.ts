@@ -12,7 +12,12 @@ import {
   ParseIntPipe,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import type { AuthenticatedRequest } from '../../services/auth/authenticated-request';
+import { Roles } from '../../services/auth/roles.decorator';
+import { RolesGuard } from '../../services/auth/roles.guard';
+import { ActiveAdminGuard } from '../../services/auth/active-admin.guard';
 import { CompanyService } from './company.service';
+import type { BannerImageInput } from './dto/banner-image.dto';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { CreateFaqDto } from './dto/create-faq.dto';
@@ -56,16 +61,19 @@ export class CompanyController {
 
   @Post('banner')
   @UseGuards(AuthGuard('jwt'))
-  async createBannerImage(@Req() req: any, @Body() dto: any) {
+  async createBannerImage(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: BannerImageInput,
+  ) {
     return this.companyService.createBannerImage(dto, req.user?.id_usuario);
   }
 
   @Patch('banner/:id')
   @UseGuards(AuthGuard('jwt'))
   async updateBannerImage(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,
-    @Body() dto: any,
+    @Body() dto: BannerImageInput,
   ) {
     return this.companyService.updateBannerImage(id, dto, req.user?.id_usuario);
   }
@@ -134,7 +142,8 @@ export class CompanyController {
   }
 
   @Get('contact')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), RolesGuard, ActiveAdminGuard)
+  @Roles(3)
   async getAllContactMessages(@Query('leido') leido?: string) {
     const leidoBool =
       leido === 'true' ? true : leido === 'false' ? false : undefined;
@@ -142,22 +151,30 @@ export class CompanyController {
   }
 
   @Get('contact/:id')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), RolesGuard, ActiveAdminGuard)
+  @Roles(3)
   async getContactMessageById(@Param('id', ParseIntPipe) id: number) {
     return this.companyService.getContactMessageById(id);
   }
 
   @Patch('contact/:id')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), RolesGuard, ActiveAdminGuard)
+  @Roles(3)
   async updateContactMessage(
+    @Req() req: AuthenticatedRequest,
     @Param('id', ParseIntPipe) id: number,
     @Body() updateDto: UpdateContactMessageDto,
   ) {
-    return this.companyService.updateContactMessage(id, updateDto);
+    return this.companyService.updateContactMessage(
+      id,
+      updateDto,
+      req.user.id_usuario,
+    );
   }
 
   @Delete('contact/:id')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), RolesGuard, ActiveAdminGuard)
+  @Roles(3)
   async deleteContactMessage(@Param('id', ParseIntPipe) id: number) {
     return this.companyService.deleteContactMessage(id);
   }

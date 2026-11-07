@@ -5,7 +5,10 @@ import {
   Logger,
   NestInterceptor,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { Observable, catchError, tap, throwError } from 'rxjs';
+import { isAuditRecord } from '../http-audit.types';
+import type { HttpAuditRequest } from '../http-audit.types';
 import { CloudflareLogService } from '../services/cloudflare-log.service';
 
 @Injectable()
@@ -19,8 +22,8 @@ export class HttpAuditInterceptor implements NestInterceptor {
       return next.handle();
     }
 
-    const request = context.switchToHttp().getRequest();
-    const response = context.switchToHttp().getResponse();
+    const request = context.switchToHttp().getRequest<HttpAuditRequest>();
+    const response = context.switchToHttp().getResponse<Response>();
     const startedAt = Date.now();
 
     return next.handle().pipe(
@@ -28,16 +31,24 @@ export class HttpAuditInterceptor implements NestInterceptor {
         const statusCode = response.statusCode ?? 200;
         this.logService
           .registerHttpEvent(request, statusCode, Date.now() - startedAt)
-          .catch((error) =>
-            this.logger.error(`No se pudo registrar log HTTP: ${error instanceof Error ? error.message : String(error)}`),
+          .catch((error: unknown) =>
+            this.logger.error(
+              `No se pudo registrar log HTTP: ${error instanceof Error ? error.message : String(error)}`,
+            ),
           );
       }),
-      catchError((error) => {
-        const statusCode = error?.status ?? response?.statusCode ?? 500;
+      catchError((error: unknown) => {
+        const errorStatus = isAuditRecord(error) ? error.status : undefined;
+        const statusCode =
+          typeof errorStatus === 'number'
+            ? errorStatus
+            : (response.statusCode ?? 500);
         this.logService
           .registerHttpEvent(request, statusCode, Date.now() - startedAt, error)
-          .catch((logError) =>
-            this.logger.error(`No se pudo registrar log HTTP con error: ${logError instanceof Error ? logError.message : String(logError)}`),
+          .catch((logError: unknown) =>
+            this.logger.error(
+              `No se pudo registrar log HTTP con error: ${logError instanceof Error ? logError.message : String(logError)}`,
+            ),
           );
 
         return throwError(() => error);

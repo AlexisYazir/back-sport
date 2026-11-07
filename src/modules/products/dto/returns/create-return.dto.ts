@@ -54,8 +54,21 @@ export class CreateReturnDto {
 
 export class UpdateReturnStatusDto {
   @IsString()
-  @IsIn(['solicitada', 'aprobada', 'rechazada', 'recibida', 'reembolsada', 'cerrada'])
-  estado: 'solicitada' | 'aprobada' | 'rechazada' | 'recibida' | 'reembolsada' | 'cerrada';
+  @IsIn([
+    'solicitada',
+    'aprobada',
+    'rechazada',
+    'recibida',
+    'reembolsada',
+    'cerrada',
+  ])
+  estado:
+    | 'solicitada'
+    | 'aprobada'
+    | 'rechazada'
+    | 'recibida'
+    | 'reembolsada'
+    | 'cerrada';
 
   @IsOptional()
   @IsString()

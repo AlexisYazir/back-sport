@@ -1,5 +1,11 @@
 {
   "version": 2,
+  "ignoreCommand": "node scripts/vercel-ignore-build.cjs",
+  "git": {
+    "deploymentEnabled": {
+      "feature/moderacion-resenas-backend": false
+    }
+  },
   "builds": [
     {
       "src": "api/index.ts",

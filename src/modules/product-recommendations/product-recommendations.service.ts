@@ -6,6 +6,26 @@ import {
   ProductRecommendationFeatures,
 } from '../ml-inference/ml-inference.service';
 
+interface ProductFeaturesRow extends ProductRecommendationFeatures {
+  atributos: string;
+}
+
+interface CurrentProduct {
+  idProduct: number;
+  name: string;
+  description: string;
+  brand: string;
+  category: string;
+  sports: string[];
+  price: number;
+  stock: number;
+  image: string | null;
+}
+
+export interface RecommendedProduct extends CurrentProduct {
+  similarity: number;
+}
+
 @Injectable()
 export class ProductRecommendationsService {
   constructor(
@@ -14,7 +34,7 @@ export class ProductRecommendationsService {
     private readonly mlInferenceService: MlInferenceService,
   ) {}
 
-  async getRecommendations(productId: number, limit = 10): Promise<any> {
+  async getRecommendations(productId: number, limit = 10) {
     // 1. Verificar que el producto existe
     const product = await this.getProductFeatures(productId);
     if (!product) {
@@ -35,9 +55,11 @@ export class ProductRecommendationsService {
 
     // 4. Enriquecer con datos actuales de la base de datos
     const currentProducts = await this.getCurrentProducts(ids);
-    const productMap = new Map(currentProducts.map((item) => [item.idProduct, item]));
+    const productMap = new Map(
+      currentProducts.map((item) => [item.idProduct, item]),
+    );
     const used = new Set<number>();
-    const recommendations: any[] = [];
+    const recommendations: RecommendedProduct[] = [];
 
     for (const item of mlResponse.recommendations) {
       const id = Number(item.id_producto);
@@ -63,7 +85,7 @@ export class ProductRecommendationsService {
   private async getProductFeatures(
     productId: number,
   ): Promise<ProductRecommendationFeatures | null> {
-    const rows = await this.readerDataSource.query(
+    const rows = await this.readerDataSource.query<ProductFeaturesRow[]>(
       `
       WITH price_summary AS (
         SELECT
@@ -126,10 +148,12 @@ export class ProductRecommendationsService {
     };
   }
 
-  private async getCurrentProducts(productIds: number[]): Promise<any[]> {
+  private async getCurrentProducts(
+    productIds: number[],
+  ): Promise<CurrentProduct[]> {
     if (!productIds.length) return [];
 
-    const rows = await this.readerDataSource.query(
+    const rows = await this.readerDataSource.query<CurrentProduct[]>(
       `
       WITH variant_summary AS (
         SELECT

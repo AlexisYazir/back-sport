@@ -1,0 +1,22 @@
+name: sportcenter-moderation-qa
+services:
+  db:
+    image: postgres@sha256:5fe8ca7fc662071188c30271cb870d1ce9a6ec4578c934b064697ae77a9241e1
+    environment:
+      POSTGRES_DB: sportcenter_moderation_qa
+      POSTGRES_USER: qa_admin
+      POSTGRES_PASSWORD: qa-admin-local
+    tmpfs: ['/var/lib/postgresql/data:rw,size=134217728']
+    volumes: ['./schema.sql:/docker-entrypoint-initdb.d/00-schema.sql:ro']
+    ports: ['127.0.0.1::5432']
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U qa_admin -d sportcenter_moderation_qa']
+      interval: 2s
+      timeout: 2s
+      retries: 25
+    networks: [isolated]
+    cpus: 1
+    mem_limit: 384m
+networks:
+  isolated:
+    internal: false

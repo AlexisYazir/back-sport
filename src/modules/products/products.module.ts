@@ -21,6 +21,9 @@ import { ProductCatalogService } from './services/product-catalog.service';
 import { ProductInventoryService } from './services/product-inventory.service';
 import { ProductOrdersService } from './services/product-orders.service';
 import { ProductReviewsService } from './services/product-reviews.service';
+import { ProductReviewModerationService } from './services/product-review-moderation.service';
+import { ReviewModerationEvent } from './entities/reviews/review-moderation-event.entity';
+import { ActiveAdminGuard } from '../../services/auth/active-admin.guard';
 import { ProductCartService } from './services/product-cart.service';
 import { ProductCheckoutService } from './services/product-checkout.service';
 import { ProductPromotionsService } from './services/product-promotions.service';
@@ -44,6 +47,7 @@ import { MailModule } from '../../services/mail/mail.module';
         Inventory,
         InventoryMovements,
         Review,
+        ReviewModerationEvent,
       ],
       'editorConnection',
     ), // AGREGADO
@@ -82,6 +86,7 @@ import { MailModule } from '../../services/mail/mail.module';
         Inventory,
         InventoryMovements,
         Review,
+        ReviewModerationEvent,
       ],
       'adminConnection',
     ), //  AGREGADO
@@ -94,6 +99,8 @@ import { MailModule } from '../../services/mail/mail.module';
     ProductBrandCategoryService,
     ProductOrdersService,
     ProductReviewsService,
+    ProductReviewModerationService,
+    ActiveAdminGuard,
     ProductCartService,
     ProductCheckoutService,
     ProductPromotionsService,

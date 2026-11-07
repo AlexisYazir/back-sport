@@ -1,0 +1,230 @@
+import type { MigrationInterface, QueryRunner } from 'typeorm';
+
+interface ModerationSchemaQueryable {
+  query(sql: string): Promise<unknown>;
+}
+
+const REQUIRED_COLUMNS: Record<string, Record<string, readonly number[]>> = {
+  users: {
+    id_usuario: [23],
+    nombre: [25, 1043],
+    email: [25, 1043],
+    rol: [23],
+    activo: [23],
+  },
+  reviews: {
+    id_review: [23],
+    id_producto: [23],
+    id_usuario: [23],
+    calificacion: [23],
+    comentario: [25, 1043],
+    fecha: [1114, 1184],
+  },
+  contact_messages: {
+    id_mensaje: [23],
+    nombre: [25, 1043],
+    email: [25, 1043],
+    telefono: [25, 1043],
+    asunto: [25, 1043],
+    mensaje: [25, 1043],
+    leido: [16],
+    respondido: [16],
+    fecha_lectura: [1114, 1184],
+    id_usuario_responde: [23],
+    created_at: [1114, 1184],
+  },
+};
+const PRIMARY_KEYS: Record<string, string> = {
+  users: 'id_usuario',
+  reviews: 'id_review',
+  contact_messages: 'id_mensaje',
+};
+
+/** Read-only minimum contract, not a certification of the production schema. */
+export async function assertReviewModerationBaseSchema(
+  source: ModerationSchemaQueryable,
+): Promise<void> {
+  const result: unknown = await source.query(`
+    SELECT namespace.nspname AS schema_name,relation.relname AS table_name,
+      relation.relkind AS relation_kind,attribute.attname AS column_name,
+      attribute.atttypid::int AS type_oid,
+      EXISTS(SELECT 1 FROM pg_catalog.pg_constraint key_constraint
+        WHERE key_constraint.conrelid=relation.oid AND key_constraint.contype='p'
+          AND key_constraint.conkey=ARRAY[attribute.attnum]) AS primary_key
+    FROM pg_catalog.pg_namespace namespace
+    JOIN pg_catalog.pg_class relation ON relation.relnamespace=namespace.oid
+    LEFT JOIN pg_catalog.pg_attribute attribute ON attribute.attrelid=relation.oid
+      AND attribute.attnum>0 AND NOT attribute.attisdropped
+    WHERE namespace.nspname IN ('core','public')
+      AND relation.relname IN ('users','reviews','contact_messages','review_moderation_events')
+    ORDER BY namespace.nspname,relation.relname,attribute.attnum;
+  `);
+  const invalid = () => new Error('MODERATION_MIGRATION_CORE_SCHEMA_REQUIRED');
+  if (!Array.isArray(result)) throw invalid();
+  const rows: unknown[] = result;
+  const seen = new Map<string, { type: number; primary: boolean }>();
+  for (const value of rows) {
+    if (!value || typeof value !== 'object' || Array.isArray(value))
+      throw invalid();
+    const row = value as Record<string, unknown>;
+    if (row.table_name === 'review_moderation_events')
+      throw new Error('MODERATION_MIGRATION_PARTIAL_SCHEMA');
+    if (
+      row.schema_name !== 'core' ||
+      row.relation_kind !== 'r' ||
+      typeof row.table_name !== 'string' ||
+      !Object.hasOwn(REQUIRED_COLUMNS, row.table_name) ||
+      typeof row.column_name !== 'string' ||
+      typeof row.type_oid !== 'number' ||
+      typeof row.primary_key !== 'boolean'
+    )
+      throw invalid();
+    if (
+      row.table_name === 'reviews' &&
+      ['retirada', 'revision'].includes(row.column_name)
+    )
+      throw new Error('MODERATION_MIGRATION_PARTIAL_SCHEMA');
+    const key = row.table_name + '.' + row.column_name;
+    if (seen.has(key)) throw invalid();
+    seen.set(key, { type: row.type_oid, primary: row.primary_key });
+  }
+  for (const [table, columns] of Object.entries(REQUIRED_COLUMNS)) {
+    for (const [name, allowedTypes] of Object.entries(columns)) {
+      const column = seen.get(table + '.' + name);
+      if (
+        !column ||
+        !allowedTypes.includes(column.type) ||
+        (PRIMARY_KEYS[table] === name && !column.primary)
+      )
+        throw invalid();
+    }
+  }
+  const artifacts: unknown = await source.query(`
+    SELECT to_regprocedure('core.reject_review_moderation_history_change()') IS NOT NULL
+      OR to_regprocedure('core.require_review_moderation_event()') IS NOT NULL AS present;
+  `);
+  if (
+    !Array.isArray(artifacts) ||
+    artifacts.length !== 1 ||
+    !artifacts[0] ||
+    typeof artifacts[0] !== 'object' ||
+    (artifacts[0] as Record<string, unknown>).present !== false
+  )
+    throw new Error('MODERATION_MIGRATION_PARTIAL_SCHEMA');
+}
+
+export class ReviewModeration1793740000000 implements MigrationInterface {
+  name = 'ReviewModeration1793740000000';
+
+  async up(queryRunner: QueryRunner): Promise<void> {
+    // Also protects direct migration invocation; runners may preflight before
+    // runMigrations to avoid even creating its ledger for an invalid schema.
+    await assertReviewModerationBaseSchema(queryRunner);
+    await queryRunner.query(`
+      ALTER TABLE core.reviews
+        ADD COLUMN retirada boolean NOT NULL DEFAULT false,
+        ADD COLUMN revision integer NOT NULL DEFAULT 0,
+        ADD CONSTRAINT review_moderation_revision_nonnegative CHECK(revision>=0);
+      CREATE TABLE core.review_moderation_events (
+        id_evento integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+        id_review integer NOT NULL REFERENCES core.reviews(id_review) ON DELETE RESTRICT,
+        id_mensaje integer REFERENCES core.contact_messages(id_mensaje) ON DELETE RESTRICT,
+        accion varchar(16) NOT NULL CHECK(accion IN ('conservar','retirar','restaurar')),
+        motivo text NOT NULL CHECK(length(btrim(motivo)) BETWEEN 1 AND 1000),
+        id_administrador integer NOT NULL REFERENCES core.users(id_usuario) ON DELETE RESTRICT,
+        fecha timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        retirada_anterior boolean NOT NULL,
+        retirada_nueva boolean NOT NULL,
+        revision integer NOT NULL CHECK(revision>0),
+        CONSTRAINT review_moderation_event_revision UNIQUE(id_review,revision),
+        CONSTRAINT review_moderation_action_state CHECK(
+          (accion='conservar' AND retirada_anterior=retirada_nueva) OR
+          (accion='retirar' AND retirada_nueva=true) OR
+          (accion='restaurar' AND retirada_nueva=false))
+      );
+      CREATE INDEX review_moderation_report_idx ON core.review_moderation_events(id_mensaje);
+      REVOKE ALL ON TABLE core.review_moderation_events FROM PUBLIC;
+      REVOKE ALL ON SEQUENCE core.review_moderation_events_id_evento_seq FROM PUBLIC;
+
+      CREATE FUNCTION core.reject_review_moderation_history_change() RETURNS trigger
+      LANGUAGE plpgsql SET search_path=pg_catalog AS $function$
+      BEGIN
+        RAISE EXCEPTION 'Review moderation history is append-only' USING ERRCODE='42501';
+      END;
+      $function$;
+      REVOKE ALL ON FUNCTION core.reject_review_moderation_history_change() FROM PUBLIC;
+      CREATE TRIGGER review_moderation_history_immutable
+        BEFORE UPDATE OR DELETE ON core.review_moderation_events FOR EACH ROW
+        EXECUTE FUNCTION core.reject_review_moderation_history_change();
+      CREATE TRIGGER review_moderation_history_no_truncate
+        BEFORE TRUNCATE ON core.review_moderation_events FOR EACH STATEMENT
+        EXECUTE FUNCTION core.reject_review_moderation_history_change();
+
+      CREATE FUNCTION core.require_review_moderation_event() RETURNS trigger
+      LANGUAGE plpgsql SET search_path=pg_catalog AS $function$
+      BEGIN
+        IF TG_OP='INSERT' THEN
+          IF NEW.retirada OR NEW.revision<>0 THEN
+            RAISE EXCEPTION 'New reviews must start visible at revision zero' USING ERRCODE='23514';
+          END IF;
+        ELSIF NEW.retirada IS DISTINCT FROM OLD.retirada OR NEW.revision IS DISTINCT FROM OLD.revision THEN
+          IF NEW.revision<>OLD.revision+1 OR NOT EXISTS(
+            SELECT 1 FROM core.review_moderation_events e
+            WHERE e.id_review=NEW.id_review AND e.revision=NEW.revision
+              AND e.retirada_anterior=OLD.retirada AND e.retirada_nueva=NEW.retirada
+          ) THEN
+            RAISE EXCEPTION 'Review moderation requires its matching audit event' USING ERRCODE='23514';
+          END IF;
+        END IF;
+        RETURN NULL;
+      END;
+      $function$;
+      REVOKE ALL ON FUNCTION core.require_review_moderation_event() FROM PUBLIC;
+      CREATE CONSTRAINT TRIGGER review_moderation_requires_event
+        AFTER INSERT OR UPDATE ON core.reviews DEFERRABLE INITIALLY DEFERRED
+        FOR EACH ROW EXECUTE FUNCTION core.require_review_moderation_event();
+
+      -- Conserva el modelo de privilegios existente: sólo roles con grants de
+      -- INSERT y UPDATE sobre reviews. No propaga privilegios recibidos de PUBLIC.
+      DO $grant$
+      DECLARE target record;
+      BEGIN
+        FOR target IN
+          SELECT roles.rolname
+          FROM pg_class relation
+          JOIN pg_namespace namespace ON namespace.oid=relation.relnamespace
+          CROSS JOIN LATERAL aclexplode(COALESCE(relation.relacl,acldefault('r',relation.relowner))) acl
+          JOIN pg_roles roles ON roles.oid=acl.grantee
+          WHERE namespace.nspname='core' AND relation.relname='reviews' AND acl.grantee<>0
+          GROUP BY roles.rolname
+          HAVING bool_or(acl.privilege_type='INSERT') AND bool_or(acl.privilege_type='UPDATE')
+        LOOP
+          EXECUTE format('GRANT SELECT, INSERT ON TABLE core.review_moderation_events TO %I',target.rolname);
+          EXECUTE format('GRANT USAGE, SELECT ON SEQUENCE core.review_moderation_events_id_evento_seq TO %I',target.rolname);
+        END LOOP;
+      END;
+      $grant$;
+    `);
+  }
+
+  async down(queryRunner: QueryRunner): Promise<void> {
+    // No descarta evidencia ni vuelve públicas reseñas retiradas durante un rollback.
+    await queryRunner.query(`
+      LOCK TABLE core.reviews,core.review_moderation_events IN ACCESS EXCLUSIVE MODE;
+      DO $guard$
+      BEGIN
+        IF EXISTS(SELECT 1 FROM core.review_moderation_events)
+          OR EXISTS(SELECT 1 FROM core.reviews WHERE retirada OR revision<>0) THEN
+          RAISE EXCEPTION 'Cannot remove moderation schema with moderation data' USING ERRCODE='55000';
+        END IF;
+      END;
+      $guard$;
+      DROP TRIGGER review_moderation_requires_event ON core.reviews;
+      DROP FUNCTION core.require_review_moderation_event();
+      DROP TABLE core.review_moderation_events;
+      DROP FUNCTION core.reject_review_moderation_history_change();
+      ALTER TABLE core.reviews DROP CONSTRAINT review_moderation_revision_nonnegative,
+        DROP COLUMN retirada,DROP COLUMN revision;
+    `);
+  }
+}

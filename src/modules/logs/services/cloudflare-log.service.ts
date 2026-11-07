@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MailService } from '../../../services/mail/mail.service';
 import { R2StorageService } from '../../backups/services/r2-storage.service';
+import { isAuditRecord } from '../http-audit.types';
+import type { HttpAuditRequest } from '../http-audit.types';
 
 type LogLevel = 'info' | 'warn' | 'error' | 'critical';
 
@@ -39,10 +41,10 @@ export class CloudflareLogService {
   ) {}
 
   async registerHttpEvent(
-    request: any,
+    request: HttpAuditRequest,
     statusCode: number,
     durationMs: number,
-    error?: any,
+    error?: unknown,
   ): Promise<void> {
     const path = `${request?.originalUrl ?? request?.url ?? ''}`;
     if (!path || path.startsWith('/logs')) {
@@ -51,10 +53,16 @@ export class CloudflareLogService {
 
     const moduleName = this.getModuleFromPath(path);
     const metadata = this.classifyEvent(request, statusCode, error);
+    const user = isAuditRecord(request.user) ? request.user : undefined;
+    const body = isAuditRecord(request.body) ? request.body : undefined;
+    const session = isAuditRecord(request.session)
+      ? request.session
+      : undefined;
+    const errorContext = isAuditRecord(error) ? error : undefined;
     const email =
-      request?.user?.email ??
-      request?.body?.email ??
-      request?.body?.correo ??
+      user?.email ??
+      body?.email ??
+      body?.correo ??
       request?.query?.email ??
       null;
 
@@ -72,18 +80,18 @@ export class CloudflareLogService {
         ip: request?.ip ?? request?.socket?.remoteAddress ?? null,
         userAgent: request?.headers?.['user-agent'] ?? null,
         email,
-        userId: request?.user?.id_usuario ?? request?.user?.id ?? null,
+        userId: user?.id_usuario ?? user?.id ?? null,
         sessionId:
-          request?.user?.sessionId ??
-          request?.user?.session_id ??
-          request?.session?.id ??
+          user?.sessionId ??
+          user?.session_id ??
+          session?.id ??
           request?.headers?.['x-session-id'] ??
           null,
         ...(error
           ? {
               error: {
-                name: error?.name ?? 'Error',
-                message: error?.message ?? 'Unexpected error',
+                name: errorContext?.name ?? 'Error',
+                message: errorContext?.message ?? 'Unexpected error',
               },
             }
           : {}),
@@ -97,7 +105,7 @@ export class CloudflareLogService {
     await this.appendLog(entry);
 
     if (entry.level === 'critical') {
-      await this.sendCriticalAlert(entry).catch((mailError) =>
+      await this.sendCriticalAlert(entry).catch((mailError: unknown) =>
         this.logger.error(
           `No fue posible enviar la alerta crítica por correo: ${
             mailError instanceof Error ? mailError.message : String(mailError)
@@ -155,9 +163,10 @@ export class CloudflareLogService {
       return { items: [], total: 0, page, limit };
     }
 
-    const modules = query.module && query.module !== 'all'
-      ? [query.module]
-      : await this.getAvailableModules(targetDate);
+    const modules =
+      query.module && query.module !== 'all'
+        ? [query.module]
+        : await this.getAvailableModules(targetDate);
 
     const entries: LogEntry[] = [];
     for (const moduleName of modules) {
@@ -185,7 +194,10 @@ export class CloudflareLogService {
     const filtered = entries
       .filter((entry) => entry.module !== 'logs')
       .filter((entry) => this.persistableLevels.has(entry.level))
-      .filter((entry) => !query.level || query.level === 'all' || entry.level === query.level)
+      .filter(
+        (entry) =>
+          !query.level || query.level === 'all' || entry.level === query.level,
+      )
       .filter((entry) => this.matchesSearch(entry, query.search))
       .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 
@@ -213,7 +225,11 @@ export class CloudflareLogService {
       ? `${previousContent.trimEnd()}\n${JSON.stringify(entry)}\n`
       : `${JSON.stringify(entry)}\n`;
 
-    await this.r2StorageService.uploadText(key, nextContent, 'text/plain; charset=utf-8');
+    await this.r2StorageService.uploadText(
+      key,
+      nextContent,
+      'text/plain; charset=utf-8',
+    );
   }
 
   private matchesSearch(entry: LogEntry, search?: string): boolean {
@@ -224,18 +240,19 @@ export class CloudflareLogService {
   }
 
   private getModuleFromPath(path: string): string {
-    const segment = path.split('?')[0].split('/').filter(Boolean)[0] ?? 'system';
+    const segment =
+      path.split('?')[0].split('/').filter(Boolean)[0] ?? 'system';
     return segment || 'system';
   }
 
   private classifyEvent(
-    request: any,
+    request: HttpAuditRequest,
     statusCode: number,
-    error?: any,
+    error?: unknown,
   ): { event: string; level: LogLevel } {
     const path = `${request?.originalUrl ?? request?.url ?? ''}`;
     const method = `${request?.method ?? 'GET'}`.toUpperCase();
-    const body = request?.body ?? {};
+    const body = isAuditRecord(request.body) ? request.body : undefined;
 
     if (path.includes('/users/login-user')) {
       return statusCode >= 400
@@ -258,7 +275,10 @@ export class CloudflareLogService {
       path.includes('/products/create-inventory-movement') ||
       path.includes('/products/inventory-movements/bulk')
     ) {
-      return { event: 'modificacion_de_precios_o_inventario', level: 'critical' };
+      return {
+        event: 'modificacion_de_precios_o_inventario',
+        level: 'critical',
+      };
     }
 
     if (
@@ -266,11 +286,17 @@ export class CloudflareLogService {
       path.includes('/products/delete-category') ||
       path.includes('/products/delete-marca')
     ) {
-      return { event: 'eliminacion_de_productos_o_categorias', level: 'critical' };
+      return {
+        event: 'eliminacion_de_productos_o_categorias',
+        level: 'critical',
+      };
     }
 
     if (statusCode === 403) {
-      return { event: 'intento_de_acceso_a_ruta_admin_sin_permisos', level: 'error' };
+      return {
+        event: 'intento_de_acceso_a_ruta_admin_sin_permisos',
+        level: 'error',
+      };
     }
 
     if (
@@ -282,7 +308,10 @@ export class CloudflareLogService {
       return { event: 'token_jwt_invalido_o_expirado', level: 'info' };
     }
 
-    if (statusCode >= 500 || error?.name === 'QueryFailedError') {
+    if (
+      statusCode >= 500 ||
+      (isAuditRecord(error) && error.name === 'QueryFailedError')
+    ) {
       return { event: 'consulta_sql_con_errores', level: 'error' };
     }
 
@@ -306,14 +335,18 @@ export class CloudflareLogService {
         <li><b>Módulo:</b> ${entry.module}</li>
         <li><b>Evento:</b> ${this.toTitleCase(entry.event)}</li>
         <li><b>Fecha:</b> ${entry.timestamp}</li>
-        <li><b>Método:</b> ${entry.data.method ?? 'N/A'}</li>
-        <li><b>Ruta:</b> ${entry.data.path ?? 'N/A'}</li>
-        <li><b>Usuario:</b> ${entry.data.email ?? 'No identificado'}</li>
+        <li><b>Método:</b> ${this.stringifyLogValue(entry.data.method ?? 'N/A')}</li>
+        <li><b>Ruta:</b> ${this.stringifyLogValue(entry.data.path ?? 'N/A')}</li>
+        <li><b>Usuario:</b> ${this.stringifyLogValue(entry.data.email ?? 'No identificado')}</li>
       </ul>
       <pre>${JSON.stringify(entry.data, null, 2)}</pre>
     `;
 
     await this.mailService.sendCriticalAlertEmail(destination, subject, html);
+  }
+
+  private stringifyLogValue(value: unknown): string {
+    return String(value);
   }
 
   private toTitleCase(value: string): string {
