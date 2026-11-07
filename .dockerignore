@@ -1,0 +1,16 @@
+.git
+.github
+.codex
+.agents
+.env
+.env.*
+.npmrc
+node_modules
+dist
+coverage
+test-results
+output
+*.log
+*.dump
+*.pem
+*.key
