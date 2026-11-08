@@ -53,6 +53,108 @@ async function fixture() {
 }
 
 describe('FileDeletionLedger', () => {
+  test('serializes concurrent reads, intent writes and completion on the same instance', async () => {
+    const { ledger, intent } = await fixture();
+    await ledger.initializeNew();
+    await ledger.recordIntent(intent);
+    const next = {
+      ...intent,
+      operationId: randomUUID(),
+      accountId: randomUUID(),
+      legacyUserId: 19,
+    };
+    const results = await Promise.allSettled([
+      ledger.verifyAndRead(),
+      ledger.recordIntent(next),
+      ledger.markCompleted(intent.operationId),
+      ledger.verifyAndRead(),
+    ]);
+    expect(results.map((result) => result.status)).toEqual([
+      'fulfilled',
+      'fulfilled',
+      'fulfilled',
+      'fulfilled',
+    ]);
+    const snapshot = await ledger.verifyAndRead();
+    expect(snapshot.sequence).toBe(3);
+    expect(snapshot.intents).toEqual([
+      { ...intent, completed: true },
+      { ...next, completed: false },
+    ]);
+  });
+
+  test('preserves call order and authenticated chain integrity across 25 parallel operations', async () => {
+    const { ledger, intent } = await fixture();
+    await ledger.initializeNew();
+    const pending: Promise<unknown>[] = [];
+    const intents: DeletionIntent[] = [];
+    for (let index = 0; index < 5; index += 1) {
+      const record = {
+        ...intent,
+        operationId: randomUUID(),
+        accountId: randomUUID(),
+        legacyUserId: 18 + index,
+        legacyFingerprint: randomBytes(32).toString('hex'),
+      };
+      intents.push(record);
+      pending.push(
+        ledger.recordIntent(record),
+        ledger.verifyAndRead(),
+        ledger.markCompleted(record.operationId),
+        ledger.verifyAndRead(),
+        ledger.verifyAndRead(),
+      );
+    }
+    const results = await Promise.all(pending);
+    expect(results).toHaveLength(25);
+    for (let index = 0; index < 5; index += 1) {
+      expect(results[index * 5 + 1]).toMatchObject({
+        sequence: index * 2 + 1,
+        intents: [
+          ...intents
+            .slice(0, index)
+            .map((record) => ({ ...record, completed: true })),
+          { ...intents[index], completed: false },
+        ],
+      });
+      expect(results[index * 5 + 3]).toMatchObject({
+        sequence: index * 2 + 2,
+        intents: intents
+          .slice(0, index + 1)
+          .map((record) => ({ ...record, completed: true })),
+      });
+      expect(results[index * 5 + 4]).toEqual(results[index * 5 + 3]);
+    }
+    await expect(ledger.verifyAndRead()).resolves.toMatchObject({
+      sequence: 10,
+      intents: intents.map((record) => ({ ...record, completed: true })),
+    });
+  });
+
+  test('continues queued work after a locked operation fails without poisoning the queue', async () => {
+    const { ledger, intent } = await fixture();
+    await ledger.initializeNew();
+    const results = await Promise.allSettled([
+      ledger.markCompleted(randomUUID()),
+      ledger.recordIntent(intent),
+      ledger.markCompleted(intent.operationId),
+      ledger.verifyAndRead(),
+    ]);
+    expect(results[0]).toMatchObject({
+      status: 'rejected',
+      reason: { code: 'CONFLICT' },
+    });
+    expect(results.slice(1).map((result) => result.status)).toEqual([
+      'fulfilled',
+      'fulfilled',
+      'fulfilled',
+    ]);
+    await expect(ledger.verifyAndRead()).resolves.toMatchObject({
+      sequence: 2,
+      intents: [{ ...intent, completed: true }],
+    });
+  });
+
   test('requires an absolute independent directory and dedicated strong key', async () => {
     const { options } = await fixture();
     expect(
@@ -375,6 +477,17 @@ describe('FileDeletionLedger', () => {
     const other = new FileDeletionLedger(options);
     await expect(other.recordIntent(intent)).rejects.toThrow('LOCKED');
     await expect(ledger.verifyAndRead()).rejects.toThrow('LOCKED');
+    const blocked = await Promise.allSettled([
+      ledger.verifyAndRead(),
+      ledger.markCompleted(intent.operationId),
+    ]);
+    for (const result of blocked) {
+      expect(result.status).toBe('rejected');
+      if (result.status === 'rejected') {
+        expect(result.reason).toBeInstanceOf(DeletionLedgerError);
+        expect(result.reason).toMatchObject({ code: 'LOCKED' });
+      }
+    }
     expect(await readFile(lock, 'utf8')).toBe('OTHER_PROCESS_OR_STALE_LOCK');
     await unlink(lock);
     await other.recordIntent(intent);
