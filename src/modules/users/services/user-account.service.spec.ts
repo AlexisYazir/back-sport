@@ -183,6 +183,9 @@ describe('UserAccountService: respuesta pública del registro', () => {
       message: mailFailureMessage,
     });
     expect(JSON.stringify(result.getResponse())).not.toContain(providerDetail);
+    expect(
+      JSON.stringify(jest.spyOn(Logger.prototype, 'error').mock.calls),
+    ).not.toContain(providerDetail);
     expect(editor.save).toHaveBeenCalledTimes(1);
     expect(mail.sendVerificationEmail).toHaveBeenCalledTimes(1);
     expect(editor.delete).toHaveBeenCalledTimes(1);

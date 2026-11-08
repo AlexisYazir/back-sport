@@ -28,7 +28,7 @@ export class UserAdminService {
 
       return result;
     } catch (error) {
-      this.logger.error('ERROR REAL:', error);
+      this.logger.error('Recent accounts query failed');
       throw error;
     }
   }

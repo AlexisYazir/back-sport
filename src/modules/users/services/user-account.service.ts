@@ -105,7 +105,7 @@ export class UserAccountService {
       );
     } catch (error) {
       await this.userEditorRepository.delete({ email: newUser.email });
-      this.logger.error(error);
+      this.logger.error('Account verification delivery failed');
       throw new BadRequestException(
         'Revisa que tu información sea correcta. Intenta de nuevo 1.',
       );
@@ -676,8 +676,6 @@ export class UserAccountService {
   }
 
   async getProfile(id_usuario: number) {
-    this.logger.log('Buscando perfil para ID:', id_usuario);
-
     if (!id_usuario) {
       throw new BadRequestException('ID de usuario no proporcionado');
     }
@@ -697,11 +695,9 @@ export class UserAccountService {
     });
 
     if (!user) {
-      this.logger.log(`Usuario con ID ${id_usuario} no encontrado`);
       throw new BadRequestException('El usuario no existe.');
     }
 
-    this.logger.log('Usuario encontrado:', user);
     return user;
   }
 

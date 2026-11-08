@@ -3,6 +3,7 @@ import { ExecutionContextHost } from '@nestjs/core/helpers/execution-context-hos
 import { lastValueFrom, of, throwError } from 'rxjs';
 import { CloudflareLogService } from '../services/cloudflare-log.service';
 import { HttpAuditInterceptor } from './http-audit.interceptor';
+import { Logger } from '@nestjs/common';
 
 describe('HttpAuditInterceptor error boundaries', () => {
   const registerHttpEvent = jest.fn<Promise<void>, unknown[]>();
@@ -73,4 +74,41 @@ describe('HttpAuditInterceptor error boundaries', () => {
     ).resolves.toBe('ok');
     expect(registerHttpEvent).not.toHaveBeenCalled();
   });
+
+  it.each([false, true])(
+    'keeps HTTP behavior when persistence fails without logging that error (%s)',
+    async (failure) => {
+      const log = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+      try {
+        registerHttpEvent.mockRejectedValueOnce(
+          new Error('CANARY_STORAGE_ERROR_SECRET'),
+        );
+        const context = new ExecutionContextHost([
+          { originalUrl: '/users/profile' },
+          { statusCode: 200 },
+        ]);
+        const result = { ok: true },
+          originalError = new Error('original HTTP failure');
+        const observed = lastValueFrom(
+          interceptor.intercept(context, {
+            handle: () =>
+              failure ? throwError(() => originalError) : of(result),
+          }),
+        );
+        if (failure) await expect(observed).rejects.toBe(originalError);
+        else await expect(observed).resolves.toBe(result);
+        await Promise.resolve();
+        expect(log).toHaveBeenCalledWith(
+          failure
+            ? 'HTTP failure audit persistence failed'
+            : 'HTTP audit persistence failed',
+        );
+        expect(JSON.stringify(log.mock.calls)).not.toContain('CANARY_');
+      } finally {
+        log.mockRestore();
+      }
+    },
+  );
 });
