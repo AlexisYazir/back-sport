@@ -8,10 +8,8 @@ import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 
 import { User } from '../entities/user.entity';
-import {
-  SessionContext,
-  UserSessionService,
-} from './user-session.service';
+import { AccountDeletionAccessService } from '../../account-deletion/account-deletion-access.service';
+import { SessionContext, UserSessionService } from './user-session.service';
 
 @Injectable()
 export class UserGoogleAuthService {
@@ -24,6 +22,7 @@ export class UserGoogleAuthService {
     private readonly userReaderRepository: Repository<User>,
     private readonly configService: ConfigService,
     private readonly userSessionService: UserSessionService,
+    private readonly accountDeletionAccess: AccountDeletionAccessService,
   ) {
     this.googleClient = new OAuth2Client(
       this.configService.get('GOOGLE_CLIENT_ID'),
@@ -63,12 +62,27 @@ export class UserGoogleAuthService {
 
         await this.userEditorRepository.save(user);
       } else {
-        user.google_id = googleUser.googleId;
-        user.email_verified = 1;
-        user.activo = 1;
-        user.token_verificacion = '';
-        user.token_expiracion = null;
-        await this.userEditorRepository.save(user);
+        return await this.accountDeletionAccess.withAccountLock(
+          user.id_usuario,
+          async (manager, currentUser) => {
+            if (currentUser.email !== googleUser.email) {
+              throw new BadRequestException(
+                'La cuenta cambió. Inicia sesión de nuevo.',
+              );
+            }
+            currentUser.google_id = googleUser.googleId;
+            currentUser.email_verified = 1;
+            currentUser.activo = 1;
+            currentUser.token_verificacion = '';
+            currentUser.token_expiracion = null;
+            await manager.getRepository(User).save(currentUser);
+            return this.userSessionService.issueSessionTokensForUser(
+              currentUser,
+              context,
+              manager,
+            );
+          },
+        );
       }
 
       return this.userSessionService.issueSessionTokensForUser(user, context);

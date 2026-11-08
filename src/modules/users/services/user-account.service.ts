@@ -1,7 +1,7 @@
 /* eslint-disable */
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 
@@ -10,6 +10,7 @@ import { CreateUserDto } from '../dto/create-user.dto';
 import { CreateUserResponseDto } from '../dto/create-user-response.dto';
 import { UpdateUserDto } from '../dto/update-user.dto';
 import { User } from '../entities/user.entity';
+import { AccountDeletionAccessService } from '../../account-deletion/account-deletion-access.service';
 
 @Injectable()
 export class UserAccountService {
@@ -25,7 +26,28 @@ export class UserAccountService {
     @InjectRepository(User, 'readerConnection')
     private readonly userReaderRepository: Repository<User>,
     private readonly mailService: MailService,
+    private readonly accountDeletionAccess: AccountDeletionAccessService,
   ) {}
+
+  // Expected validation failures may update attempt counters. Commit those
+  // changes before surfacing the error; unexpected failures still roll back.
+  private async mutateAccount<T>(
+    id: number,
+    work: (manager: EntityManager, user: User) => Promise<T>,
+  ): Promise<T> {
+    const result = await this.accountDeletionAccess.withAccountLock<
+      { ok: true; value: T } | { ok: false; error: BadRequestException }
+    >(id, async (manager, user) => {
+      try {
+        return { ok: true, value: await work(manager, user) };
+      } catch (error) {
+        if (error instanceof BadRequestException) return { ok: false, error };
+        throw error;
+      }
+    });
+    if (!result.ok) throw result.error;
+    return result.value;
+  }
 
   async createUser(
     createUserDto: CreateUserDto,
@@ -144,59 +166,69 @@ export class UserAccountService {
         );
       }
 
-      const now = new Date();
+      return this.mutateAccount(user.id_usuario, async (manager, user) => {
+        if (user.email !== email)
+          throw new BadRequestException(
+            'La cuenta cambió. Solicita un nuevo código.',
+          );
+        const repository = manager.getRepository(User);
+        const now = new Date();
 
-      if (!user.token_expiracion || now > user.token_expiracion) {
-        user.token_verificacion = '';
-        user.token_expiracion = null;
-        user.intentos_token = 0;
-        await this.userEditorRepository.save(user);
-
-        throw new BadRequestException(
-          'El token ha expirado, solicita uno nuevo.',
-        );
-      }
-
-      if (typeof user.intentos_token !== 'number' || user.intentos_token <= 0) {
-        user.token_verificacion = '';
-        user.token_expiracion = null;
-        user.intentos_token = 0;
-        await this.userEditorRepository.save(user);
-
-        throw new BadRequestException(
-          'Se han agotado los intentos. Solicita un nuevo token.',
-        );
-      }
-
-      if (user.token_verificacion !== token) {
-        user.intentos_token -= 1;
-        await this.userEditorRepository.save(user);
-
-        if (user.intentos_token <= 0) {
+        if (!user.token_expiracion || now > user.token_expiracion) {
           user.token_verificacion = '';
           user.token_expiracion = null;
           user.intentos_token = 0;
-          await this.userEditorRepository.save(user);
+          await repository.save(user);
 
           throw new BadRequestException(
-            'Has agotado los intentos. Solicita un nuevo token.',
+            'El token ha expirado, solicita uno nuevo.',
           );
         }
 
-        throw new BadRequestException(
-          'El token es incorrecto' +
-            '. Te quedan ' +
-            user.intentos_token +
-            ' intentos.',
-        );
-      }
+        if (
+          typeof user.intentos_token !== 'number' ||
+          user.intentos_token <= 0
+        ) {
+          user.token_verificacion = '';
+          user.token_expiracion = null;
+          user.intentos_token = 0;
+          await repository.save(user);
 
-      user.email_verified = 1;
-      user.activo = 1;
+          throw new BadRequestException(
+            'Se han agotado los intentos. Solicita un nuevo token.',
+          );
+        }
 
-      await this.userEditorRepository.save(user);
+        if (user.token_verificacion !== token) {
+          user.intentos_token -= 1;
+          await repository.save(user);
 
-      return { message: 'Cuenta verificada correctamente.' };
+          if (user.intentos_token <= 0) {
+            user.token_verificacion = '';
+            user.token_expiracion = null;
+            user.intentos_token = 0;
+            await repository.save(user);
+
+            throw new BadRequestException(
+              'Has agotado los intentos. Solicita un nuevo token.',
+            );
+          }
+
+          throw new BadRequestException(
+            'El token es incorrecto' +
+              '. Te quedan ' +
+              user.intentos_token +
+              ' intentos.',
+          );
+        }
+
+        user.email_verified = 1;
+        user.activo = 1;
+
+        await repository.save(user);
+
+        return { message: 'Cuenta verificada correctamente.' };
+      });
     } catch (error) {
       throw error;
     }
@@ -224,25 +256,35 @@ export class UserAccountService {
           'Revisa que tu información sea correcta. Intenta de nuevo',
         );
       }
-      const code = crypto.randomInt(100000, 1000000).toString();
+      return this.mutateAccount(
+        existingUser.id_usuario,
+        async (manager, existingUser) => {
+          if (existingUser.email !== emaill)
+            throw new BadRequestException(
+              'La cuenta cambió. Solicita un nuevo código.',
+            );
+          const code = crypto.randomInt(100000, 1000000).toString();
 
-      const expiration = new Date(Date.now() + 24 * 60 * 60 * 1000);
+          const expiration = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-      existingUser.token_verificacion = code;
-      existingUser.token_expiracion = expiration;
-      existingUser.intentos_token = 3;
+          existingUser.token_verificacion = code;
+          existingUser.token_expiracion = expiration;
+          existingUser.intentos_token = 3;
 
-      await this.userEditorRepository.save(existingUser);
+          await manager.getRepository(User).save(existingUser);
 
-      await this.mailService.resendVerificationEmail(
-        existingUser.email,
-        existingUser.nombre,
-        code,
+          await this.mailService.resendVerificationEmail(
+            existingUser.email,
+            existingUser.nombre,
+            code,
+          );
+
+          return {
+            message:
+              'Codigo enviado correctamente. Revise su bandeja de entrada.',
+          };
+        },
       );
-
-      return {
-        message: 'Codigo enviado correctamente. Revise su bandeja de entrada.',
-      };
     } catch (error) {
       throw error;
     }
@@ -250,7 +292,9 @@ export class UserAccountService {
 
   async requestVerificationCode(email: string): Promise<{ message: string }> {
     try {
-      const emaill = String(email || '').trim().toLowerCase();
+      const emaill = String(email || '')
+        .trim()
+        .toLowerCase();
 
       if (!emaill) {
         throw new BadRequestException('El correo es obligatorio');
@@ -271,34 +315,41 @@ export class UserAccountService {
         );
       }
 
-      const code = crypto.randomInt(100000, 1000000).toString();
-      const expiration = new Date(Date.now() + 15 * 60 * 1000);
+      return this.mutateAccount(
+        existingUser.id_usuario,
+        async (manager, existingUser) => {
+          if (existingUser.email !== emaill)
+            throw new BadRequestException(
+              'La cuenta cambió. Solicita un nuevo código.',
+            );
+          const code = crypto.randomInt(100000, 1000000).toString();
+          const expiration = new Date(Date.now() + 15 * 60 * 1000);
 
-      existingUser.token_verificacion = code;
-      existingUser.token_expiracion = expiration;
-      existingUser.intentos_token = 3;
+          existingUser.token_verificacion = code;
+          existingUser.token_expiracion = expiration;
+          existingUser.intentos_token = 3;
 
-      await this.userEditorRepository.save(existingUser);
+          await manager.getRepository(User).save(existingUser);
 
-      await this.mailService.requestVerificationCodeLogin(
-        existingUser.email,
-        existingUser.nombre,
-        code,
-        '15 minutos',
+          await this.mailService.requestVerificationCodeLogin(
+            existingUser.email,
+            existingUser.nombre,
+            code,
+            '15 minutos',
+          );
+
+          return {
+            message:
+              'Código de verificación enviado correctamente. Expira en 15 minutos.',
+          };
+        },
       );
-
-      return {
-        message:
-          'Código de verificación enviado correctamente. Expira en 15 minutos.',
-      };
     } catch (error) {
       throw error;
     }
   }
 
-  async requestAlexaVerificationCode(
-    id_usuario: number,
-  ): Promise<{
+  async requestAlexaVerificationCode(id_usuario: number): Promise<{
     message: string;
     email: string;
     token: string | null;
@@ -320,19 +371,20 @@ export class UserAccountService {
       throw new BadRequestException('Usuario no encontrado');
     }
 
-    const activeCode = await this.getActiveAlexaCodeForUser(user);
-    if (activeCode.hasActiveCode) {
-      return {
-        ...activeCode,
-        message: 'Ya tienes un código de Alexa activo.',
-      };
-    }
+    return this.mutateAccount(user.id_usuario, async (manager, user) => {
+      const activeCode = await this.getActiveAlexaCodeForUser(user, manager);
+      if (activeCode.hasActiveCode) {
+        return {
+          ...activeCode,
+          message: 'Ya tienes un código de Alexa activo.',
+        };
+      }
 
-    const code = crypto.randomInt(100000, 1000000).toString();
-    const tokenHash = this.hashAlexaToken(code);
+      const code = crypto.randomInt(100000, 1000000).toString();
+      const tokenHash = this.hashAlexaToken(code);
 
-    await this.editorDataSource.query(
-      `
+      await manager.query(
+        `
       UPDATE core.alexa_codes
       SET used_at = CURRENT_TIMESTAMP,
           attempts = 0
@@ -341,11 +393,11 @@ export class UserAccountService {
         AND used_at IS NULL
         AND expires_at > CURRENT_TIMESTAMP;
       `,
-      [user.id_usuario],
-    );
+        [user.id_usuario],
+      );
 
-    const insertedRows = await this.editorDataSource.query(
-      `
+      const insertedRows = await manager.query(
+        `
       INSERT INTO core.alexa_codes (
         id_usuario,
         token_hash,
@@ -359,33 +411,35 @@ export class UserAccountService {
         to_char(expires_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS') || 'Z' AS expires_at,
         GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (expires_at - CURRENT_TIMESTAMP))))::int AS remaining_seconds;
       `,
-      [user.id_usuario, tokenHash],
-    );
-    const inserted = insertedRows[0];
+        [user.id_usuario, tokenHash],
+      );
+      const inserted = insertedRows[0];
 
-    await this.mailService.requestVerificationCodeLogin(
-      user.email,
-      user.nombre,
-      code,
-      '5 minutos',
-    );
+      await this.mailService.requestVerificationCodeLogin(
+        user.email,
+        user.nombre,
+        code,
+        '5 minutos',
+      );
 
-    const linkStatus = await this.getAlexaLinkStatusForUser(user.id_usuario);
+      const linkStatus = await this.getAlexaLinkStatusForUser(
+        user.id_usuario,
+        manager,
+      );
 
-    return {
-      message: 'Código de Alexa generado correctamente. Expira en 5 minutos.',
-      email: user.email,
-      token: code,
-      expiresAt: inserted?.expires_at || null,
-      remainingSeconds: Number(inserted?.remaining_seconds || 0),
-      hasActiveCode: true,
-      ...linkStatus,
-    };
+      return {
+        message: 'Código de Alexa generado correctamente. Expira en 5 minutos.',
+        email: user.email,
+        token: code,
+        expiresAt: inserted?.expires_at || null,
+        remainingSeconds: Number(inserted?.remaining_seconds || 0),
+        hasActiveCode: true,
+        ...linkStatus,
+      };
+    });
   }
 
-  async getAlexaVerificationCode(
-    id_usuario: number,
-  ): Promise<{
+  async getAlexaVerificationCode(id_usuario: number): Promise<{
     message: string;
     email: string;
     token: string | null;
@@ -407,6 +461,7 @@ export class UserAccountService {
       throw new BadRequestException('Usuario no encontrado');
     }
 
+    await this.accountDeletionAccess.assertAllowed(user.id_usuario);
     return this.getActiveAlexaCodeForUser(user);
   }
 
@@ -417,22 +472,24 @@ export class UserAccountService {
       throw new BadRequestException('Usuario no válido');
     }
 
-    await this.editorDataSource.query(
-      `
+    return this.mutateAccount(Number(id_usuario), async (manager) => {
+      await manager.query(
+        `
       UPDATE core.alexa_account_links
       SET active = false,
           last_used_at = CURRENT_TIMESTAMP
       WHERE id_usuario = $1
         AND active = true;
       `,
-      [Number(id_usuario)],
-    );
+        [Number(id_usuario)],
+      );
 
-    return {
-      message: 'Alexa se desvinculó correctamente.',
-      isLinked: false,
-      linkedAt: null,
-    };
+      return {
+        message: 'Alexa se desvinculó correctamente.',
+        isLinked: false,
+        linkedAt: null,
+      };
+    });
   }
 
   async verifyAlexaVerificationCode(
@@ -470,12 +527,21 @@ export class UserAccountService {
     }
 
     const tokenHash = this.hashAlexaToken(tokenn);
-    const queryRunner = this.editorDataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
+    // Identify the owner without locking the code first. All mutations use
+    // the same account-first lock order as deletion, then revalidate the code.
+    const candidates = await this.readerDataSource.query(
+      `SELECT id_usuario FROM core.alexa_codes
+       WHERE token_hash = $1 AND purpose = 'ALEXA'
+       ORDER BY created_at DESC LIMIT 1`,
+      [tokenHash],
+    );
+    const ownerId = Number(candidates[0]?.id_usuario);
+    if (!Number.isSafeInteger(ownerId) || ownerId <= 0) {
+      throw new BadRequestException('Código inválido o expirado');
+    }
 
-    try {
-      const rows = await queryRunner.manager.query(
+    return this.mutateAccount(ownerId, async (manager, user) => {
+      const rows = await manager.query(
         `
         SELECT
           ac.id_alexa_code,
@@ -489,12 +555,13 @@ export class UserAccountService {
         INNER JOIN core.users u
           ON u.id_usuario = ac.id_usuario
         WHERE ac.token_hash = $1
+          AND ac.id_usuario = $2
           AND ac.purpose = 'ALEXA'
         ORDER BY ac.created_at DESC
         LIMIT 1
         FOR UPDATE;
         `,
-        [tokenHash],
+        [tokenHash, ownerId],
       );
 
       const codeRow = rows[0];
@@ -512,7 +579,7 @@ export class UserAccountService {
       }
 
       if (!codeRow.expires_at || new Date() > new Date(codeRow.expires_at)) {
-        await queryRunner.manager.query(
+        await manager.query(
           `
           UPDATE core.alexa_codes
           SET used_at = CURRENT_TIMESTAMP,
@@ -530,7 +597,7 @@ export class UserAccountService {
         );
       }
 
-      await queryRunner.manager.query(
+      await manager.query(
         `
         UPDATE core.alexa_codes
         SET used_at = CURRENT_TIMESTAMP
@@ -539,7 +606,7 @@ export class UserAccountService {
         [codeRow.id_alexa_code],
       );
 
-      await queryRunner.manager.query(
+      await manager.query(
         `
         INSERT INTO core.alexa_account_links (
           id_usuario,
@@ -561,26 +628,14 @@ export class UserAccountService {
         [codeRow.id_usuario, cleanAlexaUserId, cleanAlexaDeviceId || null],
       );
 
-      await queryRunner.commitTransaction();
-
-      const user = await this.userReaderRepository.findOne({
-        where: { id_usuario: Number(codeRow.id_usuario) },
-      });
-
-      if (!user) {
-        throw new BadRequestException('Usuario no encontrado');
-      }
-
       return user;
-    } catch (error) {
-      await queryRunner.rollbackTransaction();
-      throw error;
-    } finally {
-      await queryRunner.release();
-    }
+    });
   }
 
-  private async getActiveAlexaCodeForUser(user: User): Promise<{
+  private async getActiveAlexaCodeForUser(
+    user: User,
+    manager?: EntityManager,
+  ): Promise<{
     message: string;
     email: string;
     token: string | null;
@@ -590,8 +645,11 @@ export class UserAccountService {
     isLinked: boolean;
     linkedAt: string | null;
   }> {
-    const linkStatus = await this.getAlexaLinkStatusForUser(user.id_usuario);
-    const rows = await this.readerDataSource.query(
+    const linkStatus = await this.getAlexaLinkStatusForUser(
+      user.id_usuario,
+      manager,
+    );
+    const rows = await (manager ?? this.readerDataSource).query(
       `
       SELECT
         id_alexa_code,
@@ -637,8 +695,9 @@ export class UserAccountService {
 
   private async getAlexaLinkStatusForUser(
     id_usuario: number,
+    manager?: EntityManager,
   ): Promise<{ isLinked: boolean; linkedAt: string | null }> {
-    const rows = await this.readerDataSource.query(
+    const rows = await (manager ?? this.readerDataSource).query(
       `
       SELECT to_char(linked_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS') || 'Z' AS linked_at
       FROM core.alexa_account_links
@@ -668,7 +727,10 @@ export class UserAccountService {
       .digest('hex');
   }
 
-  private sanitizeAlexaIdentifier(value: string | undefined, maxLength: number): string {
+  private sanitizeAlexaIdentifier(
+    value: string | undefined,
+    maxLength: number,
+  ): string {
     return String(value || '')
       .trim()
       .replace(/[<>"'`;{}[\]\\|]/g, '')
@@ -679,6 +741,8 @@ export class UserAccountService {
     if (!id_usuario) {
       throw new BadRequestException('ID de usuario no proporcionado');
     }
+
+    await this.accountDeletionAccess.assertAllowed(id_usuario);
 
     const user = await this.userReaderRepository.findOne({
       where: { id_usuario },
@@ -707,44 +771,62 @@ export class UserAccountService {
     });
     if (!user) throw new BadRequestException('El usuario no existe');
 
-    if (dto.email && dto.email !== user.email) {
-      const exists = await this.userReaderRepository.findOne({
-        where: { email: dto.email },
-      });
-      if (exists)
-        throw new BadRequestException('El correo ingresado ya está en uso');
-      user.email = dto.email;
-    }
+    return this.accountDeletionAccess.withAccountLock(
+      id_usuario,
+      async (manager, user) => {
+        const repository = manager.getRepository(User);
+        const normalizedEmail = dto.email?.trim().toLowerCase();
+        if (normalizedEmail && normalizedEmail !== user.email) {
+          const exists = await this.userReaderRepository.findOne({
+            where: { email: normalizedEmail },
+          });
+          if (exists)
+            throw new BadRequestException('El correo ingresado ya está en uso');
+          user.email = normalizedEmail;
+          user.email_verified = 0;
+          user.token_verificacion = '';
+          user.token_expiracion = null;
+          user.intentos_token = 0;
+          await this.accountDeletionAccess.invalidateChallenges(
+            id_usuario,
+            manager,
+          );
+        }
 
-    if (dto.telefono && dto.telefono !== user.telefono) {
-      const exists = await this.userReaderRepository.findOne({
-        where: { telefono: dto.telefono },
-      });
-      if (exists)
-        throw new BadRequestException('El teléfono ingresado ya está en uso');
-      user.telefono = dto.telefono;
-    }
+        if (dto.telefono && dto.telefono !== user.telefono) {
+          const exists = await this.userReaderRepository.findOne({
+            where: { telefono: dto.telefono },
+          });
+          if (exists)
+            throw new BadRequestException(
+              'El teléfono ingresado ya está en uso',
+            );
+          user.telefono = dto.telefono;
+        }
 
-    if (dto.nombre) user.nombre = dto.nombre;
-    if (dto.aPaterno) user.aPaterno = dto.aPaterno;
-    if (dto.aMaterno) user.aMaterno = dto.aMaterno;
+        if (dto.nombre) user.nombre = dto.nombre;
+        if (dto.aPaterno) user.aPaterno = dto.aPaterno;
+        if (dto.aMaterno) user.aMaterno = dto.aMaterno;
 
-    if (dto.passw) {
-      const salt = await bcrypt.genSalt(10);
-      user.passw = await bcrypt.hash(dto.passw, salt);
-    }
+        if (dto.passw) {
+          const salt = await bcrypt.genSalt(10);
+          user.passw = await bcrypt.hash(dto.passw, salt);
+        }
 
-    user.fecha_actualizacion = new Date();
-    await this.userEditorRepository.save(user);
+        user.fecha_actualizacion = new Date();
+        await repository.save(user);
 
-    const { passw, ...result } = user;
-    return {
-      message: 'Perfil actualizado correctamente',
-      user: result,
-    };
+        const { passw, ...result } = user;
+        return {
+          message: 'Perfil actualizado correctamente',
+          user: result,
+        };
+      },
+    );
   }
 
   async findUserById(id_usuario: number): Promise<User> {
+    await this.accountDeletionAccess.assertAllowed(id_usuario);
     const user = await this.userReaderRepository.findOne({
       where: { id_usuario },
     });

@@ -13,9 +13,11 @@ import { UserAdminService } from './services/user-admin.service';
 import { UserGoogleAuthService } from './services/user-google-auth.service';
 import { UserPasswordRecoveryService } from './services/user-password-recovery.service';
 import { UserSessionService } from './services/user-session.service';
+import { AccountDeletionAccessModule } from '../account-deletion/account-deletion-access.module';
 
 @Module({
   imports: [
+    AccountDeletionAccessModule,
     //  IMPORTANTE: Especificar las conexiones para CADA repositorio
     TypeOrmModule.forFeature([User, Roles, UserSession], 'editorConnection'),
     TypeOrmModule.forFeature([User, Roles, UserSession], 'readerConnection'),

@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { ActiveAdminGuard } from '../../services/auth/active-admin.guard';
+import { RolesGuard } from '../../services/auth/roles.guard';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
 import { InventoryMovements } from '../products/entities/inventory/inventory_movements.entity';
@@ -28,6 +30,8 @@ import { BackupRetentionPolicyEntity } from './entities/backup-retention-policy.
     DbMaintenanceController,
   ],
   providers: [
+    ActiveAdminGuard,
+    RolesGuard,
     DbBackupService,
     DbMonitoringService,
     DbMaintenanceService,

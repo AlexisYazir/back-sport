@@ -9,6 +9,18 @@ export class MailService {
   private readonly logger = new Logger(MailService.name);
   constructor(private readonly configService: ConfigService) {}
 
+  public async sendAccountDeletionCode(email: string, code: string): Promise<void> {
+    if (!/^\d{6}$/.test(code)) throw new Error('ACCOUNT_DELETION_CODE_INVALID');
+    await this.sendEmail(email, 'Confirma la eliminación de tu cuenta Sport Center',
+      `<h2>Verificación de identidad</h2><p>Tu código exclusivo para solicitar la eliminación de tu cuenta es:</p><h1>${code}</h1><p>Caduca en 10 minutos. Este código no elimina tu cuenta por sí solo. No lo compartas. Si no solicitaste eliminar tu cuenta, ignora este mensaje.</p>`, true);
+  }
+
+  public async sendAccountDeletionResult(email: string, requestId: string): Promise<void> {
+    if (!/^[a-f\d-]{36}$/i.test(requestId)) throw new Error('ACCOUNT_DELETION_RECEIPT_INVALID');
+    await this.sendEmail(email, 'Cuenta eliminada · Sport Center',
+      `<h2>Eliminación completada</h2><p>Se retiraron el acceso a tu cuenta y los datos personales que ya no debían conservarse. Los registros sujetos a obligaciones de conservación se mantienen restringidos para esa finalidad.</p><p>Referencia: ${requestId}</p><p>Un registro futuro creará una cuenta nueva y no recuperará los datos de la anterior.</p>`, true);
+  }
+
   private get brevoApiKey(): string | undefined {
     return this.configService.get<string>('BREVO_API_KEY')?.trim();
   }
@@ -48,14 +60,15 @@ export class MailService {
     email: string,
     subject: string,
     html: string,
+    sensitive = false,
   ): Promise<void> {
     if (this.brevoApiKey) {
-      await this.sendWithBrevo(email, subject, html);
+      await this.sendWithBrevo(email, subject, html, sensitive);
       return;
     }
 
     if (this.resendApiKey) {
-      await this.sendWithResend(email, subject, html);
+      await this.sendWithResend(email, subject, html, sensitive);
       return;
     }
 
@@ -81,6 +94,7 @@ export class MailService {
     email: string,
     subject: string,
     html: string,
+    sensitive = false,
   ): Promise<void> {
     const response = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
@@ -101,6 +115,7 @@ export class MailService {
     });
 
     if (!response.ok) {
+      if (sensitive) throw new Error('ACCOUNT_DELETION_DELIVERY_FAILED');
       const responseText = await response.text();
       this.logger.error(
         `Brevo respondio ${response.status}: ${responseText}`,
@@ -113,6 +128,7 @@ export class MailService {
     email: string,
     subject: string,
     html: string,
+    sensitive = false,
   ): Promise<void> {
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -129,6 +145,7 @@ export class MailService {
     });
 
     if (!response.ok) {
+      if (sensitive) throw new Error('ACCOUNT_DELETION_DELIVERY_FAILED');
       const responseText = await response.text();
       this.logger.error(
         `Resend respondio ${response.status}: ${responseText}`,

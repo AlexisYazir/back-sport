@@ -16,6 +16,8 @@ import { DemandForecastModule } from './modules/demand-forecast/demand-forecast.
 import { MlInferenceModule } from './modules/ml-inference/ml-inference.module';
 import { ProductRecommendationsModule } from './modules/product-recommendations/product-recommendations.module';
 import { postgresConnectionOptions } from './config/postgres-connection';
+import { AccountDeletionModule } from './modules/account-deletion/account-deletion.module';
+import { DeletionRecoveryGuard } from './modules/account-deletion/account-deletion.guards';
 
 @Module({
   imports: [
@@ -104,6 +106,7 @@ import { postgresConnectionOptions } from './config/postgres-connection';
     }),
 
     UsersModule,
+    AccountDeletionModule,
     ProductsModule,
     BackupModule,
     CompanyModule,
@@ -119,6 +122,7 @@ import { postgresConnectionOptions } from './config/postgres-connection';
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
     },
+    { provide: APP_GUARD, useClass: DeletionRecoveryGuard },
   ],
 })
 export class AppModule implements NestModule {

@@ -5,6 +5,7 @@ import { UserAdminService } from '../modules/users/services/user-admin.service';
 import { User } from '../modules/users/entities/user.entity';
 import { Roles } from '../modules/users/entities/roles.entity';
 import { MailService } from '../services/mail/mail.service';
+import { AccountDeletionAccessService } from '../modules/account-deletion/account-deletion-access.service';
 
 describe('Account logging keeps profile data and provider errors private', () => {
   afterEach(() => jest.restoreAllMocks());
@@ -24,6 +25,9 @@ describe('Account logging keeps profile data and provider errors private', () =>
       {} as Repository<User>,
       reader as unknown as Repository<User>,
       {} as MailService,
+      {
+        assertAllowed: jest.fn().mockResolvedValue(undefined),
+      } as unknown as AccountDeletionAccessService,
     );
     await expect(service.getProfile(42)).resolves.toBe(profile);
     reader.findOne.mockResolvedValue(null);
@@ -45,6 +49,7 @@ describe('Account logging keeps profile data and provider errors private', () =>
       reader as unknown as Repository<User>,
       {} as Repository<User>,
       {} as Repository<Roles>,
+      {} as AccountDeletionAccessService,
     );
     await expect(service.getRecentUsersCreated()).rejects.toBe(original);
     expect(log).toHaveBeenCalledWith('Recent accounts query failed');

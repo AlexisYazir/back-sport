@@ -3,7 +3,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getDataSourceToken, getRepositoryToken } from '@nestjs/typeorm';
 import request from 'supertest';
-import { DeepPartial, FindOneOptions } from 'typeorm';
+import { DeepPartial, EntityManager, FindOneOptions } from 'typeorm';
 import { CreateUserResponseDto } from '../src/modules/users/dto/create-user-response.dto';
 import { User } from '../src/modules/users/entities/user.entity';
 import { UserAccountService } from '../src/modules/users/services/user-account.service';
@@ -14,6 +14,7 @@ import { UserSessionService } from '../src/modules/users/services/user-session.s
 import { UsersController } from '../src/modules/users/users.controller';
 import { UsersService } from '../src/modules/users/users.service';
 import { MailService } from '../src/services/mail/mail.service';
+import { AccountDeletionAccessService } from '../src/modules/account-deletion/account-deletion-access.service';
 
 function createDependencies() {
   let storedUser: User | undefined;
@@ -33,6 +34,7 @@ function createDependencies() {
         return Promise.resolve(null);
       }
       const matches =
+        where.id_usuario === storedUser.id_usuario ||
         where.email === storedUser.email ||
         where.telefono === storedUser.telefono;
       return Promise.resolve(matches ? storedUser : null);
@@ -74,6 +76,26 @@ describe('Registro: contrato HTTP y verificación (dependencias aisladas)', () =
       providers: [
         UsersService,
         UserAccountService,
+        {
+          provide: AccountDeletionAccessService,
+          useValue: {
+            assertAllowed: jest.fn().mockResolvedValue(undefined),
+            invalidateChallenges: jest.fn().mockResolvedValue(undefined),
+            withAccountLock: async (
+              _id: number,
+              work: (manager: EntityManager, user: User) => Promise<unknown>,
+            ) => {
+              const user = dependencies.getStoredUser();
+              if (!user) throw new Error('Missing isolated account fixture');
+              return work(
+                {
+                  getRepository: () => dependencies.editor,
+                } as unknown as EntityManager,
+                user,
+              );
+            },
+          },
+        },
         { provide: UserSessionService, useValue: {} },
         { provide: UserPasswordRecoveryService, useValue: {} },
         { provide: UserGoogleAuthService, useValue: {} },
