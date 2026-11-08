@@ -1,5 +1,5 @@
 /* eslint-disable */
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { SchedulerRegistry } from '@nestjs/schedule';
@@ -12,6 +12,7 @@ import { DataSource, Repository } from 'typeorm';
 import { R2StorageService } from './r2-storage.service';
 import { CreateScheduleDto } from '../dto/create-schedule.dto';
 import { VacuumScheduleEntity } from '../entities/vacuum-schedule.entity';
+import { isMaintenanceLogKey } from '../utils/backup-object-keys';
 import {
   APP_TIME_ZONE,
   buildScheduleConfig,
@@ -398,7 +399,7 @@ export class DbMaintenanceService implements OnModuleInit {
   async listVacuumLogs() {
     const objects = await this.storage.list('logsVacum/');
     return objects
-      .filter((object) => object.Key?.endsWith('.log'))
+      .filter((object) => isMaintenanceLogKey(object.Key))
       .map((object) => ({
         key: object.Key,
         folder: object.Key?.split('/').slice(0, 2).join('/'),
@@ -414,6 +415,9 @@ export class DbMaintenanceService implements OnModuleInit {
   }
 
   async getVacuumLog(key: string) {
+    if (!isMaintenanceLogKey(key)) {
+      throw new BadRequestException('Clave de mantenimiento no válida');
+    }
     return {
       key,
       content: await this.storage.downloadText(key),

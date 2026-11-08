@@ -15,6 +15,11 @@ import { CreateRetentionPolicyDto } from '../dto/create-retention-policy.dto';
 import { BackupScheduleEntity } from '../entities/backup-schedule.entity';
 import { BackupRetentionPolicyEntity } from '../entities/backup-retention-policy.entity';
 import {
+  assertBackupFolderKey,
+  assertBackupObjectKey,
+  isBackupObjectKey,
+} from '../utils/backup-object-keys';
+import {
   APP_TIME_ZONE,
   buildScheduleConfig,
   describeSchedule,
@@ -500,12 +505,17 @@ export class DbBackupService implements OnModuleInit {
   }
 
   async listBackups() {
-    const objects = await this.storage.list();
+    const objects = (
+      await Promise.all([
+        this.storage.list('full/'),
+        this.storage.list('critical/'),
+      ])
+    ).flat();
     const groups = new Map<string, any>();
 
     for (const object of objects) {
       const key = object.Key;
-      if (!key) continue;
+      if (!isBackupObjectKey(key)) continue;
       const parts = key.split('/');
       if (parts.length < 3) continue;
       const [type, folder, fileName] = parts;
@@ -554,10 +564,12 @@ export class DbBackupService implements OnModuleInit {
   }
 
   async downloadBackup(key: string) {
+    assertBackupObjectKey(key, 'dump');
     return this.storage.downloadStream(key);
   }
 
   async getBackupLog(key: string) {
+    assertBackupObjectKey(key, 'log');
     return {
       key,
       content: await this.storage.downloadText(key),
@@ -565,11 +577,13 @@ export class DbBackupService implements OnModuleInit {
   }
 
   async deleteBackup(folderKey: string) {
-    const objects = await this.storage.list(folderKey);
+    assertBackupFolderKey(folderKey);
+    const prefix = folderKey + '/';
+    const objects = await this.storage.list(prefix);
     await Promise.all(
       objects
         .map((object) => object.Key)
-        .filter((key): key is string => !!key)
+        .filter((key): key is string => !!key && key.startsWith(prefix))
         .map((key) => this.storage.delete(key)),
     );
 
@@ -591,13 +605,16 @@ export class DbBackupService implements OnModuleInit {
   }
 
   async cleanupOldBackups(days = 30, type?: BackupType) {
-    const objects = await this.storage.list();
+    const prefixes = type ? [type] : ['full', 'critical'];
+    const objects = (
+      await Promise.all(prefixes.map((prefix) => this.storage.list(prefix + '/')))
+    ).flat();
     const now = Date.now();
     const maxAge = days * 24 * 60 * 60 * 1000;
     let deletedCount = 0;
 
     for (const object of objects) {
-      if (!object.Key || !object.LastModified) continue;
+      if (!isBackupObjectKey(object.Key) || !object.LastModified) continue;
       const [folderType] = object.Key.split('/');
       if (!['full', 'critical'].includes(folderType)) continue;
       if (type && folderType !== type) continue;
@@ -619,7 +636,7 @@ export class DbBackupService implements OnModuleInit {
     let deletedCount = 0;
 
     for (const object of objects) {
-      if (!object.Key || !object.LastModified) continue;
+      if (!object.Key?.startsWith('logs/') || !object.LastModified) continue;
       const age = now - object.LastModified.getTime();
       if (age > maxAge) {
         await this.storage.delete(object.Key);

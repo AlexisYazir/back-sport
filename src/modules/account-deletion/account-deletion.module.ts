@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { resolve } from 'node:path';
 import { AccountDeletionController } from './account-deletion.controller';
 import {
   AccountDeletionService,
@@ -16,7 +15,7 @@ import {
   DeletionRecoveryGuard,
   DeletionNoStoreInterceptor,
 } from './account-deletion.guards';
-import { FileDeletionLedger } from './ledger/file-deletion-ledger';
+import { AccountDeletionActivationService } from './account-deletion-activation.service';
 import type { DeletionLedger } from './ledger/deletion-ledger';
 import { ActiveAdminGuard } from '../../services/auth/active-admin.guard';
 import { RolesGuard } from '../../services/auth/roles.guard';
@@ -28,6 +27,7 @@ import { MailModule } from '../../services/mail/mail.module';
   providers: [
     AccountDeletionService,
     AccountDeletionDataService,
+    AccountDeletionActivationService,
     DeletionSecrets,
     AccountDeletionBootstrapService,
     AccountDeletionMutationGuard,
@@ -37,25 +37,10 @@ import { MailModule } from '../../services/mail/mail.module';
     RolesGuard,
     {
       provide: DELETION_LEDGER,
-      inject: [ConfigService],
-      useFactory: (config: ConfigService): DeletionLedger | null => {
-        if (config.get<string>('ACCOUNT_DELETION_ENABLED') !== 'true')
-          return null;
-        const key = config.get<string>('ACCOUNT_DELETION_LEDGER_SECRET') ?? '';
-        if (
-          !/^[a-f\d]{64}$/i.test(key) ||
-          ['JWT_SECRET', 'JWT_REFRESH_SECRET', 'ACCOUNT_DELETION_SECRET'].some(
-            (name) =>
-              key.toLowerCase() === config.get<string>(name)?.toLowerCase(),
-          )
-        )
-          throw new Error('ACCOUNT_DELETION_LEDGER_KEY_REQUIRED');
-        return new FileDeletionLedger({
-          directory: config.getOrThrow<string>('ACCOUNT_DELETION_LEDGER_DIR'),
-          repositoryRoot: resolve(__dirname, '../../..'),
-          hmacKey: Buffer.from(key, 'hex'),
-        });
-      },
+      inject: [AccountDeletionActivationService],
+      useFactory: (
+        activation: AccountDeletionActivationService,
+      ): Promise<DeletionLedger | null> => activation.prepare(),
     },
     {
       provide: DeletionRecoveryGate,
