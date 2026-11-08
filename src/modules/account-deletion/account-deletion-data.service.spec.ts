@@ -19,6 +19,7 @@ function fixture(
     returns?: readonly string[];
     expiryAllowed?: boolean;
     identityEmail?: string;
+    businessAddress?: boolean;
   } = {},
 ) {
   const columns = new Map(
@@ -41,6 +42,8 @@ function fixture(
         return Promise.resolve(
           options.related ?? [{ schema_name: 'core', table_name: 'users' }],
         );
+      if (sql.includes('FROM core.company_info c JOIN core.direcciones'))
+        return Promise.resolve([{ present: options.businessAddress ?? false }]);
       if (
         sql.startsWith(
           'SELECT identity_email FROM core.account_deletion_accounts',
@@ -401,5 +404,201 @@ describe('AccountDeletionDataService', () => {
       expect(parameters).toEqual([user.id_usuario]);
       expect(sql).not.toMatch(/monto\s*=|total\s*=|estado\s*=/);
     }
+  });
+
+  test('a company address requires attention without blocking ordinary unrelated addresses', async () => {
+    const tables = {
+      ...basic,
+      'core.direcciones': ['id_direccion', 'id_usuario', 'calle'],
+      'core.company_info': ['id_empresa', 'id_direccion', 'nombre', 'email'],
+    };
+    const shared = fixture(tables, { businessAddress: true });
+    expect((await shared.service.assess(shared.manager, user)).reason).toBe(
+      'business_address',
+    );
+    const ordinary = fixture(tables);
+    expect((await ordinary.service.assess(ordinary.manager, user)).reason).toBe(
+      null,
+    );
+    expect(shared.query.mock.calls).toContainEqual([
+      expect.stringContaining('d.id_usuario=$1'),
+      [user.id_usuario],
+    ]);
+  });
+
+  test.each([false, true])(
+    'preserves the company address and shared audit rows during pending=%s minimization',
+    async (pending) => {
+      const shared: Tables = {
+        'core.company_info': ['id_empresa', 'id_direccion', 'nombre', 'email'],
+        'core.home_banner_images': [
+          'id_banner',
+          'creado_por',
+          'actualizado_por',
+          'titulo',
+        ],
+        'core.ml_model_runs': ['id_ejecucion', 'ejecutado_por', 'estado'],
+        'core.ml_training_schedules': [
+          'id_programacion',
+          'creado_por',
+          'nombre',
+        ],
+        'core.promotions': ['id_promocion', 'creado_por', 'descripcion'],
+        'core.promotion_targets': ['id_promotion_target', 'id_promocion'],
+      };
+      const { service, manager, query, columns } = fixture(
+        {
+          ...basic,
+          ...shared,
+          'core.direcciones': [
+            'id_direccion',
+            'id_usuario',
+            'calle',
+            'principal',
+          ],
+        },
+        {
+          related: Object.keys(shared).map((name) => ({
+            schema_name: 'core',
+            table_name: name.split('.')[1],
+          })),
+        },
+      );
+      await expect(service.inventory(manager)).resolves.toBeDefined();
+      query.mockClear();
+      if (pending)
+        await service.minimizePending(manager, user, requestId, columns);
+      else await service.purge(manager, user, requestId, columns);
+      const addressMutations = query.mock.calls.filter(([sql]) =>
+        /^(DELETE FROM|UPDATE) core.direcciones/.test(sql),
+      );
+      expect(addressMutations).toHaveLength(2);
+      for (const [sql, parameters] of addressMutations) {
+        expect(sql).toContain('WHERE d.id_usuario=$1');
+        expect(sql).toContain(
+          'NOT EXISTS(SELECT 1 FROM core.company_info company WHERE company.id_direccion=d.id_direccion)',
+        );
+        expect(parameters).toEqual([user.id_usuario]);
+      }
+      for (const table of Object.keys(shared)) {
+        const unquoted = table.replace('.', '\\.');
+        expect(
+          query.mock.calls.some(([sql]) =>
+            new RegExp(
+              '^(?:DELETE FROM|UPDATE) ' + unquoted + '(?:\\s|$)',
+            ).test(sql),
+          ),
+        ).toBe(false);
+        expect(
+          query.mock.calls.some(
+            ([sql]) =>
+              sql.startsWith('UPDATE "' + table.replace('.', '"."') + '"') ||
+              sql.startsWith('DELETE FROM "' + table.replace('.', '"."') + '"'),
+          ),
+        ).toBe(false);
+      }
+    },
+  );
+
+  test.each([
+    ['core.company_info', ['id_empresa', 'id_direccion', 'personal_document']],
+    ['core.home_banner_images', ['id_banner', 'creado_por', 'private_email']],
+    ['core.ml_model_runs', ['id_ejecucion', 'ejecutado_por', 'private_note']],
+  ] as const)(
+    'new shared schema exceptions still reject unreviewed columns in %s',
+    async (table, names) => {
+      const { service, manager, query, columns } = fixture({
+        ...basic,
+        [table]: [...names],
+      });
+      await expect(service.inventory(manager)).rejects.toThrow(
+        'SCHEMA_REVIEW_REQUIRED',
+      );
+      query.mockClear();
+      await expect(
+        service.purge(manager, user, requestId, columns),
+      ).rejects.toThrow('SCHEMA_REVIEW_REQUIRED');
+      expect(query).not.toHaveBeenCalled();
+    },
+  );
+
+  test('new stored payment tokens are deleted and new free text is redacted without changing retained financial values', async () => {
+    const { service, manager, query, columns } = fixture({
+      ...basic,
+      'core.user_payment_methods': ['id_usuario', 'token_pago', 'fingerprint'],
+      'core.shipments': [
+        'id_envio',
+        'id_orden',
+        'notas',
+        'tracking_url',
+        'costo_envio',
+      ],
+      'core.returns': [
+        'id_devolucion',
+        'id_orden',
+        'monto_solicitado',
+        'monto_aprobado',
+        'metodo_reembolso',
+      ],
+      'core.return_items': [
+        'id_return_item',
+        'id_devolucion',
+        'condicion_producto',
+        'cantidad',
+        'total',
+      ],
+    });
+    await service.purge(manager, user, requestId, columns);
+    expect(query.mock.calls).toContainEqual([
+      'DELETE FROM "core"."user_payment_methods" WHERE "id_usuario"=$1',
+      [user.id_usuario],
+    ]);
+    expect(query.mock.calls).toContainEqual([
+      expect.stringContaining(
+        'UPDATE core.shipments SET notas=NULL WHERE id_orden IN (SELECT id_orden FROM core.orders WHERE id_usuario=$1)',
+      ),
+      [user.id_usuario],
+    ]);
+    const itemUpdate = query.mock.calls.find(([sql]) =>
+      sql.startsWith('UPDATE "core"."return_items"'),
+    );
+    expect(itemUpdate?.[0]).toContain(
+      '"condicion_producto"=\'Contenido eliminado\'',
+    );
+    expect(itemUpdate?.[0]).toContain(
+      'SELECT id_devolucion FROM core.returns WHERE id_orden IN (SELECT id_orden FROM core.orders WHERE id_usuario=$1)',
+    );
+    expect(itemUpdate?.[1]).toEqual([user.id_usuario]);
+    const sql = query.mock.calls.map(([statement]) => statement).join('\n');
+    expect(sql).not.toMatch(
+      /SET\s+(?:monto_solicitado|monto_aprobado|metodo_reembolso|cantidad|total|costo_envio)\s*=/,
+    );
+    expect(sql).not.toContain('tracking_url=NULL');
+  });
+
+  test('tracking URL is removed only when the recorded retention deadline authorizes identifier expiry', async () => {
+    const { service, manager, query, columns } = fixture(
+      {
+        ...basic,
+        'core.shipments': [
+          'id_envio',
+          'id_orden',
+          'tracking_url',
+          'numero_guia',
+          'costo_envio',
+        ],
+      },
+      { expiryAllowed: true },
+    );
+    await service.expireRetainedIdentifiers(manager, user.id_usuario, columns);
+    const update = query.mock.calls.find(([sql]) =>
+      sql.startsWith('UPDATE core.shipments'),
+    );
+    expect(update?.[0]).toContain('"tracking_url"=NULL');
+    expect(update?.[0]).toContain(
+      'SELECT id_orden FROM core.orders WHERE id_usuario=$1',
+    );
+    expect(update?.[1]).toEqual([user.id_usuario]);
+    expect(update?.[0]).not.toContain('costo_envio=');
   });
 });

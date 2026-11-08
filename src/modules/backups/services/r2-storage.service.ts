@@ -7,7 +7,13 @@ import {
   ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
+  type _Object,
 } from '@aws-sdk/client-s3';
+import {
+  assertLegacyStorageObjectKey,
+  assertLegacyStoragePrefix,
+  isLegacyStorageObjectKey,
+} from '../utils/backup-object-keys';
 
 @Injectable()
 export class R2StorageService {
@@ -29,6 +35,7 @@ export class R2StorageService {
   }
 
   async uploadBuffer(key: string, body: Buffer, contentType = 'application/octet-stream') {
+    assertLegacyStorageObjectKey(key);
     await this.s3.send(
       new PutObjectCommand({
         Bucket: this.bucket,
@@ -44,17 +51,37 @@ export class R2StorageService {
   }
 
   async list(prefix?: string) {
-    const response = await this.s3.send(
-      new ListObjectsV2Command({
-        Bucket: this.bucket,
-        Prefix: prefix,
-      }),
-    );
-
-    return response.Contents ?? [];
+    assertLegacyStoragePrefix(prefix);
+    const objects: _Object[] = [];
+    const seen = new Set<string>();
+    let continuationToken: string | undefined;
+    for (;;) {
+      const response = await this.s3.send(
+        new ListObjectsV2Command({
+          Bucket: this.bucket,
+          Prefix: prefix,
+          ContinuationToken: continuationToken,
+        }),
+      );
+      objects.push(
+        ...(response.Contents ?? []).filter(
+          (object) =>
+            isLegacyStorageObjectKey(object.Key) &&
+            object.Key.startsWith(prefix),
+        ),
+      );
+      if (!response.IsTruncated) return objects;
+      const next = response.NextContinuationToken;
+      if (!next || seen.has(next)) {
+        throw new Error('R2_LIST_PAGINATION_FAILED');
+      }
+      seen.add(next);
+      continuationToken = next;
+    }
   }
 
   async downloadStream(key: string) {
+    assertLegacyStorageObjectKey(key);
     const result = await this.s3.send(
       new GetObjectCommand({
         Bucket: this.bucket,
@@ -79,6 +106,7 @@ export class R2StorageService {
   }
 
   async delete(key: string) {
+    assertLegacyStorageObjectKey(key);
     await this.s3.send(
       new DeleteObjectCommand({
         Bucket: this.bucket,

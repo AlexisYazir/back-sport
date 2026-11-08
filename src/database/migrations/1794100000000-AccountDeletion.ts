@@ -1,6 +1,6 @@
 import type { MigrationInterface, QueryRunner } from 'typeorm';
 
-/** Explicit migration only: never synchronize or migrate a connected database at startup. */
+/** Specific transactional migration; no TypeORM schema synchronization. */
 export class AccountDeletion1794100000000 implements MigrationInterface {
   name = 'AccountDeletion1794100000000';
   constructor(private readonly backupRole?: string) {}

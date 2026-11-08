@@ -26,8 +26,8 @@ const TERMINAL_RETURNS = [
 ];
 const fields = (value: string): ReadonlySet<string> =>
   new Set(value.split(/\s+/));
-// Verified synthetic QA DDL plus columns explicitly used by current entities/SQL.
-// This is NOT a production schema attestation. Adding a column to a handled
+// Synthetic QA DDL and metadata checked against the live API database.
+// Adding a column to a handled
 // relation requires reviewing its deletion/retention treatment before enabling.
 const KNOWN = new Map<string, ReadonlySet<string>>([
   [
@@ -59,7 +59,7 @@ const KNOWN = new Map<string, ReadonlySet<string>>([
   [
     'core.user_payment_methods',
     fields(
-      'id_metodo_pago id_usuario alias marca titular ultimos4 exp_mes exp_anio principal activo fecha_creacion fecha_actualizacion',
+      'id_metodo_pago id_usuario alias marca titular ultimos4 exp_mes exp_anio principal activo fecha_creacion fecha_actualizacion token_pago fingerprint',
     ),
   ],
   [
@@ -107,41 +107,43 @@ const KNOWN = new Map<string, ReadonlySet<string>>([
   [
     'core.shipments',
     fields(
-      'id_envio id_orden id_metodo_envio estado numero_guia paqueteria costo_envio fecha_entrega_estimada fecha_entrega codigo_confirmacion_entrega codigo_confirmacion_generado_en codigo_confirmacion_generado_por entrega_confirmada_por_usuario entrega_confirmada_en entrega_validada_por_empleado entrega_validada_en entrega_validada_por creado_por actualizado_por fecha_creacion fecha_actualizacion',
+      'id_envio id_orden id_metodo_envio estado numero_guia paqueteria costo_envio fecha_entrega_estimada fecha_entrega codigo_confirmacion_entrega codigo_confirmacion_generado_en codigo_confirmacion_generado_por entrega_confirmada_por_usuario entrega_confirmada_en entrega_validada_por_empleado entrega_validada_en entrega_validada_por creado_por actualizado_por fecha_creacion fecha_actualizacion tracking_url fecha_preparacion fecha_envio notas',
     ),
   ],
   [
     'core.shipment_events',
     fields(
-      'id_evento id_envio estado titulo descripcion ubicacion fecha_evento registrado_por',
+      'id_evento id_evento_envio id_envio estado titulo descripcion ubicacion fecha_evento fecha_creacion registrado_por',
     ),
   ],
   [
     'core.order_status_history',
     fields(
-      'id_historial id_orden estado_anterior estado_nuevo comentario cambiado_por fecha_cambio',
+      'id_historial id_historial_orden id_orden estado_anterior estado_nuevo comentario cambiado_por fecha_cambio',
     ),
   ],
   [
     'core.order_discounts',
-    fields('id_orden id_promocion codigo descripcion monto'),
+    fields(
+      'id_order_discount id_orden id_promocion codigo descripcion monto fecha_creacion',
+    ),
   ],
   [
     'core.returns',
     fields(
-      'id_devolucion id_orden id_usuario estado motivo descripcion resolucion solicitado_en fecha_actualizacion resuelto_por resuelto_en',
+      'id_devolucion id_orden id_usuario estado motivo descripcion resolucion solicitado_en fecha_actualizacion resuelto_por resuelto_en monto_solicitado monto_aprobado metodo_reembolso',
     ),
   ],
   [
     'core.return_items',
     fields(
-      'id_item id_devolucion id_orden id_variante cantidad precio_unitario total motivo aprobado',
+      'id_item id_return_item id_devolucion id_orden id_variante cantidad precio_unitario total motivo aprobado condicion_producto',
     ),
   ],
   [
     'core.return_events',
     fields(
-      'id_evento id_devolucion estado comentario registrado_por fecha_evento',
+      'id_evento id_evento_devolucion id_devolucion estado comentario registrado_por fecha_evento',
     ),
   ],
   [
@@ -159,7 +161,7 @@ const KNOWN = new Map<string, ReadonlySet<string>>([
   [
     'core.alexa_account_links',
     fields(
-      'id_link id_usuario alexa_user_id alexa_device_id linked_at last_used_at active',
+      'id_link id_alexa_link id_usuario alexa_user_id alexa_device_id linked_at last_used_at active',
     ),
   ],
   [
@@ -187,6 +189,41 @@ const KNOWN = new Map<string, ReadonlySet<string>>([
   [
     'core.account_deletion_notifications',
     fields('request_id encrypted_recipient attempts expires_at sent_at'),
+  ],
+  // Preserve shared business records and their references to anonymous user IDs.
+  [
+    'core.company_info',
+    fields(
+      'id_empresa nombre rfc telefono email sitio_web id_direccion facebook instagram twitter tiktok youtube regimen_fiscal logo_url horario_atencion mision vision valores mapa_ubicacion created_at updated_at',
+    ),
+  ],
+  [
+    'core.home_banner_images',
+    fields(
+      'id_banner url_imagen cloudinary_public_id titulo descripcion alt_text orden activo creado_por actualizado_por fecha_creacion fecha_actualizacion',
+    ),
+  ],
+  [
+    'core.ml_model_runs',
+    fields(
+      'id_ejecucion id_programacion origen estado pipelines fecha_inicio fecha_fin duracion_ms filas_dataset metricas artefactos salida error ejecutado_por fecha_creacion',
+    ),
+  ],
+  [
+    'core.ml_training_schedules',
+    fields(
+      'id_programacion nombre dia_mes hora zona_horaria pipelines activo ultima_ejecucion proxima_ejecucion creado_por actualizado_por fecha_creacion fecha_actualizacion',
+    ),
+  ],
+  [
+    'core.promotions',
+    fields(
+      'id_promocion nombre descripcion codigo tipo valor compra_minima descuento_maximo uso_maximo uso_por_usuario acumulable requiere_codigo activo inicia_en termina_en creado_por fecha_creacion fecha_actualizacion',
+    ),
+  ],
+  [
+    'core.promotion_targets',
+    fields('id_promotion_target id_promocion tipo_objetivo id_objetivo'),
   ],
 ]);
 const quote = (value: string): string =>
@@ -255,6 +292,13 @@ export class AccountDeletionDataService {
     const columns = await this.inventory(manager),
       categories: string[] = [];
     let reason = user.rol === 1 ? null : 'privileged_account';
+    if (columns.has('core.company_info') && columns.has('core.direcciones')) {
+      const shared = await manager.query<{ present: boolean }[]>(
+        'SELECT EXISTS(SELECT 1 FROM core.company_info c JOIN core.direcciones d ON d.id_direccion=c.id_direccion WHERE d.id_usuario=$1) AS present',
+        [user.id_usuario],
+      );
+      if (shared[0]?.present) reason = 'business_address';
+    }
     if (columns.has('core.orders')) {
       const orders = await manager.query<{ estado: string }[]>(
         'SELECT estado FROM core.orders WHERE id_usuario=$1 FOR UPDATE',
@@ -401,14 +445,19 @@ export class AccountDeletionDataService {
         );
     }
     if (columns.has('core.direcciones')) {
+      const excludeBusiness = columns.has('core.company_info')
+        ? ' AND NOT EXISTS(SELECT 1 FROM core.company_info company WHERE company.id_direccion=d.id_direccion)'
+        : '';
       if (columns.has('core.orders'))
         await manager.query(
-          'DELETE FROM core.direcciones d WHERE d.id_usuario=$1 AND NOT EXISTS(SELECT 1 FROM core.orders o WHERE o.id_direccion_envio=d.id_direccion)',
+          'DELETE FROM core.direcciones d WHERE d.id_usuario=$1 AND NOT EXISTS(SELECT 1 FROM core.orders o WHERE o.id_direccion_envio=d.id_direccion)' +
+            excludeBusiness,
           [id],
         );
       else
         await manager.query(
-          'DELETE FROM core.direcciones WHERE id_usuario=$1',
+          'DELETE FROM core.direcciones d WHERE d.id_usuario=$1' +
+            excludeBusiness,
           [id],
         );
       const fields = columns.get('core.direcciones')!;
@@ -440,7 +489,7 @@ export class AccountDeletionDataService {
         : '';
       if (personal.length)
         await manager.query(
-          `UPDATE core.direcciones d SET ${personal.map((field) => quote(field) + '=' + (numeric.has(field) ? 'NULL' : "''")).join(',')},principal=false WHERE d.id_usuario=$1${pendingOrderOrReturn}`,
+          `UPDATE core.direcciones d SET ${personal.map((field) => quote(field) + '=' + (numeric.has(field) ? 'NULL' : "''")).join(',')},principal=false WHERE d.id_usuario=$1${pendingOrderOrReturn}${excludeBusiness}`,
           protectPending
             ? protectReturns
               ? [id, TERMINAL_ORDERS, TERMINAL_RETURNS]
@@ -464,6 +513,11 @@ export class AccountDeletionDataService {
     // Financial values and identifiers remain; delivery codes and free text no longer serve the account.
     if (columns.has('core.shipments')) {
       const fields = columns.get('core.shipments')!;
+      if (fields.has('notas'))
+        await manager.query(
+          'UPDATE core.shipments SET notas=NULL WHERE id_orden IN (SELECT id_orden FROM core.orders WHERE id_usuario=$1)',
+          [id],
+        );
       if (fields.has('codigo_confirmacion_entrega'))
         await manager.query(
           'UPDATE core.shipments SET codigo_confirmacion_entrega=NULL WHERE id_orden IN (SELECT id_orden FROM core.orders WHERE id_usuario=$1)',
@@ -486,6 +540,7 @@ export class AccountDeletionDataService {
         'motivo',
         'observaciones',
         'resolucion',
+        'condicion_producto',
       ].filter((field) => fields.has(field));
       const ownerQuery =
         owner === 'id_orden'
@@ -550,8 +605,8 @@ export class AccountDeletionDataService {
     }
     const shipmentFields = columns.get('core.shipments');
     if (shipmentFields) {
-      const identifiers = ['numero_guia', 'paqueteria'].filter((field) =>
-        shipmentFields.has(field),
+      const identifiers = ['numero_guia', 'paqueteria', 'tracking_url'].filter(
+        (field) => shipmentFields.has(field),
       );
       if (identifiers.length)
         await manager.query(
