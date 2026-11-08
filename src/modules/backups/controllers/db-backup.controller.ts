@@ -1,4 +1,3 @@
-/* eslint-disable */
 import {
   Body,
   Controller,
@@ -12,12 +11,15 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from '../../../services/auth/roles.guard';
 import { Roles } from '../../../services/auth/roles.decorator';
+import { ActiveAdminGuard } from '../../../services/auth/active-admin.guard';
 import { DbBackupService } from '../services/db-backup.service';
 import { CreateScheduleDto } from '../dto/create-schedule.dto';
 import { CreateRetentionPolicyDto } from '../dto/create-retention-policy.dto';
 import { Readable } from 'stream';
 
 @Controller('backup')
+@UseGuards(AuthGuard('jwt'), RolesGuard, ActiveAdminGuard)
+@Roles(3)
 export class DbBackupController {
   constructor(private readonly backupService: DbBackupService) {}
 
@@ -57,7 +59,9 @@ export class DbBackupController {
 
   @Delete('delete/:encodedFolderKey')
   deleteBackup(@Param('encodedFolderKey') encodedFolderKey: string) {
-    return this.backupService.deleteBackup(decodeURIComponent(encodedFolderKey));
+    return this.backupService.deleteBackup(
+      decodeURIComponent(encodedFolderKey),
+    );
   }
 
   @Post('cleanup/:days')

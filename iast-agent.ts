@@ -1,178 +1,171 @@
-/* eslint-disable */
-import { Injectable, NestMiddleware, Logger } from '@nestjs/common';
-import { Request, Response, NextFunction } from 'express';
+import { Injectable, Logger, type NestMiddleware } from '@nestjs/common';
+import type { Request, Response, NextFunction } from 'express';
+import { createRequire } from 'node:module';
 
-// middleware de express-sec-audit
-let securityAuditMiddleware: any;
-try {
-  const expressSecAudit = require('express-sec-audit');
-  securityAuditMiddleware = expressSecAudit.securityAuditMiddleware;
-  console.log('express-sec-audit middleware cargado correctamente');
-} catch (error) {
-  console.warn(
-    'express-sec-audit no instalado, usando solo detección personalizada',
-  );
+const optionalRequire = createRequire(__filename);
+const patterns = [
+  { regex: /(--|\|\||&&)/, rule: 'SQL_INJECTION' },
+  { regex: /<script|javascript:|onerror=|onload=/, rule: 'XSS' },
+  { regex: /\.\.\/|\.\.\\/, rule: 'PATH_TRAVERSAL' },
+  { regex: /\$\{/, rule: 'COMMAND_INJECTION' },
+  {
+    regex:
+      /\b(SELECT\s+.+\s+FROM|INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|DROP\s+TABLE|UNION\s+SELECT)\b/i,
+    rule: 'SQL_KEYWORD',
+  },
+  { regex: /'\s*OR\s*'1'\s*=\s*'1/i, rule: 'AUTH_BYPASS' },
+  { regex: /\badmin'\s*--/i, rule: 'SQL_COMMENT_INJECTION' },
+  { regex: /sleep\([0-9]+\)/i, rule: 'TIME_BASED_SQLI' },
+] as const;
+type Rule = (typeof patterns)[number]['rule'];
+type AuditMiddleware = (
+  request: { originalUrl: string },
+  response: Response,
+  next: () => void,
+) => void;
+type AuditFactory = (options: {
+  onFinding: (finding: unknown) => void;
+}) => AuditMiddleware;
+
+function record(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+// Values are inspected in memory; neither values nor property names enter logs.
+function* inputStrings(request: Request) {
+  const stack: { value: unknown; top: boolean; relaxed: boolean }[] = [
+    { value: request.body, top: true, relaxed: false },
+    { value: request.query, top: true, relaxed: false },
+    { value: request.params, top: true, relaxed: false },
+  ];
+  const visited = new WeakSet<object>();
+  while (stack.length) {
+    const item = stack.pop();
+    if (!item) continue;
+    if (typeof item.value === 'string') {
+      yield { value: item.value, relaxed: item.relaxed };
+    } else if (typeof item.value === 'object' && item.value !== null) {
+      if (visited.has(item.value)) continue;
+      visited.add(item.value);
+      for (const [key, value] of Object.entries(item.value)) {
+        stack.push({
+          value,
+          top: false,
+          relaxed: item.top && ['deviceName', 'userAgent'].includes(key),
+        });
+      }
+    }
+  }
 }
 
 @Injectable()
 export class IastMiddleware implements NestMiddleware {
   private readonly logger = new Logger('IAST');
-  private readonly auditMiddleware: any;
-  private readonly sensitiveFields = new Set([
-    'passw',
-    'password',
-    'token',
-    'refreshToken',
-    'accessToken',
-    'authorization',
-    'idToken',
-  ]);
-  private readonly relaxedFields = new Set(['deviceName', 'userAgent']);
+  private readonly auditMiddleware?: AuditMiddleware;
 
   constructor() {
-    if (securityAuditMiddleware) {
-      // Configurar el middleware de express-sec-audit.
-      this.auditMiddleware = securityAuditMiddleware({
-        realtime: true,
-        logLevel: 'verbose',
-        detectSqlInjection: true,
-        detectXss: true,
-        detectCommandInjection: true,
-        detectPathTraversal: true,
-        onVulnerability: (vuln: any) => {
-          this.logger.warn(
-            `[express-sec-audit] VULNERABILIDAD: ${vuln.type || 'Desconocida'}`,
-          );
-          this.logger.warn(`${vuln.method || '?'} ${vuln.url || '?'}`);
-          this.logger.warn(`Severidad: ${vuln.severity || 'MEDIUM'}`);
-          if (vuln.payload) this.logger.warn(`Payload: ${vuln.payload}`);
-          if (vuln.parameter)
-            this.logger.warn(`Campo: ${vuln.parameter}`);
-        },
+    try {
+      const metadata: unknown = optionalRequire(
+        'express-sec-audit/package.json',
+      );
+      // 0.1.4's runtime contract is CSP/onFinding, not verbose/onVulnerability.
+      // It retains originalUrl in a findings buffer, so it receives no raw URL.
+      if (!record(metadata) || metadata.version !== '0.1.4') {
+        this.logger.warn('SECURITY_AUDIT unsupported_optional_version');
+        return;
+      }
+      const library: unknown = optionalRequire('express-sec-audit');
+      if (
+        !record(library) ||
+        typeof library.securityAuditMiddleware !== 'function'
+      ) {
+        this.logger.warn('SECURITY_AUDIT unsupported_optional_contract');
+        return;
+      }
+      const factory = library.securityAuditMiddleware as AuditFactory;
+      this.auditMiddleware = factory({
+        onFinding: (finding) => this.logAuditFinding(finding),
       });
+      if (typeof this.auditMiddleware !== 'function') {
+        this.auditMiddleware = undefined;
+        this.logger.warn('SECURITY_AUDIT unsupported_optional_contract');
+      }
+    } catch {
+      this.logger.warn('SECURITY_AUDIT optional_unavailable');
     }
   }
 
-  use(req: Request, res: Response, next: NextFunction) {
+  use(req: Request, res: Response, next: NextFunction): void {
     const startTime = Date.now();
-
-    // 1. Ejecutar middleware de express-sec-audit si está disponible
-    if (this.auditMiddleware) {
-      this.auditMiddleware(req, res, () => {});
-    }
-
-    // 2. Análisis personalizado de amenazas
-    const threats = this.detectThreats(req);
-
-    if (threats.length > 0) {
-      this.logger.warn('ATAQUE DETECTADO');
-      this.logger.warn(`Endpoint: ${req.method} ${req.originalUrl}`);
-      this.logger.warn(`Patrones: ${threats.join(', ')}`);
-      if (Object.keys(req.body ?? {}).length > 0) {
-        this.logger.warn(`Body: ${JSON.stringify(this.sanitizeForLog(req.body))}`);
-      }
-      if (Object.keys(req.query).length > 0) {
-        this.logger.warn(`Query: ${JSON.stringify(this.sanitizeForLog(req.query))}`);
-      }
-    }
-
-    // 3. Interceptar respuesta para detectar XSS reflejado
-    const originalSend = res.send;
-    res.send = (body: any) => {
-      if (typeof body === 'string') {
-        const reflectedXss = this.detectReflectedXss(body, req);
-        if (reflectedXss) {
-          this.logger.error('XSS REFLEJADO DETECTADO');
-          this.logger.error(`Endpoint: ${req.method} ${req.originalUrl}`);
-          this.logger.error(`Payload reflejado en respuesta`);
+    const fallbackCspAudit = () => {
+      res.on('finish', () => {
+        if (!res.getHeader('Content-Security-Policy')) {
+          this.logAuditFinding({
+            ruleId: 'runtime-missing-csp',
+            severity: 'medium',
+          });
         }
-      }
-      return originalSend.call(res, body);
+      });
     };
-
-    // 4. Detectar time-based attacks (respuestas lentas)
-    res.on('finish', () => {
-      const duration = Date.now() - startTime;
-      if (duration > 3000) {
-        this.logger.warn(
-          `Respuesta lenta (${duration}ms) - Posible Time-Based Attack`,
-        );
-        this.logger.warn(`Endpoint: ${req.method} ${req.originalUrl}`);
+    if (this.auditMiddleware) {
+      try {
+        this.auditMiddleware({ originalUrl: '[omitted]' }, res, () => {});
+      } catch {
+        this.logger.warn('SECURITY_AUDIT optional_failed');
+        fallbackCspAudit();
       }
-    });
+    } else {
+      // Keep the known optional detector's CSP check when absent/unsupported.
+      fallbackCspAudit();
+    }
 
-    next();
-  }
+    const threats = new Set<Rule>();
+    for (const { value, relaxed } of inputStrings(req)) {
+      for (const pattern of patterns) {
+        if (relaxed && pattern.rule === 'SQL_INJECTION') continue;
+        if (pattern.regex.test(value)) threats.add(pattern.rule);
+      }
+    }
+    if (threats.size) {
+      this.logger.warn(`SECURITY_INPUT rules=${[...threats].sort().join(',')}`);
+    }
 
-  private detectThreats(req: Request): string[] {
-    const threats: string[] = [];
-    const inputs = { ...req.body, ...req.query, ...req.params };
-
-    const patterns = [
-      { regex: /(\-\-|\|\||\&\&)/, name: 'SQL Injection' },
-      { regex: /<script|javascript:|onerror=|onload=/, name: 'XSS' },
-      { regex: /\.\.\/|\.\.\\/, name: 'Path Traversal' },
-      { regex: /\$\{/, name: 'Command Injection' },
-      {
-        regex: /\b(SELECT\s+.+\s+FROM|INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|DROP\s+TABLE|UNION\s+SELECT)\b/i,
-        name: 'SQL Keyword',
-      },
-      { regex: /'\s*OR\s*'1'\s*=\s*'1/i, name: 'Auth Bypass' },
-      { regex: /\badmin'\s*--/i, name: 'SQL Comment Injection' },
-      { regex: /sleep\([0-9]+\)/i, name: 'Time-Based SQLi' },
-    ];
-
-    for (const [key, value] of Object.entries(inputs)) {
-      if (typeof value === 'string') {
-        const activePatterns = this.relaxedFields.has(key)
-          ? patterns.filter((pattern) => pattern.name !== 'SQL Injection')
-          : patterns;
-
-        for (const pattern of activePatterns) {
-          if (pattern.regex.test(value)) {
-            threats.push(
-              `${pattern.name} en campo '${key}': ${value.substring(0, 50)}`,
-            );
+    const originalSend = res.send.bind(res) as (body: unknown) => Response;
+    res.send = (body: unknown) => {
+      if (typeof body === 'string') {
+        for (const { value } of inputStrings(req)) {
+          if (
+            ['<script', 'javascript:', 'onerror=', 'onload='].some((p) =>
+              value.includes(p),
+            ) &&
+            body.includes(value)
+          ) {
+            this.logger.error('SECURITY_RESPONSE reflected_xss');
+            break;
           }
         }
       }
-    }
-
-    return threats;
+      return originalSend(body);
+    };
+    res.on('finish', () => {
+      if (Date.now() - startTime > 3000) {
+        this.logger.warn('SECURITY_RESPONSE slow_response');
+      }
+    });
+    next();
   }
 
-  private sanitizeForLog(input: Record<string, unknown>): Record<string, unknown> {
-    const sanitized: Record<string, unknown> = {};
-
-    for (const [key, value] of Object.entries(input)) {
-      if (this.sensitiveFields.has(key)) {
-        sanitized[key] = '[REDACTED]';
-      } else {
-        sanitized[key] = value;
-      }
-    }
-
-    return sanitized;
-  }
-
-  private detectReflectedXss(body: string, req: Request): boolean {
-    const inputs = { ...req.body, ...req.query, ...req.params };
-    for (const value of Object.values(inputs)) {
-      if (typeof value === 'string') {
-        const maliciousPatterns = [
-          '<script',
-          'javascript:',
-          'onerror=',
-          'onload=',
-        ];
-        if (
-          maliciousPatterns.some((p) => value.includes(p)) &&
-          body.includes(value)
-        ) {
-          return true;
-        }
-      }
-    }
-    return false;
+  private logAuditFinding(finding: unknown): void {
+    const rule =
+      record(finding) && finding.ruleId === 'runtime-missing-csp'
+        ? 'MISSING_CSP'
+        : 'UNCLASSIFIED';
+    const severity = record(finding) ? finding.severity : undefined;
+    const level =
+      typeof severity === 'string' &&
+      ['low', 'medium', 'high', 'critical'].includes(severity.toLowerCase())
+        ? severity.toLowerCase()
+        : 'unknown';
+    this.logger.warn(`SECURITY_AUDIT rule=${rule} severity=${level}`);
   }
 }

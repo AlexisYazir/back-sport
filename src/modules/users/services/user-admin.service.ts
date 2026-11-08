@@ -6,6 +6,7 @@ import { Repository } from 'typeorm';
 import { UpdateUserDto } from '../dto/update-user.dto';
 import { Roles } from '../entities/roles.entity';
 import { User } from '../entities/user.entity';
+import { AccountDeletionAccessService } from '../../account-deletion/account-deletion-access.service';
 
 @Injectable()
 export class UserAdminService {
@@ -18,6 +19,7 @@ export class UserAdminService {
     private readonly userAdminRepository: Repository<User>,
     @InjectRepository(Roles, 'editorConnection')
     private readonly rolesRepository: Repository<Roles>,
+    private readonly accountDeletionAccess: AccountDeletionAccessService,
   ) {}
 
   async getRecentUsersCreated(): Promise<any[]> {
@@ -28,7 +30,7 @@ export class UserAdminService {
 
       return result;
     } catch (error) {
-      this.logger.error('ERROR REAL:', error);
+      this.logger.error('Recent accounts query failed');
       throw error;
     }
   }
@@ -50,10 +52,15 @@ export class UserAdminService {
       throw new BadRequestException('Usuario no encontrado');
     }
 
-    user.rol = updateData.rol ?? user.rol;
-    user.activo = updateData.activo ?? user.activo;
-
-    return await this.userAdminRepository.save(user);
+    return this.accountDeletionAccess.withAccountLock(
+      user.id_usuario,
+      async (manager, currentUser) => {
+        currentUser.rol = updateData.rol ?? currentUser.rol;
+        currentUser.activo = updateData.activo ?? currentUser.activo;
+        return manager.getRepository(User).save(currentUser);
+      },
+      this.userAdminRepository.manager,
+    );
   }
 
   async deleteUser(id_usuario: number): Promise<{ message: string }> {
@@ -65,7 +72,13 @@ export class UserAdminService {
       throw new BadRequestException('Usuario no encontrado');
     }
 
-    await this.userAdminRepository.delete(id_usuario);
+    await this.accountDeletionAccess.withAccountLock(
+      id_usuario,
+      async (manager) => {
+        await manager.getRepository(User).delete(id_usuario);
+      },
+      this.userAdminRepository.manager,
+    );
 
     return { message: 'Usuario eliminado correctamente' };
   }

@@ -1,12 +1,13 @@
 /* eslint-disable */
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 
 import { MailService } from '../../../services/mail/mail.service';
 import { User } from '../entities/user.entity';
+import { AccountDeletionAccessService } from '../../account-deletion/account-deletion-access.service';
 
 @Injectable()
 export class UserPasswordRecoveryService {
@@ -16,7 +17,31 @@ export class UserPasswordRecoveryService {
     @InjectRepository(User, 'readerConnection')
     private readonly userReaderRepository: Repository<User>,
     private readonly mailService: MailService,
+    private readonly accountDeletionAccess: AccountDeletionAccessService,
   ) {}
+
+  private async mutateAccount<T>(
+    id: number,
+    email: string,
+    work: (manager: EntityManager, user: User) => Promise<T>,
+  ): Promise<T> {
+    const result = await this.accountDeletionAccess.withAccountLock<
+      { ok: true; value: T } | { ok: false; error: BadRequestException }
+    >(id, async (manager, user) => {
+      if (user.email !== email)
+        throw new BadRequestException(
+          'La cuenta cambió. Solicita un nuevo código.',
+        );
+      try {
+        return { ok: true, value: await work(manager, user) };
+      } catch (error) {
+        if (error instanceof BadRequestException) return { ok: false, error };
+        throw error;
+      }
+    });
+    if (!result.ok) throw result.error;
+    return result.value;
+  }
 
   async verifyUserEmail(email: string) {
     try {
@@ -40,29 +65,35 @@ export class UserPasswordRecoveryService {
           'Revisa que tu información sea correcta. Intenta de nuevo',
         );
       }
-      if (existingUser.email_verified != 1) {
-        throw new BadRequestException(
-          'La cuenta aún no esta activada. Intenta de nuevo',
-        );
-      }
+      return this.mutateAccount(
+        existingUser.id_usuario,
+        emaill,
+        async (manager, existingUser) => {
+          if (existingUser.email_verified != 1) {
+            throw new BadRequestException(
+              'La cuenta aún no esta activada. Intenta de nuevo',
+            );
+          }
 
-      const token = crypto.randomInt(100000, 1000000).toString();
+          const token = crypto.randomInt(100000, 1000000).toString();
 
-      const expiration = new Date(Date.now() + 24 * 60 * 60 * 1000);
+          const expiration = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-      existingUser.token_verificacion = token;
-      existingUser.token_expiracion = expiration;
-      existingUser.intentos_token = 3;
+          existingUser.token_verificacion = token;
+          existingUser.token_expiracion = expiration;
+          existingUser.intentos_token = 3;
 
-      await this.userEditorRepository.save(existingUser);
+          await manager.getRepository(User).save(existingUser);
 
-      await this.mailService.sendRecoveryEmail(
-        existingUser.email,
-        existingUser.nombre,
-        token,
+          await this.mailService.sendRecoveryEmail(
+            existingUser.email,
+            existingUser.nombre,
+            token,
+          );
+
+          return { message: 'Correo de recuperación enviado correctamente.' };
+        },
       );
-
-      return { message: 'Correo de recuperación enviado correctamente.' };
     } catch (error) {
       throw error;
     }
@@ -98,61 +129,68 @@ export class UserPasswordRecoveryService {
         );
       }
 
-      if (!existingUser.token_verificacion) {
-        throw new BadRequestException(
-          'No hay un token asociado a este usuario o ya expiro, Solicita un nuevo token.',
-        );
-      }
+      return this.mutateAccount(
+        existingUser.id_usuario,
+        emaill,
+        async (manager, existingUser) => {
+          const repository = manager.getRepository(User);
+          if (!existingUser.token_verificacion) {
+            throw new BadRequestException(
+              'No hay un token asociado a este usuario o ya expiro, Solicita un nuevo token.',
+            );
+          }
 
-      if (
-        !existingUser.token_expiracion ||
-        new Date() > existingUser.token_expiracion
-      ) {
-        existingUser.token_verificacion = '';
-        existingUser.token_expiracion = null;
-        existingUser.intentos_token = 0;
-        await this.userEditorRepository.save(existingUser);
+          if (
+            !existingUser.token_expiracion ||
+            new Date() > existingUser.token_expiracion
+          ) {
+            existingUser.token_verificacion = '';
+            existingUser.token_expiracion = null;
+            existingUser.intentos_token = 0;
+            await repository.save(existingUser);
 
-        throw new BadRequestException('El token ha expirado');
-      }
+            throw new BadRequestException('El token ha expirado');
+          }
 
-      if (
-        typeof existingUser.intentos_token !== 'number' ||
-        existingUser.intentos_token <= 0
-      ) {
-        existingUser.token_verificacion = '';
-        existingUser.token_expiracion = null;
-        existingUser.intentos_token = 0;
-        await this.userEditorRepository.save(existingUser);
-        throw new BadRequestException(
-          'Se han agotado los intentos. Solicita un nuevo token.',
-        );
-      }
+          if (
+            typeof existingUser.intentos_token !== 'number' ||
+            existingUser.intentos_token <= 0
+          ) {
+            existingUser.token_verificacion = '';
+            existingUser.token_expiracion = null;
+            existingUser.intentos_token = 0;
+            await repository.save(existingUser);
+            throw new BadRequestException(
+              'Se han agotado los intentos. Solicita un nuevo token.',
+            );
+          }
 
-      if (existingUser.token_verificacion !== tokenn) {
-        existingUser.intentos_token -= 1;
+          if (existingUser.token_verificacion !== tokenn) {
+            existingUser.intentos_token -= 1;
 
-        await this.userEditorRepository.save(existingUser);
+            await repository.save(existingUser);
 
-        if (existingUser.intentos_token <= 0) {
+            if (existingUser.intentos_token <= 0) {
+              existingUser.token_verificacion = '';
+              existingUser.token_expiracion = null;
+              existingUser.intentos_token = 0;
+              await repository.save(existingUser);
+              throw new BadRequestException(
+                'Has agotado los intentos. Solicita un nuevo token.',
+              );
+            }
+
+            throw new BadRequestException('El token es incorrecto');
+          }
+
           existingUser.token_verificacion = '';
           existingUser.token_expiracion = null;
-          existingUser.intentos_token = 0;
-          await this.userEditorRepository.save(existingUser);
-          throw new BadRequestException(
-            'Has agotado los intentos. Solicita un nuevo token.',
-          );
-        }
+          existingUser.intentos_token = 3;
+          await repository.save(existingUser);
 
-        throw new BadRequestException('El token es incorrecto');
-      }
-
-      existingUser.token_verificacion = '';
-      existingUser.token_expiracion = null;
-      existingUser.intentos_token = 3;
-      await this.userEditorRepository.save(existingUser);
-
-      return { message: 'Token verificado correctamente.' };
+          return { message: 'Token verificado correctamente.' };
+        },
+      );
     } catch (error) {
       throw error;
     }
@@ -208,77 +246,84 @@ export class UserPasswordRecoveryService {
         );
       }
 
-      if (!user.token_verificacion) {
-        throw new BadRequestException(
-          'No hay un token válido asociado a este usuario. Solicita uno nuevo.',
-        );
-      }
+      return this.mutateAccount(
+        user.id_usuario,
+        emaill,
+        async (manager, user) => {
+          const repository = manager.getRepository(User);
+          if (!user.token_verificacion) {
+            throw new BadRequestException(
+              'No hay un token válido asociado a este usuario. Solicita uno nuevo.',
+            );
+          }
 
-      if (!user.token_expiracion || new Date() > user.token_expiracion) {
-        user.token_verificacion = '';
-        user.token_expiracion = null;
-        user.intentos_token = 0;
+          if (!user.token_expiracion || new Date() > user.token_expiracion) {
+            user.token_verificacion = '';
+            user.token_expiracion = null;
+            user.intentos_token = 0;
 
-        await this.userEditorRepository.save(user);
+            await repository.save(user);
 
-        throw new BadRequestException(
-          'El token ha expirado. Solicita uno nuevo.',
-        );
-      }
+            throw new BadRequestException(
+              'El token ha expirado. Solicita uno nuevo.',
+            );
+          }
 
-      if (
-        typeof user.intentos_token !== 'number' ||
-        user.intentos_token <= 0
-      ) {
-        user.token_verificacion = '';
-        user.token_expiracion = null;
-        user.intentos_token = 0;
+          if (
+            typeof user.intentos_token !== 'number' ||
+            user.intentos_token <= 0
+          ) {
+            user.token_verificacion = '';
+            user.token_expiracion = null;
+            user.intentos_token = 0;
 
-        await this.userEditorRepository.save(user);
+            await repository.save(user);
 
-        throw new BadRequestException(
-          'Se han agotado los intentos. Solicita un nuevo token.',
-        );
-      }
+            throw new BadRequestException(
+              'Se han agotado los intentos. Solicita un nuevo token.',
+            );
+          }
 
-      if (user.token_verificacion !== thisToken) {
-        user.intentos_token -= 1;
-        await this.userEditorRepository.save(user);
+          if (user.token_verificacion !== thisToken) {
+            user.intentos_token -= 1;
+            await repository.save(user);
 
-        if (user.intentos_token <= 0) {
+            if (user.intentos_token <= 0) {
+              user.token_verificacion = '';
+              user.token_expiracion = null;
+              user.intentos_token = 0;
+
+              await repository.save(user);
+
+              throw new BadRequestException(
+                'Has agotado los intentos. Solicita un nuevo token.',
+              );
+            }
+
+            throw new BadRequestException(
+              `El token es incorrecto. Te quedan ${user.intentos_token} intentos.`,
+            );
+          }
+
+          const isSamePassword = await bcrypt.compare(newPassword, user.passw);
+          if (isSamePassword) {
+            throw new BadRequestException(
+              'La nueva contraseña no puede ser igual a la actual.',
+            );
+          }
+
+          const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+          user.passw = hashedPassword;
           user.token_verificacion = '';
           user.token_expiracion = null;
           user.intentos_token = 0;
 
-          await this.userEditorRepository.save(user);
+          await repository.save(user);
 
-          throw new BadRequestException(
-            'Has agotado los intentos. Solicita un nuevo token.',
-          );
-        }
-
-        throw new BadRequestException(
-          `El token es incorrecto. Te quedan ${user.intentos_token} intentos.`,
-        );
-      }
-
-      const isSamePassword = await bcrypt.compare(newPassword, user.passw);
-      if (isSamePassword) {
-        throw new BadRequestException(
-          'La nueva contraseña no puede ser igual a la actual.',
-        );
-      }
-
-      const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-      user.passw = hashedPassword;
-      user.token_verificacion = '';
-      user.token_expiracion = null;
-      user.intentos_token = 0;
-
-      await this.userEditorRepository.save(user);
-
-      return { message: 'Contraseña actualizada correctamente.' };
+          return { message: 'Contraseña actualizada correctamente.' };
+        },
+      );
     } catch (error) {
       throw error;
     }

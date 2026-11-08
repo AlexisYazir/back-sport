@@ -4,6 +4,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../../modules/users/users.service';
+import { AccountDeletionAccessService } from '../../modules/account-deletion/account-deletion-access.service';
 
 const ACCESS_COOKIE_NAME = 'sc_access_token';
 
@@ -29,11 +30,17 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor(
     private configService: ConfigService,
     private usersService: UsersService,
+    private readonly accountDeletionAccess: AccountDeletionAccessService,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
-        (req: any) => extractTokenFromCookie(req, ACCESS_COOKIE_NAME),
         ExtractJwt.fromAuthHeaderAsBearerToken(),
+        // An explicit header selects header authentication. Never fall back
+        // to a different cookie identity when that header is malformed.
+        (req: any) =>
+          req?.headers?.authorization !== undefined
+            ? null
+            : extractTokenFromCookie(req, ACCESS_COOKIE_NAME),
       ]),
       ignoreExpiration: false,
       secretOrKey: configService.getOrThrow<string>('JWT_SECRET'),
@@ -41,9 +48,15 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   }
 
   async validate(payload: any) {
-    if (!payload.sessionId) {
+    if (
+      !payload.sessionId ||
+      !Number.isSafeInteger(payload.id_usuario) ||
+      payload.id_usuario <= 0
+    ) {
       throw new UnauthorizedException('Sesión inválida');
     }
+
+    await this.accountDeletionAccess.assertAllowed(payload.id_usuario);
 
     const isSessionActive = await this.usersService.isSessionActive(
       payload.sessionId,

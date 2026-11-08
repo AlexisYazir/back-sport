@@ -6,13 +6,14 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, MoreThan, Repository } from 'typeorm';
+import { EntityManager, IsNull, MoreThan, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import * as jwt from 'jsonwebtoken';
 
 import { User } from '../entities/user.entity';
 import { UserSession } from '../entities/user-session.entity';
+import { AccountDeletionAccessService } from '../../account-deletion/account-deletion-access.service';
 
 export interface SessionContext {
   ipAddress: string | null;
@@ -42,6 +43,7 @@ export class UserSessionService {
     @InjectRepository(UserSession, 'readerConnection')
     private readonly userSessionReaderRepository: Repository<UserSession>,
     private readonly configService: ConfigService,
+    private readonly accountDeletionAccess: AccountDeletionAccessService,
   ) {}
 
   private normalizeEmail(email: string): string {
@@ -70,6 +72,7 @@ export class UserSessionService {
     refreshToken: string,
     context: SessionContext,
     sessionRecord: UserSession,
+    manager?: EntityManager,
   ): Promise<UserSession> {
     const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
     const session = {
@@ -84,24 +87,31 @@ export class UserSessionService {
       ultima_actividad: new Date(),
     };
 
-    return this.userSessionEditorRepository.save(session);
+    return (
+      manager?.getRepository(UserSession) ?? this.userSessionEditorRepository
+    ).save(session);
   }
 
   private createSessionRecord(
     user: User,
     context: SessionContext,
     existingSession?: UserSession,
+    manager?: EntityManager,
   ): UserSession {
     return existingSession
       ? {
           ...existingSession,
-          device_name: context.deviceName ?? existingSession.device_name ?? null,
+          device_name:
+            context.deviceName ?? existingSession.device_name ?? null,
           user_agent: context.userAgent ?? existingSession.user_agent ?? null,
           ip_address: context.ipAddress ?? existingSession.ip_address ?? null,
           expira_en: this.getRefreshExpirationDate(),
           ultima_actividad: new Date(),
         }
-      : this.userSessionEditorRepository.create({
+      : (
+          manager?.getRepository(UserSession) ??
+          this.userSessionEditorRepository
+        ).create({
           id_sesion: crypto.randomUUID(),
           id_usuario: user.id_usuario,
           device_name: context.deviceName ?? null,
@@ -115,8 +125,11 @@ export class UserSessionService {
   private async findReusableSession(
     user: User,
     context: SessionContext,
+    manager?: EntityManager,
   ): Promise<UserSession | undefined> {
-    const activeSessions = await this.userSessionReaderRepository.find({
+    const activeSessions = await (
+      manager?.getRepository(UserSession) ?? this.userSessionReaderRepository
+    ).find({
       where: {
         id_usuario: user.id_usuario,
         revocada_en: IsNull(),
@@ -137,7 +150,10 @@ export class UserSessionService {
 
     return (
       activeSessions.find((session) => {
-        if (normalizedDeviceName && session.device_name === normalizedDeviceName) {
+        if (
+          normalizedDeviceName &&
+          session.device_name === normalizedDeviceName
+        ) {
           return true;
         }
 
@@ -158,8 +174,14 @@ export class UserSessionService {
     user: User,
     context: SessionContext,
     existingSession?: UserSession,
+    manager?: EntityManager,
   ) {
-    const session = this.createSessionRecord(user, context, existingSession);
+    const session = this.createSessionRecord(
+      user,
+      context,
+      existingSession,
+      manager,
+    );
 
     const payload = this.buildTokenPayload(user, session.id_sesion);
     const accessToken = jwt.sign(
@@ -179,6 +201,7 @@ export class UserSessionService {
       refreshToken,
       context,
       session,
+      manager,
     );
 
     return {
@@ -190,8 +213,13 @@ export class UserSessionService {
     };
   }
 
-  private async getActiveSession(sessionId: string): Promise<UserSession | null> {
-    const session = await this.userSessionReaderRepository.findOne({
+  private async getActiveSession(
+    sessionId: string,
+    manager?: EntityManager,
+  ): Promise<UserSession | null> {
+    const session = await (
+      manager?.getRepository(UserSession) ?? this.userSessionReaderRepository
+    ).findOne({
       where: { id_sesion: sessionId },
     });
 
@@ -209,8 +237,11 @@ export class UserSessionService {
   private async revokeSession(
     sessionId: string,
     reason: string,
+    manager?: EntityManager,
   ): Promise<void> {
-    const session = await this.userSessionEditorRepository.findOne({
+    const repository =
+      manager?.getRepository(UserSession) ?? this.userSessionEditorRepository;
+    const session = await repository.findOne({
       where: { id_sesion: sessionId },
     });
 
@@ -221,21 +252,56 @@ export class UserSessionService {
     session.revocada_en = new Date();
     session.motivo_revocacion = reason;
     session.ultima_actividad = new Date();
-    await this.userSessionEditorRepository.save(session);
+    await repository.save(session);
   }
 
-  async issueSessionTokensForUser(user: User, context: SessionContext) {
-    const existingSession = await this.findReusableSession(user, context);
-    return this.issueSessionTokens(user, context, existingSession);
+  async issueSessionTokensForUser(
+    user: User,
+    context: SessionContext,
+    manager?: EntityManager,
+  ) {
+    return this.accountDeletionAccess.withAccountLock(
+      user.id_usuario,
+      async (lockedManager, currentUser) => {
+        if (
+          currentUser.email !== user.email ||
+          currentUser.passw !== user.passw
+        ) {
+          throw new UnauthorizedException(
+            'La cuenta cambió. Inicia sesión de nuevo.',
+          );
+        }
+        const existingSession = await this.findReusableSession(
+          currentUser,
+          context,
+          lockedManager,
+        );
+        return this.issueSessionTokens(
+          currentUser,
+          context,
+          existingSession,
+          lockedManager,
+        );
+      },
+      manager,
+    );
   }
 
   async isSessionActive(sessionId: string): Promise<boolean> {
     const session = await this.getActiveSession(sessionId);
-    return !!session;
+    if (!session) return false;
+    await this.accountDeletionAccess.assertAllowed(session.id_usuario);
+    return true;
   }
 
   async logout(sessionId: string): Promise<{ message: string }> {
-    await this.revokeSession(sessionId, 'logout');
+    const session = await this.getActiveSession(sessionId);
+    if (session) {
+      await this.accountDeletionAccess.withAccountLock(
+        session.id_usuario,
+        (manager) => this.revokeSession(sessionId, 'logout', manager),
+      );
+    }
     return { message: 'Sesión cerrada correctamente.' };
   }
 
@@ -298,8 +364,7 @@ export class UserSessionService {
       });
     }
 
-    const existingSession = await this.findReusableSession(user, context);
-    return this.issueSessionTokens(user, context, existingSession);
+    return this.issueSessionTokensForUser(user, context);
   }
 
   async refreshToken(refreshToken: string, context: SessionContext) {
@@ -309,23 +374,36 @@ export class UserSessionService {
         this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
       ) as SessionTokenPayload;
 
-      const session = await this.getActiveSession(decoded.sessionId);
-      if (!session || session.id_usuario !== decoded.id_usuario) {
-        throw new UnauthorizedException('La sesión ya no está activa');
-      }
+      const result = await this.accountDeletionAccess.withAccountLock(
+        decoded.id_usuario,
+        async (manager, user) => {
+          const session = await this.getActiveSession(
+            decoded.sessionId,
+            manager,
+          );
+          if (!session || session.id_usuario !== decoded.id_usuario) {
+            throw new UnauthorizedException('La sesión ya no está activa');
+          }
 
-      const isRefreshTokenValid = await bcrypt.compare(
-        refreshToken,
-        session.refresh_token_hash,
+          const isRefreshTokenValid = await bcrypt.compare(
+            refreshToken,
+            session.refresh_token_hash,
+          );
+
+          if (!isRefreshTokenValid) {
+            await this.revokeSession(
+              decoded.sessionId,
+              'refresh_token_mismatch',
+              manager,
+            );
+            return null;
+          }
+
+          return this.issueSessionTokens(user, context, session, manager);
+        },
       );
-
-      if (!isRefreshTokenValid) {
-        await this.revokeSession(decoded.sessionId, 'refresh_token_mismatch');
-        throw new UnauthorizedException('Refresh token inválido');
-      }
-
-      const user = await this.findUserById(decoded.id_usuario);
-      return this.issueSessionTokens(user, context, session);
+      if (!result) throw new UnauthorizedException('Refresh token inválido');
+      return result;
     } catch (error) {
       throw new UnauthorizedException('Refresh token inválido');
     }
@@ -341,13 +419,20 @@ export class UserSessionService {
         this.configService.getOrThrow<string>('JWT_SECRET'),
       ) as SessionTokenPayload;
 
-      const session = await this.getActiveSession(decoded.sessionId);
-      if (!session || session.id_usuario !== decoded.id_usuario) {
-        throw new UnauthorizedException('La sesión ya no está activa');
-      }
+      return await this.accountDeletionAccess.withAccountLock(
+        decoded.id_usuario,
+        async (manager, user) => {
+          const session = await this.getActiveSession(
+            decoded.sessionId,
+            manager,
+          );
+          if (!session || session.id_usuario !== decoded.id_usuario) {
+            throw new UnauthorizedException('La sesión ya no está activa');
+          }
 
-      const user = await this.findUserById(decoded.id_usuario);
-      return this.issueSessionTokens(user, context, session);
+          return this.issueSessionTokens(user, context, session, manager);
+        },
+      );
     } catch (error) {
       throw new UnauthorizedException('No fue posible restaurar la sesión');
     }

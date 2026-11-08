@@ -5,6 +5,7 @@ import { MailService } from '../../../services/mail/mail.service';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { User } from '../entities/user.entity';
 import { UserAccountService } from './user-account.service';
+import { AccountDeletionAccessService } from '../../account-deletion/account-deletion-access.service';
 
 type ReaderStub = {
   findOne: jest.Mock<Promise<User | null>, [FindOneOptions<User>]>;
@@ -89,6 +90,7 @@ describe('UserAccountService: respuesta pública del registro', () => {
       editor as unknown as Repository<User>,
       reader as unknown as Repository<User>,
       mail as unknown as MailService,
+      {} as AccountDeletionAccessService,
     );
   });
 
@@ -183,6 +185,9 @@ describe('UserAccountService: respuesta pública del registro', () => {
       message: mailFailureMessage,
     });
     expect(JSON.stringify(result.getResponse())).not.toContain(providerDetail);
+    expect(
+      JSON.stringify(jest.spyOn(Logger.prototype, 'error').mock.calls),
+    ).not.toContain(providerDetail);
     expect(editor.save).toHaveBeenCalledTimes(1);
     expect(mail.sendVerificationEmail).toHaveBeenCalledTimes(1);
     expect(editor.delete).toHaveBeenCalledTimes(1);

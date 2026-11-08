@@ -4,6 +4,50 @@ import { MailService } from '../../../services/mail/mail.service';
 import { R2StorageService } from '../../backups/services/r2-storage.service';
 import { isAuditRecord } from '../http-audit.types';
 import type { HttpAuditRequest } from '../http-audit.types';
+import { requestLogMetadata } from '../../../security/request-log-metadata';
+import { isEmail } from 'class-validator';
+import { isIP } from 'node:net';
+
+function firstEmail(values: unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value === 'string' && value.length <= 254 && isEmail(value)) {
+      return value;
+    }
+  }
+  return null;
+}
+
+function firstUserId(values: unknown[]): number | null {
+  for (const value of values) {
+    if (typeof value === 'number' && Number.isSafeInteger(value) && value > 0) {
+      return value;
+    }
+  }
+  return null;
+}
+
+function firstSessionId(values: unknown[]): string | null {
+  for (const value of values) {
+    // Session IDs issued by this backend are UUIDs, never bearer credentials.
+    if (
+      typeof value === 'string' &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        value,
+      )
+    ) {
+      return value;
+    }
+  }
+  return null;
+}
+
+function boundedString(value: unknown, max: number): string | null {
+  return typeof value === 'string' &&
+    value.length <= max &&
+    !/[\r\n\0]/.test(value)
+    ? value
+    : null;
+}
 
 type LogLevel = 'info' | 'warn' | 'error' | 'critical';
 
@@ -51,7 +95,8 @@ export class CloudflareLogService {
       return;
     }
 
-    const moduleName = this.getModuleFromPath(path);
+    const safeRequest = requestLogMetadata(request);
+    const moduleName = this.getModuleFromPath(safeRequest.path);
     const metadata = this.classifyEvent(request, statusCode, error);
     const user = isAuditRecord(request.user) ? request.user : undefined;
     const body = isAuditRecord(request.body) ? request.body : undefined;
@@ -59,12 +104,17 @@ export class CloudflareLogService {
       ? request.session
       : undefined;
     const errorContext = isAuditRecord(error) ? error : undefined;
-    const email =
-      user?.email ??
-      body?.email ??
-      body?.correo ??
-      request?.query?.email ??
-      null;
+    const email = firstEmail([
+      user?.email,
+      body?.email,
+      body?.correo,
+      request?.query?.email,
+    ]);
+    const ip =
+      [request?.ip, request?.socket?.remoteAddress].find(
+        (value) =>
+          typeof value === 'string' && value.length <= 64 && isIP(value) > 0,
+      ) ?? null;
 
     const entry: LogEntry = {
       id: this.createId(),
@@ -73,25 +123,36 @@ export class CloudflareLogService {
       module: moduleName,
       event: metadata.event,
       data: {
-        method: request?.method ?? 'GET',
-        path,
+        method: safeRequest.method,
+        path: safeRequest.path,
         statusCode,
         durationMs,
-        ip: request?.ip ?? request?.socket?.remoteAddress ?? null,
-        userAgent: request?.headers?.['user-agent'] ?? null,
+        ip,
+        userAgent: boundedString(request?.headers?.['user-agent'], 1024),
         email,
-        userId: user?.id_usuario ?? user?.id ?? null,
-        sessionId:
-          user?.sessionId ??
-          user?.session_id ??
-          session?.id ??
-          request?.headers?.['x-session-id'] ??
-          null,
+        userId: firstUserId([user?.id_usuario, user?.id]),
+        sessionId: firstSessionId([
+          user?.sessionId,
+          user?.session_id,
+          session?.id,
+          request?.headers?.['x-session-id'],
+        ]),
         ...(error
           ? {
               error: {
-                name: errorContext?.name ?? 'Error',
-                message: errorContext?.message ?? 'Unexpected error',
+                name:
+                  typeof errorContext?.name === 'string' &&
+                  [
+                    'Error',
+                    'QueryFailedError',
+                    'BadRequestException',
+                    'UnauthorizedException',
+                    'ForbiddenException',
+                    'NotFoundException',
+                  ].includes(errorContext.name)
+                    ? errorContext.name
+                    : 'Error',
+                message: 'Request failed',
               },
             }
           : {}),
@@ -105,12 +166,8 @@ export class CloudflareLogService {
     await this.appendLog(entry);
 
     if (entry.level === 'critical') {
-      await this.sendCriticalAlert(entry).catch((mailError: unknown) =>
-        this.logger.error(
-          `No fue posible enviar la alerta crítica por correo: ${
-            mailError instanceof Error ? mailError.message : String(mailError)
-          }`,
-        ),
+      await this.sendCriticalAlert(entry).catch(() =>
+        this.logger.error('Critical audit alert delivery failed'),
       );
     }
   }
@@ -242,7 +299,7 @@ export class CloudflareLogService {
   private getModuleFromPath(path: string): string {
     const segment =
       path.split('?')[0].split('/').filter(Boolean)[0] ?? 'system';
-    return segment || 'system';
+    return segment === '[unmatched]' ? 'system' : segment || 'system';
   }
 
   private classifyEvent(
@@ -332,21 +389,31 @@ export class CloudflareLogService {
       <h2>Alerta crítica detectada</h2>
       <p>Se registró un evento crítico en el sistema.</p>
       <ul>
-        <li><b>Módulo:</b> ${entry.module}</li>
-        <li><b>Evento:</b> ${this.toTitleCase(entry.event)}</li>
-        <li><b>Fecha:</b> ${entry.timestamp}</li>
+        <li><b>Módulo:</b> ${this.stringifyLogValue(entry.module)}</li>
+        <li><b>Evento:</b> ${this.stringifyLogValue(this.toTitleCase(entry.event))}</li>
+        <li><b>Fecha:</b> ${this.stringifyLogValue(entry.timestamp)}</li>
         <li><b>Método:</b> ${this.stringifyLogValue(entry.data.method ?? 'N/A')}</li>
         <li><b>Ruta:</b> ${this.stringifyLogValue(entry.data.path ?? 'N/A')}</li>
         <li><b>Usuario:</b> ${this.stringifyLogValue(entry.data.email ?? 'No identificado')}</li>
       </ul>
-      <pre>${JSON.stringify(entry.data, null, 2)}</pre>
+      <pre>${this.stringifyLogValue(JSON.stringify(entry.data, null, 2))}</pre>
     `;
 
     await this.mailService.sendCriticalAlertEmail(destination, subject, html);
   }
 
   private stringifyLogValue(value: unknown): string {
-    return String(value);
+    const entities: Record<string, string> = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    };
+    return String(value).replace(
+      /[&<>"']/g,
+      (character) => entities[character],
+    );
   }
 
   private toTitleCase(value: string): string {

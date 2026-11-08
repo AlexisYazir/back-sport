@@ -31,11 +31,7 @@ export class HttpAuditInterceptor implements NestInterceptor {
         const statusCode = response.statusCode ?? 200;
         this.logService
           .registerHttpEvent(request, statusCode, Date.now() - startedAt)
-          .catch((error: unknown) =>
-            this.logger.error(
-              `No se pudo registrar log HTTP: ${error instanceof Error ? error.message : String(error)}`,
-            ),
-          );
+          .catch(() => this.logger.error('HTTP audit persistence failed'));
       }),
       catchError((error: unknown) => {
         const errorStatus = isAuditRecord(error) ? error.status : undefined;
@@ -45,10 +41,8 @@ export class HttpAuditInterceptor implements NestInterceptor {
             : (response.statusCode ?? 500);
         this.logService
           .registerHttpEvent(request, statusCode, Date.now() - startedAt, error)
-          .catch((logError: unknown) =>
-            this.logger.error(
-              `No se pudo registrar log HTTP con error: ${logError instanceof Error ? logError.message : String(logError)}`,
-            ),
+          .catch(() =>
+            this.logger.error('HTTP failure audit persistence failed'),
           );
 
         return throwError(() => error);
