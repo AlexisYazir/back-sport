@@ -138,6 +138,7 @@ function normalizeRetention(value: DeletionRetention): DeletionRetention {
  * Neither file may be included in a database backup or recreated at startup.
  */
 export class FileDeletionLedger implements DeletionLedger {
+  private queue: Promise<void> = Promise.resolve();
   private readonly directory: string;
   private readonly repositoryRoot: string;
   private readonly key: Buffer;
@@ -221,7 +222,18 @@ export class FileDeletionLedger implements DeletionLedger {
     }
   }
 
-  private async locked<T>(work: () => Promise<T>): Promise<T> {
+  private locked<T>(work: () => Promise<T>): Promise<T> {
+    // Serialize this instance's callers before acquiring the unchanged external
+    // process lock. A rejected operation must not poison subsequent queue work.
+    const operation = this.queue.then(() => this.withFileLock(work));
+    this.queue = operation.then(
+      () => undefined,
+      () => undefined,
+    );
+    return operation;
+  }
+
+  private async withFileLock<T>(work: () => Promise<T>): Promise<T> {
     let lock: Awaited<ReturnType<typeof open>> | undefined;
     let result!: T;
     let failure: DeletionLedgerError | undefined;
