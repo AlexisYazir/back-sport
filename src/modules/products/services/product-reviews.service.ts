@@ -150,7 +150,9 @@ export class ProductReviewsService {
         FROM core.reviews r
         LEFT JOIN core.users u
           ON u.id_usuario = r.id_usuario
-        WHERE r.id_producto = $1 AND r.retirada = false
+        WHERE r.id_producto = $1
+          -- Antes de la migración no existe retirada; un valor nulo no es visible.
+          AND COALESCE(to_jsonb(r)->'retirada', 'false'::jsonb) = 'false'::jsonb
         ORDER BY r.fecha DESC;
         `,
             [id_producto],
@@ -161,8 +163,9 @@ export class ProductReviewsService {
         SELECT
           COUNT(*)::int AS total,
           COALESCE(ROUND(AVG(calificacion)::numeric, 1), 0)::float AS promedio
-        FROM core.reviews
-        WHERE id_producto = $1 AND retirada = false;
+        FROM core.reviews r
+        WHERE r.id_producto = $1
+          AND COALESCE(to_jsonb(r)->'retirada', 'false'::jsonb) = 'false'::jsonb;
         `,
             [id_producto],
           );
