@@ -13,6 +13,8 @@ import * as bcrypt from 'bcrypt';
 import {
   Controller,
   Get,
+  Header,
+  HttpStatus,
   Post,
   Body,
   Req,
@@ -265,9 +267,10 @@ export class UsersController {
   }
 
   @Get('session')
+  @Header('Cache-Control', 'no-store')
   async restoreSession(
     @Req() req: any,
-    @Res({ passthrough: true }) res: Response,
+    @Res() res: Response,
   ) {
     const refreshToken = this.getRefreshTokenFromRequest(req);
     if (refreshToken) {
@@ -277,12 +280,12 @@ export class UsersController {
       );
 
       this.setAuthCookies(req, res, tokens);
-      return tokens;
+      return res.json(tokens);
     }
 
     const accessToken = this.getAccessTokenFromRequest(req);
     if (!accessToken) {
-      throw new BadRequestException('No existe una sesión activa');
+      return res.status(HttpStatus.NO_CONTENT).end();
     }
 
     const tokens = await this.usersService.restoreSessionFromAccessToken(
@@ -291,7 +294,7 @@ export class UsersController {
     );
 
     this.setAuthCookies(req, res, tokens);
-    return tokens;
+    return res.json(tokens);
   }
 
   @Throttle({ default: { limit: 5, ttl: 60000 } })
